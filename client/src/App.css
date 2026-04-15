@@ -1,0 +1,406 @@
+.App {
+ display: flex;
+ flex-direction: column;
+ justify-content: center;
+}
+
+.datos {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  align-items: center;
+ }
+
+ .datos input{
+  
+  width: 300px;
+  height: 30px;
+  font-size: 20px;
+  padding-left: 10px;
+  border-radius: 5px;
+  margin: 5px;
+ }
+
+ .datos button{
+  
+  max-width: 320px;
+  max-height: 50px;
+margin-top: 15px;
+ }
+
+
+
+
+ /* Ajusta el ancho del NavItem */
+ .nav-item {
+    width: calc(50% - 10empx); /* Cambia "x" por tu valor deseado (16em es un valor aceptable)*/  
+    
+} 
+
+
+
+
+
+
+
+
+
+
+/* #prueba-dropdown .dropdown-toggle::after {
+  border-top-color: green  ;      
+  border-bottom-color: green  ;    
+
+}
+
+
+#prueba-dropdown .dropdown-menu {
+  background-color: green  ; 
+}
+
+
+#prueba-dropdown .dropdown-item {
+  color: green  ;
+}
+
+
+#prueba-dropdown .dropdown-item:hover {
+  background-color: green ;  
+  color: green  ;
+}
+ #prueba-dropdown .dropdown-toggle {
+  color: green ;
+}  */
+
+
+
+
+
+
+
+
+
+
+.mi-dropdown-verde .dropdown-toggle {
+  background-color: #198754 !important;
+  color: white !important;
+  border-color: #198754 !important;
+}
+
+.mi-dropdown-verde .dropdown-toggle::after {
+  border-top-color: white !important; /* flecha blanca */
+}
+
+.mi-dropdown-verde .dropdown-menu {
+  background-color: #198754 !important;
+  border-color: #198754 !important;
+  margin-left: 1.35rem;
+  width: calc(100% - 1.35rem);
+  min-width: 0;
+}
+
+.mi-dropdown-verde .dropdown-item {
+  color: white !important;
+  background-color: transparent !important;
+  padding-left: 1.35rem;
+}
+
+.mi-dropdown-verde .dropdown-item:hover:not(.active) {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: white !important;
+}
+
+.mi-dropdown-verde .dropdown-item.active,
+.mi-dropdown-verde .dropdown-item.active:hover,
+.mi-dropdown-verde .dropdown-item.active:focus {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.btn-cerrar {
+  background-color: #ad0975 !important;
+  border-color: #ad0975 !important;
+  color: white !important; /* el texto blanco es común en botones de Bootstrap */
+}
+
+.btn-cerrar:hover {
+  background-color: #8a065d !important; /* un tono más oscuro para hover */
+  border-color: #8a065d !important;
+  color: white !important;
+}
+
+.btn-cerrar:focus, .btn-cerrar.focus {
+  box-shadow: 0 0 0 0.25rem rgba(173, 9, 117, 0.5) !important; /* sombra con tu color */
+}
+
+.btn-cerrar:active, .btn-cerrar.active {
+  background-color: #6b0448 !important;
+  border-color: #6b0448 !important;
+}
+
+/* Login — alineado con diseño PECUARIA GENÉTICA / referencia visual */
+.login-page {
+  --login-green: #145a32;
+  --login-green-bright: #1e8449;
+  --login-border: #cccccc;
+  --login-muted: #888888;
+  --login-forgot: #9a8f88;
+
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 72px 16px 48px;
+  box-sizing: border-box;
+  background: #eceef2;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 15px;
+  box-shadow: 0 8px 28px rgba(20, 90, 50, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 52px 32px 28px;
+  position: relative;
+  text-align: center;
+}
+
+.login-logo-wrap {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -52%);
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  border: 5px solid #ffffff;
+}
+
+.login-logo-img {
+  width: 102px;
+  height: 102px;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.login-title {
+  margin: 8px 0 24px;
+  color: var(--login-green);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+.login-form {
+  text-align: left;
+}
+
+.login-field-row {
+  position: relative;
+  margin-bottom: 14px;
+}
+
+.login-field-row--verify {
+  margin-bottom: 20px;
+}
+
+.login-field-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--login-muted);
+  font-size: 1.05rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.login-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px 0 42px;
+  border: 1px solid var(--login-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: #333;
+  background: #fff;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-input::placeholder {
+  color: var(--login-muted);
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: var(--login-green);
+  box-shadow: 0 0 0 3px rgba(20, 90, 50, 0.12);
+}
+
+.login-input--has-trailing {
+  padding-right: 44px;
+}
+
+.login-eye-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--login-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.login-eye-btn:hover {
+  color: #555;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.login-captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.login-captcha-code {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border-radius: 8px;
+  border: 1px solid var(--login-border);
+  background: #fafcfb;
+  color: var(--login-green-bright);
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.35em;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 0.35em;
+  font-family: ui-monospace, 'Cascadia Code', 'Segoe UI', system-ui, sans-serif;
+}
+
+.login-captcha-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.login-timer {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: conic-gradient(var(--login-green) var(--timer-deg, 360deg), #e0e0e0 0deg);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.login-timer-inner {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-timer-text {
+  font-size: 10px;
+  font-weight: 700;
+  color: #444;
+  line-height: 1;
+}
+
+.login-refresh {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--login-border);
+  background: #ffffff;
+  color: var(--login-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.login-refresh:hover {
+  background: #f8f8f8;
+  color: var(--login-green);
+}
+
+.login-submit {
+  width: 100%;
+  height: 50px;
+  margin-top: 4px;
+  border: none;
+  border-radius: 25px;
+  background: var(--login-green);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.login-submit:hover {
+  background: #0f4a28;
+}
+
+.login-submit:active {
+  transform: scale(0.99);
+}
+
+.login-forgot {
+  margin: 18px 0 0;
+  text-align: center;
+}
+
+.login-forgot-link {
+  font-size: 0.8125rem;
+  color: var(--login-forgot);
+  text-decoration: none;
+}
+
+.login-forgot-link:hover {
+  color: var(--login-green);
+  text-decoration: underline;
+}

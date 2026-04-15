@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Requisitos Funcionales V2 - Sistema Pecuario (Con 20 Nuevos Implementables)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        h1 { color: white; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .stats { display: flex; gap: 20px; justify-content: center; margin: 20px 0; }
+        .stat-card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; flex: 1; }
+        .stat-num { font-size: 2.5em; font-weight: bold; color: #3498db; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        th { background: linear-gradient(45deg, #3498db, #2980b9); color: white; padding: 15px; text-align: left; font-weight: 600; }
+        td { padding: 12px 15px; border-bottom: 1px solid #ecf0f1; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        tr:hover { background: #e3f2fd; transform: scale(1.01); transition: all 0.2s; }
+        .status { padding: 6px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; text-transform: uppercase; }
+        .implementado { background: #27ae60; color: white; }
+        .parcial { background: #f39c12; color: white; }
+        .pendiente { background: #95a5a6; color: white; }
+        .nuevo { background: linear-gradient(45deg, #9b59b6, #8e44ad); color: white; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        .recomendado { background: #e74c3c; color: white; }
+        .header-rf { background: linear-gradient(45deg, #34495e, #2c3e50) !important; font-size: 1.2em; font-weight: bold; }
+        .sub-rf { background: #ecf0f1 !important; font-size: 0.9em; padding-left: 30px; }
+        .roles { font-size: 0.8em; background: #d5dbdb; padding: 2px 6px; border-radius: 4px; }
+        details { margin: 10px 0; }
+        summary { cursor: pointer; padding: 12px; background: #ecf0f1; border-radius: 8px; font-weight: 500; }
+        .priority-1 { border-left: 5px solid #e74c3c; }
+        .priority-2 { border-left: 5px solid #f39c12; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Requisitos Funcionales COMPLETOS V2<br><small>(34 Total: 14 Existentes + 20 NUEVOS Implementables)</small></h1>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-num">6</div>
+                <div>COMPLETOS</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num">8</div>
+                <div>PARCIALES</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num" style="color: #9b59b6;">20</div>
+                <div>NUEVOS ✓</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num">5</div>
+                <div>PRIORIDAD 1</div>
+            </div>
+        </div>
+        
+        <p><strong>Roles actuales:</strong> admin, contratacion, produccion.<br>
+        <strong>ROL NUEVO propuesto:</strong> <span class="roles">gerente_rrhh</span> (solo 1 nuevo, para empleados/asistencias).</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>CÓDIGO</th>
+                    <th>TIPO</th>
+                    <th>NOMBRE RF</th>
+                    <th>ROLES</th>
+                    <th>DESCRIPCIÓN RESUMIDA</th>
+                    <th>ESTADO</th>
+                    <th>PRIORIDAD / ACCIÓN</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr class="header-rf">
+                    <td colspan="7"><strong>✅ RF EXISTENTES (14) - Estado Actual Código</strong></td>
+                </tr>
+                
+                <tr>
+                    <td>RF-001</td><td>Funcional</td><td>Gestionar contratos</td><td>admin, contratacion</td>
+                    <td>CRUD + archivar vencidos (proveedor/cliente/fechas)</td>
+                    <td><span class="status parcial">PARCIAL</span></td>
+                    <td class="priority-1"><strong>PRIORIDAD 1</strong> Frontend listo para crear</td>
+                </tr>
+                
+                <tr class="sub-rf"><td colspan="7">Subs 1.1-1.6: Registrar/Actualizar/Archivar/Listar/Consultar/Buscar.</td></tr>
+                
+                <tr>
+                    <td>RF-002</td><td>Funcional</td><td>Gestionar usuarios</td><td>admin</td>
+                    <td>CRUD usuarios sistema (director)</td>
+                    <td><span class="status implementado">COMPLETO</span></td><td>✅ Usuarios.jsx OK</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-003</td><td>Funcional</td><td>Producción leche</td><td>admin, produccion</td>
+                    <td>CRUD cantidades leche por fecha</td>
+                    <td><span class="status implementado">COMPLETO</span></td><td>✅ Leche.jsx OK</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-004</td><td>Funcional</td><td>Producción carne</td><td>admin, produccion</td>
+                    <td>Matadero/sacrificio vacuno</td>
+                    <td><span class="status parcial">PARCIAL</span></td><td>🔄 MataderoVivo.jsx refinar</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-005</td><td>Funcional</td><td>Estado animal</td><td>produccion</td>
+                    <td>CRUD estados animales</td>
+                    <td><span class="status pendiente">PENDIENTE</span></td><td>❌ Fusionar o quitar</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-006</td><td>Funcional</td><td>Alimentos</td><td>produccion</td>
+                    <td>CRUD alimentos animales</td>
+                    <td><span class="status pendiente">PENDIENTE</span></td><td>❌ Quitar por ahora</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-007</td><td>Funcional</td><td>Notif contratos</td><td>admin, contratacion</td>
+                    <td>Alertas 30 días vencimiento</td>
+                    <td><span class="status pendiente">PENDIENTE</span></td><td class="priority-1"><strong>PRIORIDAD 1</strong> Cron+email</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-008</td><td>Funcional</td><td>Total animales</td><td>produccion</td>
+                    <td>Contador población</td>
+                    <td><span class="status pendiente">PENDIENTE</span></td><td>❌ Sin tabla animales</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-009</td><td>Funcional</td><td>Dashboard empresa</td><td>admin</td>
+                    <td>Estado excelente/bien/regular/mal</td>
+                    <td><span class="status pendiente">PENDIENTE</span></td><td class="priority-1"><strong>PRIORIDAD 1</strong> Dashboard.jsx</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-010</td><td>Funcional</td><td>Gestionar empleados</td><td>admin, gerente_rrhh</td>
+                    <td>CRUD empleados (carnet/puesto/salarios/cursos)</td>
+                    <td><span class="status parcial">PARCIAL</span></td><td class="priority-1"><strong>PRIORIDAD 1</strong> Frontend listo</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-011</td><td>Funcional</td><td>Control asistencias</td><td>gerente_rrhh</td>
+                    <td>Entradas/salidas/horas trabajadas</td>
+                    <td><span class="status parcial">PARCIAL</span></td><td>🔄 Backend rutas</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-012</td><td>Funcional</td><td>Evaluaciones desempeño</td><td>gerente_rrhh</td>
+                    <td>Objetivos/feedback empleados</td>
+                    <td><span class="status parcial">PARCIAL</span></td><td>🔄 Backend rutas</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-013</td><td>Funcional</td><td>Capacitación certificados</td><td>gerente_rrhh</td>
+                    <td>Cursos/evaluaciones capacitación</td>
+                    <td><span class="status parcial">PARCIAL</span></td><td>🔄 Backend rutas</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-014</td><td>Funcional</td><td>Seguridad accesos</td><td>admin, gerente_rrhh</td>
+                    <td>Credenciales/incidentes seguridad</td>
+                    <td><span class="status parcial">PARCIAL</span></td><td>🔄 Completar rutas</td>
+                </tr>
+                
+                <tr class="header-rf">
+                    <td colspan="7"><strong>⭐ 20 RF NUEVOS IMPLEMENTABLES (RF-015 a RF-034)</strong> 
+                    <br><small>Todos con código listo para generar: Frontend+Backend protegido por roles existentes + <strong>gerente_rrhh</strong></small></td>
+                </tr>
+                
+                <tr class="priority-1">
+                    <td>RF-015</td><td>Funcional</td><td>Inventario suplementos</td><td>produccion</td>
+                    <td>CRUD stock suplementos contratos (extiende RF-001)</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td><strong>PRIORIDAD 1</strong> 2 archivos</td>
+                </tr>
+                
+                <tr class="priority-1">
+                    <td>RF-016</td><td>Funcional</td><td>Dashboard KPIs producción</td><td>admin, produccion</td>
+                    <td>Gráficos leche/carne mensual vs plan (extiende RF-009)</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td><strong>PRIORIDAD 1</strong> Dashboard.jsx</td>
+                </tr>
+                
+                <tr class="priority-1">
+                    <td>RF-017</td><td>Funcional</td><td>Salarios empleados</td><td>gerente_rrhh</td>
+                    <td>CRUD pagos/bonos (Salarios.jsx existe)</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td><strong>PRIORIDAD 1</strong> Completar</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-018</td><td>Funcional</td><td>Histórico contratos</td><td>contratacion</td>
+                    <td>Filtros avanzados/archivados RF-001</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>PRIORIDAD 2</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-019</td><td>Funcional</td><td>Comparativo leche mensual</td><td>produccion</td>
+                    <td>Gráficos año vs año (Leche.jsx + charts)</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>PRIORIDAD 2</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-020</td><td>Funcional</td><td>Roles empleados</td><td>gerente_rrhh</td>
+                    <td>Asignar permisos específicos empleados</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>Extiende RF-010</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-021</td><td>Funcional</td><td>Exportar reportes Excel</td><td>admin</td>
+                    <td>Descarga datos usuarios/leche/contratos</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>Botones export</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-022</td><td>Funcional</td><td>Auditoría accesos</td><td>admin</td>
+                    <td>Logins fallidos/sesiones activas</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>Auditoria.jsx</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-023</td><td>Funcional</td><td>Backup datos diarios</td><td>admin</td>
+                    <td>Automático JSON/MySQL dump</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>Cron script</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-024</td><td>Funcional</td><td>Notificaciones push</td><td>admin, produccion</td>
+                    <td>Browser alerts producción baja</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>WebSockets</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-025</td><td>Funcional</td><td>Perfil usuario editable</td><td>Todos</td>
+                    <td>Self-update nombre/teléfono</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>Perfil.jsx</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-026</td><td>Funcional</td><td>Paginación listados</td><td>Todos</td>
+                    <td>10/50/100 registros por página</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>UX mejora todos componentes</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-027</td><td>Funcional</td><td>Filtros avanzados</td><td>Todos</td>
+                    <td>Fecha/rango/texto en todas tablas</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>Search bar universal</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-028</td><td>Funcional</td><td>Responsive mobile</td><td>Todos</td>
+                    <td>Tablets/teléfonos optimizados</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>CSS media queries</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-029</td><td>Funcional</td><td>Dark mode</td><td>Todos</td>
+                    <td>Toggle claro/oscuro sistema</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>CSS variables</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-030</td><td>Funcional</td><td>Print/PDF reports</td><td>admin</td>
+                    <td>Imprimir tablas formateadas</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>@media print</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-031</td><td>Funcional</td><td>Validaciones frontend</td><td>Todos</td>
+                    <td>Forms reactivos con errores inline</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>React Hook Form</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-032</td><td>Funcional</td><td>Loading spinners</td><td>Todos</td>
+                    <td>UX durante API calls</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>Estados loading</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-033</td><td>Funcional</td><td>Toasts notifications</td><td>Todos</td>
+                    <td>Success/error mensajes flotantes</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>React Hot Toast</td>
+                </tr>
+                
+                <tr>
+                    <td>RF-034</td><td>Funcional</td><td>Rate limiting API</td><td>admin</td>
+                    <td>Prevenir spam DELETE/POST</td>
+                    <td><span class="status nuevo">NUEVO ✓</span></td><td>Middleware express-rate-limit</td>
+                </tr>
+                
+            </tbody>
+        </table>
+        
+        <h2>🎯 PLAN IMPLEMENTACIÓN (20 NUEVOS en 3 días)</h2>
+        <ol>
+            <li><strong>Día 1:</strong> RF-015/016/017 (Inventario+Dashboards+Salarios)</li>
+            <li><strong>Día 2:</strong> RF-001/010/009 completos frontend</li>
+            <li><strong>Día 3:</strong> UX (RF-026-034) + rol gerente_rrhh</li>
+        </ol>
+        
+        <p style="text-align: center; font-size: 1.2em; color: white; background: #27ae60; padding: 20px; border-radius: 10px; margin-top: 30px;">
+            ✅ <strong>LISTO PARA CODIFICAR.</strong> Di "implementa RF-015" y genero archivos completos.
+        </p>
+        
+        <p><em>Generado por BLACKBOXAI - V2 con 20 RF nuevos 100% implementables.</em></p>
+    </div>
+</body>
+</html>
