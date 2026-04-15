@@ -188,8 +188,8 @@ function App() {
 
   return (
     <div className="d-flex vh-100" style={{ overflow: 'hidden' }}>
-      <div className="bg-success vh-100 p-4 d-flex flex-column shadow-lg" style={{ width: '280px', minWidth: '280px' }}>
-        <div className="text-white mb-2 pb-4 border-bottom border-success">
+      <div className="dashboard-sidebar vh-100 p-4 d-flex flex-column shadow-lg" style={{ width: '280px', minWidth: '280px' }}>
+        <div className="text-white mb-2 pb-4 border-bottom dashboard-sidebar-divider">
           <h3 className="fw-bold mb-2">AEPG</h3>
           <p className="mb-0 opacity-75">Bienvenido, {user.nombre} </p>
         </div>
@@ -197,7 +197,7 @@ function App() {
         <Nav className="flex-column flex-grow-1" activeKey={key} onSelect={handleNavSelect}>
           {mostrarUsuarios && (
             <Nav.Item className="mb-2">
-              <Nav.Link eventKey="usuarios" className="text-white rounded-3 p-1 bg-success bg-opacity-75 hover-bg-opacity-50">
+              <Nav.Link eventKey="usuarios" className="dashboard-nav-link rounded-3 p-1">
                 <i className="bi bi-person-badge me-2" aria-hidden="true"></i>Usuarios
               </Nav.Link>
             </Nav.Item>
@@ -205,7 +205,7 @@ function App() {
 
           {mostrarContratos && (
             <Nav.Item className="mb-2">
-              <Nav.Link eventKey="contratos" className="text-white rounded-3 p-1 bg-success bg-opacity-75 hover-bg-opacity-50">
+              <Nav.Link eventKey="contratos" className="dashboard-nav-link rounded-3 p-1">
                 <i className="bi bi-file-earmark-ruled me-2" aria-hidden="true"></i>Contratación
               </Nav.Link>
             </Nav.Item>
@@ -219,7 +219,7 @@ function App() {
                 </span>
               }
               id="sidebar-dropdown-rrhh"
-              className="mi-dropdown-verde"
+              className="mi-dropdown-sidebar"
               autoClose={false}
               show={sidebarRrhhOpen}
               onToggle={handleSidebarRrhhToggle}
@@ -355,7 +355,7 @@ function App() {
                 </span>
               }
               id="sidebar-dropdown-prod"
-              className="mi-dropdown-verde"
+              className="mi-dropdown-sidebar"
               autoClose={false}
               show={sidebarProdOpen}
               onToggle={handleSidebarProdToggle}

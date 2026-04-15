@@ -81,38 +81,66 @@ margin-top: 15px;
 
 
 
-.mi-dropdown-verde .dropdown-toggle {
-  background-color: #198754 !important;
+/* Panel lateral del dashboard (tema rosado) */
+.dashboard-sidebar {
+  --dash-pink: #b85574;
+  --dash-pink-deep: #944560;
+  background-color: var(--dash-pink) !important;
+}
+
+.dashboard-sidebar .dashboard-sidebar-divider {
+  border-color: var(--dash-pink-deep) !important;
+}
+
+.dashboard-nav-link {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.dashboard-nav-link:hover,
+.dashboard-nav-link:focus {
+  background-color: rgba(255, 255, 255, 0.24) !important;
+  color: #fff !important;
+}
+
+.dashboard-sidebar .dashboard-nav-link.active {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+  color: #fff !important;
+}
+
+.mi-dropdown-sidebar .dropdown-toggle {
+  background-color: var(--dash-pink) !important;
   color: white !important;
-  border-color: #198754 !important;
+  border-color: var(--dash-pink) !important;
 }
 
-.mi-dropdown-verde .dropdown-toggle::after {
-  border-top-color: white !important; /* flecha blanca */
+.mi-dropdown-sidebar .dropdown-toggle::after {
+  border-top-color: white !important;
 }
 
-.mi-dropdown-verde .dropdown-menu {
-  background-color: #198754 !important;
-  border-color: #198754 !important;
+.mi-dropdown-sidebar .dropdown-menu {
+  background-color: var(--dash-pink) !important;
+  border-color: var(--dash-pink-deep) !important;
   margin-left: 1.35rem;
   width: calc(100% - 1.35rem);
   min-width: 0;
 }
 
-.mi-dropdown-verde .dropdown-item {
+.mi-dropdown-sidebar .dropdown-item {
   color: white !important;
   background-color: transparent !important;
   padding-left: 1.35rem;
 }
 
-.mi-dropdown-verde .dropdown-item:hover:not(.active) {
+.mi-dropdown-sidebar .dropdown-item:hover:not(.active) {
   background-color: rgba(255, 255, 255, 0.14) !important;
   color: white !important;
 }
 
-.mi-dropdown-verde .dropdown-item.active,
-.mi-dropdown-verde .dropdown-item.active:hover,
-.mi-dropdown-verde .dropdown-item.active:focus {
+.mi-dropdown-sidebar .dropdown-item.active,
+.mi-dropdown-sidebar .dropdown-item.active:hover,
+.mi-dropdown-sidebar .dropdown-item.active:focus {
   background-color: #ffffff !important;
   color: #000000 !important;
 }
