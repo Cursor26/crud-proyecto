@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Requisitos Funcionales Completos - Sistema Pecuario CRUD</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { color: #2c3e50; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #3498db; color: white; font-weight: bold; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        tr:hover { background: #e8f4f8; }
+        .status { padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold; }
+        .implementado { background: #27ae60; color: white; }
+        .parcial { background: #f39c12; color: white; }
+        .pendiente { background: #e74c3c; color: white; }
+        .recomendado { background: #9b59b6; color: white; }
+        .header-rf { background: #34495e; color: white; font-size: 1.1em; }
+        .sub-rf { padding-left: 30px; font-size: 0.9em; }
+        details { margin-bottom: 10px; }
+        summary { cursor: pointer; padding: 10px; background: #ecf0f1; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>📋 Requisitos Funcionales Completos - Análisis vs Código Actual</h1>
+    <p><strong>Estado actual del proyecto (basado en código):</strong> 60% implementado. Usuarios/Leche completos, Contratos/Empleados parciales, otros pendientes.</p>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>CÓDIGO</th>
+                <th>TIPO</th>
+                <th>NOMBRE RF</th>
+                <th>DESCRIPCIÓN</th>
+                <th>ESTADO IMPLEMENTACIÓN</th>
+                <th>ACCIÓN RECOMENDADA</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr class="header-rf">
+                <td colspan="6"><strong>RF ORIGINALES (TUS 9 PRINCIPALES)</strong></td>
+            </tr>
+            
+            <tr>
+                <td>RF-001</td>
+                <td>Funcional</td>
+                <td>Gestionar contratos</td>
+                <td>CRUD contratos (proveedor, cliente, fechas, tipo). Archivar vencidos.</td>
+                <td><span class="status parcial">PARCIAL</span> (Backend OK, falta frontend)</td>
+                <td><strong>🟢 IMPLEMENTAR FRONTEND</strong> (Puedo generarlo)</td>
+            </tr>
+            <tr class="sub-rf"><td colspan="6">1.1-1.6: Registrar/Actualizar/Archivar/Listar/Consultar/Buscar.</td></tr>
+            
+            <tr>
+                <td>RF-002</td>
+                <td>Funcional</td>
+                <td>Gestionar usuarios</td>
+                <td>CRUD usuarios (director).</td>
+                <td><span class="status implementado">COMPLETO</span> (Usuarios.jsx)</td>
+                <td>✅ OK</td>
+            </tr>
+            
+            <tr>
+                <td>RF-003</td>
+                <td>Funcional</td>
+                <td>Gestionar producción leche</td>
+                <td>CRUD cantidades leche.</td>
+                <td><span class="status implementado">COMPLETO</span> (Leche.jsx)</td>
+                <td>✅ OK</td>
+            </tr>
+            
+            <tr>
+                <td>RF-004</td>
+                <td>Funcional</td>
+                <td>Gestionar cantidad carne</td>
+                <td>CRUD producción carne.</td>
+                <td><span class="status parcial">PARCIAL</span> (MataderoVivo/SacrificioVacuno)</td>
+                <td>🔄 Refinar componente</td>
+            </tr>
+            
+            <tr>
+                <td>RF-005</td>
+                <td>Funcional</td>
+                <td>Gestionar estado animal</td>
+                <td>CRUD estados animales.</td>
+                <td><span class="status pendiente">PENDIENTE</span></td>
+                <td>❌ QUITAR o fusionar</td>
+            </tr>
+            
+            <tr>
+                <td>RF-006</td>
+                <td>Funcional</td>
+                <td>Gestionar alimento</td>
+                <td>CRUD alimentos.</td>
+                <td><span class="status pendiente">PENDIENTE</span></td>
+                <td>❌ QUITAR o implementar</td>
+            </tr>
+            
+            <tr>
+                <td>RF-007</td>
+                <td>Funcional</td>
+                <td>Notif. contratos vencidos</td>
+                <td>Alertas 30 días.</td>
+                <td><span class="status pendiente">PENDIENTE</span></td>
+                <td>🔄 Backend cron job</td>
+            </tr>
+            
+            <tr>
+                <td>RF-008</td>
+                <td>Funcional</td>
+                <td>Calcular total animales</td>
+                <td>Contador animales.</td>
+                <td><span class="status pendiente">PENDIENTE</span></td>
+                <td>❌ QUITAR (no tabla animales)</td>
+            </tr>
+            
+            <tr>
+                <td>RF-009</td>
+                <td>Funcional</td>
+                <td>Reporte estado empresa</td>
+                <td>Dashboard excelente/bien/regular/mal.</td>
+                <td><span class="status pendiente">PENDIENTE</span></td>
+                <td>🟢 IMPLEMENTAR DASHBOARD</td>
+            </tr>
+            
+            <tr class="header-rf">
+                <td colspan="6"><strong>RF HR ADICIONALES (TUS 5 + EXTRAS DEL CÓDIGO)</strong></td>
+            </tr>
+            
+            <tr>
+                <td>RF-010</td>
+                <td>Funcional</td>
+                <td>Gestionar empleados</td>
+                <td>CRUD empleados (carnet, puesto, salarios, cursos, seguridad).</td>
+                <td><span class="status parcial">PARCIAL</span> (Backend OK, falta frontend)</td>
+                <td><strong>🟢 IMPLEMENTAR FRONTEND</strong> (Puedo generarlo)</td>
+            </tr>
+            
+            <tr>
+                <td>RF-011</td>
+                <td>Funcional</td>
+                <td>Control asistencias</td>
+                <td>Entradas/salidas, horas.</td>
+                <td><span class="status parcial">PARCIAL</span> (Asistencias.jsx existe)</td>
+                <td>🔄 Completar backend</td>
+            </tr>
+            
+            <tr>
+                <td>RF-012</td>
+                <td>Funcional</td>
+                <td>Evaluaciones desempeño</td>
+                <td>Objetivos/feedback.</td>
+                <td><span class="status parcial">PARCIAL</span> (Evaluaciones.jsx)</td>
+                <td>🔄 Backend rutas</td>
+            </tr>
+            
+            <tr>
+                <td>RF-013</td>
+                <td>Funcional</td>
+                <td>Capacitación certificaciones</td>
+                <td>Cursos/evaluación.</td>
+                <td><span class="status parcial">PARCIAL</span> (Cursos.jsx etc.)</td>
+                <td>🔄 Backend rutas</td>
+            </tr>
+            
+            <tr>
+                <td>RF-014</td>
+                <td>Funcional</td>
+                <td>Seguridad accesos</td>
+                <td>Credenciales/incidentes.</td>
+                <td><span class="status parcial">PARCIAL</span> (Seguridad.jsx)</td>
+                <td>🔄 Completar</td>
+            </tr>
+            
+        </tbody>
+    </table>
+    
+    <h2>🚀 PRIORIDAD IMPLEMENTACIÓN (Que PUEDO GENERAR INMEDIATAMENTE)</h2>
+    <ul>
+        <li><strong>1. RF-001 Contratos Frontend</strong> (Componente Contratos.jsx + rutas protegidas)</li>
+        <li><strong>2. RF-010 Empleados Frontend</strong> (Empleados.jsx completo)</li>
+        <li><strong>3. RF-009 Dashboard Estado Empresa</strong> (Agregados SQL + Dashboard.jsx)</li>
+        <li><strong>4. RF-007 Notificaciones</strong> (Cron job Node.js + emails)</li>
+    </ul>
+    
+    <p><em>Archivo generado por BLACKBOXAI. Copia/pega en browser para ver interactivo.</em></p>
+</body>
+</html>
