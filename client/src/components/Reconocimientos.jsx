@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
+import { FormModal } from './FormModal';
 
 const Reconocimientos = () => {
   const [registros, setRegistros] = useState([]);
@@ -15,6 +16,7 @@ const Reconocimientos = () => {
   const [activo, setActivo] = useState(true);
   const [editando, setEditando] = useState(false);
   const [idOriginal, setIdOriginal] = useState('');
+  const [showReconocimientoModal, setShowReconocimientoModal] = useState(false);
 
   const getRegistros = () => {
     Axios.get('http://localhost:3001/reconocimientos-empleado')
@@ -74,6 +76,7 @@ const Reconocimientos = () => {
           Swal.fire('Listo', 'Reconocimiento actualizado', 'success');
           getRegistros();
           limpiarForm();
+          setShowReconocimientoModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     } else {
@@ -82,6 +85,7 @@ const Reconocimientos = () => {
           Swal.fire('Listo', 'Reconocimiento registrado', 'success');
           getRegistros();
           limpiarForm();
+          setShowReconocimientoModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     }
@@ -97,6 +101,7 @@ const Reconocimientos = () => {
     setValorEstimulo(r.valor_estimulo != null ? String(r.valor_estimulo) : '');
     setObservaciones(r.observaciones || '');
     setActivo(r.activo == 1);
+    setShowReconocimientoModal(true);
   };
 
   const eliminarRegistro = (r) => {
@@ -124,90 +129,39 @@ const Reconocimientos = () => {
         <h4>Reconocimientos</h4>
         <small className="text-muted">Premios y estímulos otorgados a empleados destacados</small>
       </div>
-
-      <div className="card shadow-sm border-0 p-4 mb-4">
-        <h6 className="mb-3">{editando ? 'Editar reconocimiento' : 'Registrar reconocimiento'}</h6>
-        <form onSubmit={handleSubmit}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label">Empleado</label>
-              <select className="form-select" value={carnet} onChange={(e) => setCarnet(e.target.value)} required>
-                <option value="">— Seleccione —</option>
-                {empleados.map((emp) => (
-                  <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
-                    {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label">Tipo (premio / estímulo / mención…)</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Ej. Premio al mérito, Estímulo económico"
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Fecha otorgamiento</label>
-              <input
-                type="date"
-                className="form-control"
-                value={fechaOtorgamiento}
-                onChange={(e) => setFechaOtorgamiento(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Valor estímulo (opc.)</label>
-              <input
-                type="number"
-                step="0.01"
-                min={0}
-                className="form-control"
-                placeholder="—"
-                value={valorEstimulo}
-                onChange={(e) => setValorEstimulo(e.target.value)}
-              />
-            </div>
-            <div className="col-12">
-              <label className="form-label">Descripción / motivo del reconocimiento</label>
-              <textarea className="form-control" rows={3} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} required />
-            </div>
-            <div className="col-md-8">
-              <label className="form-label">Observaciones</label>
-              <input className="form-control" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
-            </div>
-            <div className="col-md-2 d-flex align-items-end">
-              <div className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="activoRec"
-                  checked={activo}
-                  onChange={(e) => setActivo(e.target.checked)}
-                />
-                <label className="form-check-label" htmlFor="activoRec">
-                  Activo
-                </label>
-              </div>
-            </div>
-            <div className="col-md-2 d-flex align-items-end gap-1 flex-wrap">
-              <button type="submit" className="btn btn-primary">
-                {editando ? 'Guardar' : 'Registrar'}
-              </button>
-              {editando && (
-                <button type="button" className="btn btn-secondary" onClick={limpiarForm}>
-                  Cancelar
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
+      <div className="d-flex justify-content-end mb-3">
+        <button type="button" className="btn btn-primary" onClick={() => { limpiarForm(); setShowReconocimientoModal(true); }}>
+          <i className="bi bi-award me-2" aria-hidden="true" />
+          Registrar reconocimiento
+        </button>
       </div>
+
+      <FormModal
+        show={showReconocimientoModal}
+        onHide={() => setShowReconocimientoModal(false)}
+        title={editando ? 'Editar reconocimiento' : '+ Reconocimiento'}
+        subtitle=""
+        onPrimary={() => handleSubmit({ preventDefault: () => {} })}
+        primaryLabel={editando ? 'Actualizar' : 'Guardar'}
+      >
+        <div className="minimal-form-stack">
+          <div className="minimal-field">
+            <label className="minimal-label">Empleado:</label>
+            <select className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
+              <option value="" disabled hidden>--- Seleccione ---</option>
+              {empleados.map((emp) => (
+                <option key={emp.carnet_identidad} value={emp.carnet_identidad}>{emp.carnet_identidad} — {emp.nombre} {emp.apellidos}</option>
+              ))}
+            </select>
+          </div>
+          <div className="minimal-field"><label className="minimal-label">Tipo:</label><input type="text" className="minimal-input" placeholder="------------------------" value={tipo} onChange={(e) => setTipo(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Fecha otorgamiento:</label><input type="date" className="minimal-input" value={fechaOtorgamiento} onChange={(e) => setFechaOtorgamiento(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Valor estímulo:</label><input type="number" step="0.01" min={0} className="minimal-input" placeholder="------------------------" value={valorEstimulo} onChange={(e) => setValorEstimulo(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Descripción:</label><input type="text" className="minimal-input" placeholder="------------------------" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Observaciones:</label><input type="text" className="minimal-input" placeholder="------------------------" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} /></div>
+          <label className="minimal-radio"><input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Activo</label>
+        </div>
+      </FormModal>
 
       <div className="card shadow-sm border-0 p-3">
         <h6 className="mb-3">Reconocimientos registrados</h6>

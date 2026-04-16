@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 
 const CertificadosMedicos = () => {
   const [registros, setRegistros] = useState([]);
@@ -126,7 +127,7 @@ const CertificadosMedicos = () => {
                 onChange={(e) => setCarnet(e.target.value)}
                 required
               >
-                <option value="">— Seleccione empleado —</option>
+                <option value="" disabled hidden>— Seleccione empleado —</option>
                 {empleados.map((emp) => (
                   <option key={emp.carnet_identidad} value={String(emp.carnet_identidad)}>
                     {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
@@ -252,12 +253,8 @@ const CertificadosMedicos = () => {
                         </span>
                       </td>
                       <td>
-                        <button className="btn btn-sm btn-outline-primary me-1" onClick={() => editarRegistro(reg)}>
-                          <img src="/images/editar.png" alt="Editar" width="28" />
-                        </button>
-                        <button className="btn btn-sm btn-outline-danger" onClick={() => eliminarRegistro(reg.id_cert_medico)}>
-                          <img src="/images/eliminar.png" alt="Eliminar" width="28" />
-                        </button>
+                        <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
+                        <DeleteTableActionButton onClick={() => eliminarRegistro(reg.id_cert_medico)} />
                       </td>
                     </tr>
                   ))

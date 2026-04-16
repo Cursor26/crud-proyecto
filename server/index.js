@@ -18,7 +18,7 @@ app.use(cookieParser());
 const db = mysql.createConnection({
 host:"localhost",
 user:"root",
-password:"M3GS3NJUN1",
+password:"",
 database:"bd_crud"
 
 });
@@ -128,10 +128,16 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
 
 // Actualizar usuario (solo admin). La contraseña es opcional.
 app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async (req, res) => {
-  const { email } = req.params;
+  const emailAnterior = String(req.params.email || '').trim();
+  const nuevoEmail = String(req.body.email || '').trim().toLowerCase();
   const { nombre, password, rol } = req.body;
-  let query = 'UPDATE usuarios SET nombre = ?, rol = ?';
-  let params = [nombre, rol];
+
+  if (!emailAnterior || !nuevoEmail || !nombre || !rol) {
+    return res.status(400).json({ message: 'Email, nombre y rol son obligatorios' });
+  }
+
+  let query = 'UPDATE usuarios SET email = TRIM(?), nombre = ?, rol = ?';
+  let params = [nuevoEmail, nombre, rol];
 
   if (password) {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -139,11 +145,19 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
     params.push(hashedPassword);
   }
 
-  query += ' WHERE email = ?';
-  params.push(email);
+  query += ' WHERE email = ? OR LOWER(TRIM(email)) = LOWER(TRIM(?))';
+  params.push(emailAnterior, emailAnterior);
 
   db.query(query, params, (err, result) => {
-    if (err) return res.status(500).send(err);
+    if (err) {
+      if (err.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ message: 'El email ya existe para otro usuario' });
+      }
+      return res.status(500).json({ message: err.message || 'Error al actualizar usuario' });
+    }
+    if (!result || result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
     res.json({ message: 'Usuario actualizado' });
   });
 });

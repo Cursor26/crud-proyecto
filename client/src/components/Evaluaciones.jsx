@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 
 const Evaluaciones = () => {
     const [registros, setRegistros] = useState([]);
@@ -115,7 +116,7 @@ const Evaluaciones = () => {
                                 disabled={editando}
                                 required
                             >
-                                <option value="">— Seleccione empleado —</option>
+                                <option value="" disabled hidden>— Seleccione empleado —</option>
                                 {empleados.map((emp) => (
                                     <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
                                         {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
@@ -174,8 +175,8 @@ const Evaluaciones = () => {
                                     <td>{reg.evaluacion}</td>
                                     <td>{reg.descr}</td>
                                     <td>
-                                        <button className="btn btn-sm me-1" onClick={() => editarRegistro(reg)}><img src="/images/editar.png" alt="" width="40" height="40"/></button>
-                                        <button className="btn btn-sm" onClick={() => eliminarRegistro(reg.id_tabla)}><img src="/images/eliminar.png" alt="" width="40" height="40"/></button>
+                                        <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
+                                        <DeleteTableActionButton onClick={() => eliminarRegistro(reg.id_tabla)} />
                                     </td>
                                 </tr>
                             ))}

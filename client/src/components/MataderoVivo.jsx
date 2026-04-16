@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { exportRowsToExcel } from '../utils/exportExcel';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 
 // Definición de categorías y sufijos
 const categorias = [
@@ -219,11 +220,9 @@ const MataderoVivo = () => {
                                     <td className="small">{reg.creado_por || '—'}</td>
                                     <td className="small">{reg.actualizado_por || '—'}</td>
                                     <td>
-                                        <button className="btn btn-sm me-1" onClick={() => editarRegistro(reg)}><img src="/images/editar.png" alt="" width="40" height="40"/></button>
-                                        <button className="btn btn-sm" onClick={() => eliminarRegistro(reg.fecha)}><img src="/images/eliminar.png" alt="" width="40" height="40"/></button>
-
-
-</td>
+                                        <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
+                                        <DeleteTableActionButton onClick={() => eliminarRegistro(reg.fecha)} />
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

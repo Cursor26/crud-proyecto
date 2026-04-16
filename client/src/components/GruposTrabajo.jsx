@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { Modal, Button } from 'react-bootstrap';
+import { FormModal } from './FormModal';
 
 const GruposTrabajo = () => {
   const [grupos, setGrupos] = useState([]);
@@ -14,6 +15,7 @@ const GruposTrabajo = () => {
   const [gActivo, setGActivo] = useState(true);
   const [editGrupo, setEditGrupo] = useState(false);
   const [idGrupoEdit, setIdGrupoEdit] = useState('');
+  const [showGrupoModal, setShowGrupoModal] = useState(false);
 
   const [showMiembros, setShowMiembros] = useState(false);
   const [grupoMiembrosId, setGrupoMiembrosId] = useState(null);
@@ -84,6 +86,7 @@ const GruposTrabajo = () => {
           Swal.fire('Listo', 'Grupo actualizado', 'success');
           getGrupos();
           limpiarGrupo();
+          setShowGrupoModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     } else {
@@ -92,6 +95,7 @@ const GruposTrabajo = () => {
           Swal.fire('Listo', 'Grupo creado', 'success');
           getGrupos();
           limpiarGrupo();
+          setShowGrupoModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     }
@@ -103,6 +107,7 @@ const GruposTrabajo = () => {
     setGNombre(g.nombre || '');
     setGDescripcion(g.descripcion || '');
     setGActivo(g.activo == 1);
+    setShowGrupoModal(true);
   };
 
   const eliminarGrupo = (g) => {
@@ -248,43 +253,33 @@ const GruposTrabajo = () => {
         <small className="text-muted">Defina grupos, asigne integrantes y registre la asistencia del grupo por día</small>
       </div>
 
-      <div className="card shadow-sm border-0 p-4 mb-4">
-        <h6 className="mb-3">{editGrupo ? 'Editar grupo' : 'Nuevo grupo'}</h6>
-        <form onSubmit={submitGrupo}>
-          <div className="row g-3 align-items-end">
-            <div className="col-md-4">
-              <label className="form-label">Nombre</label>
-              <input className="form-control" value={gNombre} onChange={(e) => setGNombre(e.target.value)} required />
-            </div>
-            <div className="col-md-5">
-              <label className="form-label">Descripción</label>
-              <input className="form-control" value={gDescripcion} onChange={(e) => setGDescripcion(e.target.value)} />
-            </div>
-            <div className="col-md-1 form-check ms-2 pt-4">
-              <input
-                type="checkbox"
-                className="form-check-input"
-                id="gActivo"
-                checked={gActivo}
-                onChange={(e) => setGActivo(e.target.checked)}
-              />
-              <label className="form-check-label" htmlFor="gActivo">
-                Activo
-              </label>
-            </div>
-            <div className="col-md-2">
-              <button type="submit" className="btn btn-primary me-1">
-                {editGrupo ? 'Guardar' : 'Crear'}
-              </button>
-              {editGrupo && (
-                <button type="button" className="btn btn-secondary" onClick={limpiarGrupo}>
-                  Cancelar
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
+      <div className="d-flex justify-content-end mb-3">
+        <button type="button" className="btn btn-primary" onClick={() => { limpiarGrupo(); setShowGrupoModal(true); }}>
+          <i className="bi bi-people me-2" aria-hidden="true" />
+          Nuevo grupo
+        </button>
       </div>
+
+      <FormModal
+        show={showGrupoModal}
+        onHide={() => setShowGrupoModal(false)}
+        title={editGrupo ? 'Editar grupo' : '+ Grupo'}
+        subtitle=""
+        onPrimary={() => submitGrupo({ preventDefault: () => {} })}
+        primaryLabel={editGrupo ? 'Actualizar' : 'Guardar'}
+      >
+        <div className="minimal-form-stack">
+          <div className="minimal-field">
+            <label className="minimal-label">Nombre:</label>
+            <input className="minimal-input" placeholder="------------------------" value={gNombre} onChange={(e) => setGNombre(e.target.value)} />
+          </div>
+          <div className="minimal-field">
+            <label className="minimal-label">Descripción:</label>
+            <input className="minimal-input" placeholder="------------------------" value={gDescripcion} onChange={(e) => setGDescripcion(e.target.value)} />
+          </div>
+          <label className="minimal-radio"><input type="checkbox" checked={gActivo} onChange={(e) => setGActivo(e.target.checked)} /> Activo</label>
+        </div>
+      </FormModal>
 
       <div className="card shadow-sm border-0 p-3 mb-4">
         <h6 className="mb-3">Grupos registrados</h6>
@@ -340,7 +335,7 @@ const GruposTrabajo = () => {
             <div className="col-md-4">
               <label className="form-label">Grupo</label>
               <select className="form-select" value={asGrupo} onChange={(e) => setAsGrupo(e.target.value)} required>
-                <option value="">— Seleccione —</option>
+                <option value="" disabled hidden>— Seleccione —</option>
                 {grupos.map((g) => (
                   <option key={g.id_grupo} value={g.id_grupo}>
                     {g.nombre} ({g.num_miembros ?? 0} integrantes)

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { Modal, Button, Table as BTable } from 'react-bootstrap';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { FormModal } from './FormModal';
 
 function GestionEmpleados() {
   const [empCarnet, setEmpCarnet] = useState('');
@@ -27,6 +29,7 @@ function GestionEmpleados() {
   const [historialTitulo, setHistorialTitulo] = useState('');
   const [historialRows, setHistorialRows] = useState([]);
   const [historialLoading, setHistorialLoading] = useState(false);
+  const [showEmpleadoModal, setShowEmpleadoModal] = useState(false);
 
   const getEmpleados = () => {
     Axios.get('http://localhost:3001/empleados')
@@ -60,7 +63,7 @@ function GestionEmpleados() {
     })
       .then(() => {
         getEmpleados();
-        limpiarEmpleado();
+        cerrarModalEmpleado();
         Swal.fire('Registro exitoso', 'Empleado agregado', 'success');
       })
       .catch((error) => {
@@ -90,7 +93,7 @@ function GestionEmpleados() {
     })
       .then(() => {
         getEmpleados();
-        limpiarEmpleado();
+        cerrarModalEmpleado();
         Swal.fire('Actualización exitosa', 'Empleado actualizado', 'success');
       })
       .catch((error) => {
@@ -119,6 +122,21 @@ function GestionEmpleados() {
     });
   };
 
+  const cerrarModalEmpleado = () => {
+    limpiarEmpleado();
+    setShowEmpleadoModal(false);
+  };
+
+  const abrirModalAgregarEmpleado = () => {
+    limpiarEmpleado();
+    setShowEmpleadoModal(true);
+  };
+
+  const guardarEmpleadoModal = () => {
+    if (editarEmpleado) updateEmpleado();
+    else addEmpleado();
+  };
+
   const editarEmpleadoTabla = (val) => {
     setEditarEmpleado(true);
     setEmpCarnet(val.carnet_identidad);
@@ -138,6 +156,7 @@ function GestionEmpleados() {
     setEmpSeguridad(val.seguimiento_seguridad || '');
     setEmpNivelEscolar(val.nivel_escolar || '');
     setEmpSuperacion(val.superacion_en_proceso || '');
+    setShowEmpleadoModal(true);
   };
 
   const etiquetaTipoCambio = (tipo) => {
@@ -184,99 +203,50 @@ function GestionEmpleados() {
 
   return (
     <div>
-      <h4>Gestión de empleados</h4>
-      <small className="text-muted">Administración de los emplados de la empresa (RF19: nivel escolar y superación en el formulario)</small>
+      <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <h4 className="mb-1">Gestión de empleados</h4>
+          <small className="text-muted">
+            Administración de los empleados de la empresa (RF19: nivel escolar y superación en el formulario)
+          </small>
+        </div>
+        <button type="button" className="btn btn-primary d-inline-flex align-items-center" onClick={abrirModalAgregarEmpleado}>
+          <i className="bi bi-person-plus me-2" aria-hidden="true" />
+          Agregar empleado
+        </button>
+      </div>
+
+      <FormModal
+        show={showEmpleadoModal}
+        onHide={cerrarModalEmpleado}
+        title={editarEmpleado ? 'Editar empleado' : '+ Empleado'}
+        subtitle=""
+        onPrimary={guardarEmpleadoModal}
+        primaryLabel={editarEmpleado ? 'Actualizar' : 'Guardar'}
+      >
+        <div className="minimal-form-stack">
+          <div className="minimal-field"><label className="minimal-label">Carnet:</label><input type="number" className="minimal-input" placeholder="------------------------" value={empCarnet} onChange={(e) => setEmpCarnet(e.target.value)} disabled={editarEmpleado} /></div>
+          <div className="minimal-field"><label className="minimal-label">Nombre:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empNombre} onChange={(e) => setEmpNombre(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Apellidos:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empApellidos} onChange={(e) => setEmpApellidos(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Puesto:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empPuesto} onChange={(e) => setEmpPuesto(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Teléfono:</label><input type="number" className="minimal-input" placeholder="------------------------" value={empTelefono} onChange={(e) => setEmpTelefono(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Departamento:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empDepartamento} onChange={(e) => setEmpDepartamento(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Evaluaciones:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empEvaluaciones} onChange={(e) => setEmpEvaluaciones(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Salario:</label><input type="number" step="0.01" className="minimal-input" placeholder="------------------------" value={empSalario} onChange={(e) => setEmpSalario(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Beneficios:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empBeneficios} onChange={(e) => setEmpBeneficios(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Cursos:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empCursos} onChange={(e) => setEmpCursos(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Certificados:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empCertificados} onChange={(e) => setEmpCertificados(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Nivel escolar:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empNivelEscolar} onChange={(e) => setEmpNivelEscolar(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Superación en proceso:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empSuperacion} onChange={(e) => setEmpSuperacion(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Licencias:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empLicencias} onChange={(e) => setEmpLicencias(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Resultados auditorías:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empAuditorias} onChange={(e) => setEmpAuditorias(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Acceso:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empAcceso} onChange={(e) => setEmpAcceso(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Seguimiento seguridad:</label><input type="text" className="minimal-input" placeholder="------------------------" value={empSeguridad} onChange={(e) => setEmpSeguridad(e.target.value)} /></div>
+        </div>
+      </FormModal>
+
       <div className="card p-3">
-        <div className="row">
-          <div className="col-md-2">
-            <input
-              type="number"
-              className="form-control"
-              placeholder="Carnet (11 díg)"
-              value={empCarnet}
-              onChange={(e) => setEmpCarnet(e.target.value)}
-            />
-          </div>
-          <div className="col-md-2">
-            <input type="text" className="form-control" placeholder="Nombre" value={empNombre} onChange={(e) => setEmpNombre(e.target.value)} />
-          </div>
-          <div className="col-md-2">
-            <input type="text" className="form-control" placeholder="Apellidos" value={empApellidos} onChange={(e) => setEmpApellidos(e.target.value)} />
-          </div>
-          <div className="col-md-2">
-            <input type="text" className="form-control" placeholder="Puesto" value={empPuesto} onChange={(e) => setEmpPuesto(e.target.value)} />
-          </div>
-          <div className="col-md-2">
-            <input type="number" className="form-control" placeholder="Teléfono" value={empTelefono} onChange={(e) => setEmpTelefono(e.target.value)} />
-          </div>
-          <div className="col-md-2">
-            <input type="text" className="form-control" placeholder="Departamento" value={empDepartamento} onChange={(e) => setEmpDepartamento(e.target.value)} />
-          </div>
-        </div>
-        <div className="row mt-2">
-          <div className="col-md-3">
-            <input type="text" className="form-control" placeholder="Evaluaciones" value={empEvaluaciones} onChange={(e) => setEmpEvaluaciones(e.target.value)} />
-          </div>
-          <div className="col-md-2">
-            <input type="number" step="0.01" className="form-control" placeholder="Salario" value={empSalario} onChange={(e) => setEmpSalario(e.target.value)} />
-          </div>
-          <div className="col-md-3">
-            <input type="text" className="form-control" placeholder="Beneficios" value={empBeneficios} onChange={(e) => setEmpBeneficios(e.target.value)} />
-          </div>
-          <div className="col-md-2">
-            <input type="text" className="form-control" placeholder="Cursos" value={empCursos} onChange={(e) => setEmpCursos(e.target.value)} />
-          </div>
-          <div className="col-md-2">
-            <input type="text" className="form-control" placeholder="Certificados" value={empCertificados} onChange={(e) => setEmpCertificados(e.target.value)} />
-          </div>
-        </div>
-        <div className="row mt-2">
-          <div className="col-md-3">
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Nivel escolar (RF19)"
-              value={empNivelEscolar}
-              onChange={(e) => setEmpNivelEscolar(e.target.value)}
-            />
-          </div>
-          <div className="col-md-5">
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Superación en proceso (curso, título en curso…)"
-              value={empSuperacion}
-              onChange={(e) => setEmpSuperacion(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="row mt-2">
-          <div className="col-md-3">
-            <input type="text" className="form-control" placeholder="Licencias" value={empLicencias} onChange={(e) => setEmpLicencias(e.target.value)} />
-          </div>
-          <div className="col-md-3">
-            <input type="text" className="form-control" placeholder="Resultados Auditorías" value={empAuditorias} onChange={(e) => setEmpAuditorias(e.target.value)} />
-          </div>
-          <div className="col-md-3">
-            <input type="text" className="form-control" placeholder="Acceso" value={empAcceso} onChange={(e) => setEmpAcceso(e.target.value)} />
-          </div>
-          <div className="col-md-3">
-            <input type="text" className="form-control" placeholder="Seguimiento Seguridad" value={empSeguridad} onChange={(e) => setEmpSeguridad(e.target.value)} />
-          </div>
-        </div>
-        <div className="row mt-3">
-          <div className="col-md-12">
-            <button type="button" className="btn btn-primary" onClick={editarEmpleado ? updateEmpleado : addEmpleado}>
-              {editarEmpleado ? 'Actualizar' : 'Agregar'}
-            </button>
-            {editarEmpleado && (
-              <button type="button" className="btn btn-secondary ms-2" onClick={limpiarEmpleado}>
-                Cancelar
-              </button>
-            )}
-          </div>
-        </div>
-        <hr />
+        <div className="table-responsive">
         <table className="table table-bordered table-striped">
           <thead>
             <tr>
@@ -308,17 +278,14 @@ function GestionEmpleados() {
                   <button type="button" className="btn btn-sm btn-outline-secondary me-1" title="Historial laboral" onClick={() => abrirHistorial(emp)}>
                     Historial
                   </button>
-                  <button type="button" className="btn btn-sm me-2" onClick={() => editarEmpleadoTabla(emp)}>
-                    <img src="/images/editar.png" alt="" width="40" height="40" />
-                  </button>
-                  <button type="button" className="btn btn-sm" onClick={() => deleteEmpleado(emp)}>
-                    <img src="/images/eliminar.png" alt="" width="40" height="40" />
-                  </button>
+                  <EditTableActionButton onClick={() => editarEmpleadoTabla(emp)} className="me-2" />
+                  <DeleteTableActionButton onClick={() => deleteEmpleado(emp)} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Modal show={showHistorial} onHide={() => setShowHistorial(false)} size="lg" centered>

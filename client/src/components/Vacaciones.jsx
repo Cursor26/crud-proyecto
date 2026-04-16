@@ -3,6 +3,8 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { FormModal } from './FormModal';
 
 const Vacaciones = () => {
     const [registros, setRegistros] = useState([]);
@@ -15,6 +17,7 @@ const Vacaciones = () => {
     const [observaciones, setObservaciones] = useState('');
     const [editando, setEditando] = useState(false);
     const [idOriginal, setIdOriginal] = useState('');
+    const [showVacacionesModal, setShowVacacionesModal] = useState(false);
     const { empleados, nombrePorCarnet } = useEmpleadosOptions();
 
     const getRegistros = () => {
@@ -82,6 +85,7 @@ const Vacaciones = () => {
                     Swal.fire('Actualizado', 'Registro actualizado', 'success');
                     getRegistros();
                     limpiarForm();
+                    setShowVacacionesModal(false);
                 })
                 .catch(err =>
                     Swal.fire(
@@ -96,6 +100,7 @@ const Vacaciones = () => {
                     Swal.fire('Creado', 'Registro creado', 'success');
                     getRegistros();
                     limpiarForm();
+                    setShowVacacionesModal(false);
                 })
                 .catch(err =>
                     Swal.fire(
@@ -117,6 +122,7 @@ const Vacaciones = () => {
         setMotivo(reg.motivo || '');
         setAprobado(reg.aprobado === 1 || reg.aprobado === true);
         setObservaciones(reg.observaciones || '');
+        setShowVacacionesModal(true);
     };
 const eliminarRegistro = (id) => {
         Swal.fire({
@@ -154,120 +160,50 @@ const eliminarRegistro = (id) => {
                     </small>
                 </div>
                 <div>
-                    {/* Botón de actualizar comentado */}
+                    <button type="button" className="btn btn-primary" onClick={() => { limpiarForm(); setShowVacacionesModal(true); }}>
+                        <i className="bi bi-calendar-plus me-2" aria-hidden="true" />
+                        Agregar vacaciones
+                    </button>
                 </div>
             </div>
+
+            <FormModal
+                show={showVacacionesModal}
+                onHide={() => setShowVacacionesModal(false)}
+                title={editando ? 'Editar vacaciones' : '+ Vacaciones'}
+                subtitle=""
+                onPrimary={(e) => handleSubmit(e || { preventDefault: () => {} })}
+                primaryLabel={editando ? 'Actualizar' : 'Guardar'}
+            >
+                <div className="minimal-form-stack">
+                    <div className="minimal-field">
+                        <label className="minimal-label">Empleado:</label>
+                        <select
+                            className={`minimal-select ${idTabla ? 'is-selected' : ''}`}
+                            value={idTabla}
+                            onChange={(e) => setIdTabla(e.target.value)}
+                            disabled={editando}
+                        >
+                            <option value="" disabled hidden>--- Seleccione ---</option>
+                            {empleados.map((emp) => (
+                                <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
+                                    {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="minimal-field"><label className="minimal-label">Fecha inicio:</label><input type="date" className="minimal-input" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} /></div>
+                    <div className="minimal-field"><label className="minimal-label">Fecha fin:</label><input type="date" className="minimal-input" value={fechaFin} onChange={e => setFechaFin(e.target.value)} /></div>
+                    <div className="minimal-field"><label className="minimal-label">Días totales:</label><input type="number" className="minimal-input" value={diasTotales} readOnly /></div>
+                    <div className="minimal-field"><label className="minimal-label">Motivo:</label><input type="text" className="minimal-input" placeholder="------------------------" value={motivo} onChange={e => setMotivo(e.target.value)} /></div>
+                    <label className="minimal-radio"><input type="checkbox" checked={aprobado} onChange={e => setAprobado(e.target.checked)} /> Aprobado</label>
+                    <div className="minimal-field"><label className="minimal-label">Observaciones:</label><input type="text" className="minimal-input" placeholder="------------------------" value={observaciones} onChange={e => setObservaciones(e.target.value)} /></div>
+                </div>
+            </FormModal>
 
             {/* Tarjeta principal */}
             <div className="card shadow-sm border-0">
                 <div className="card-body">
-                    {/* Barra superior de filtros / formulario compacto */}
-                    <div className="d-flex flex-column flex-lg-row align-items-stretch align-items-lg-end mb-3 gap-3">
-                        <div className="flex-grow-1">
-                            <label className="form-label mb-1">Empleado</label>
-                            <select
-                                className="form-select form-select-sm"
-                                value={idTabla}
-                                onChange={(e) => setIdTabla(e.target.value)}
-                                disabled={editando}
-                                required
-                            >
-                                <option value="">— Seleccione empleado —</option>
-                                {empleados.map((emp) => (
-                                    <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
-                                        {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div style={{ minWidth: 150 }}>
-                            <label className="form-label mb-1">Fecha Inicio</label>
-                            <input
-                                placeholder="📅 Inicio"
-                                type="date"
-                                className="form-control form-control-sm"
-                                value={fechaInicio}
-                                onChange={e => setFechaInicio(e.target.value)}
-                            />
-                        </div>
-                        <div style={{ minWidth: 150 }}>
-                            <label className="form-label mb-1">Fecha Fin</label>
-                            <input
-                                placeholder="📅 Fin"
-                                type="date"
-                                className="form-control form-control-sm"
-                                value={fechaFin}
-                                onChange={e => setFechaFin(e.target.value)}
-                            />
-                        </div>
-                        <div style={{ minWidth: 100 }}>
-                            <label className="form-label mb-1">Días Totales</label>
-                            <input
-                                placeholder="⏱️ Días"
-                                type="number"
- className="form-control form-control-sm"
-                                value={diasTotales}
-                                readOnly
-                            />
-                        </div>
-                        <div className="d-flex gap-2">
-                            <button
-                                type="button"
-                                className={`btn ${editando ? 'btn-warning' : 'btn-success'} btn-sm`}
-                                onClick={handleSubmit}
-                            >
-                                {editando ? 'Actualizar' : 'Guardar'}
-                            </button>
-                            {editando && (
-                                <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={limpiarForm}
-                                >
-                                    Cancelar
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Motivo */}
-                    <div className="mb-2">
-                        <label className="form-label mb-1">Motivo</label>
-                        <input
-                            placeholder="✏️ Motivo de las vacaciones"
-                            type="text"
-                            className="form-control form-control-sm"
-                            value={motivo}
-                            onChange={e => setMotivo(e.target.value)}
-                        />
-                    </div>
-
-                    {/* Aprobado y Observaciones en la misma fila */}
-                    <div className="row mb-2">
-                        <div className="col-md-3">
-                            <label className="form-label mb-1">Aprobado</label>
-                            <div className="form-check mt-2">
-                                <input
-                                    type="checkbox"
-                                    className="form-check-input"
-                                    checked={aprobado}
-                                    onChange={e => setAprobado(e.target.checked)}
-                                />
-                                <label className="form-check-label">Sí</label>
-                            </div>
-                        </div>
-                        <div className="col-md-9">
-                            <label className="form-label mb-1">Observaciones</label>
-                            <textarea
-                                placeholder="📝 Observaciones adicionales"
-                                className="form-control form-control-sm"
-                                rows="2"
-                                value={observaciones}
-                                onChange={e => setObservaciones(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
                     <hr className="mt-0" />
 
                     {/* Encabezado de tabla y contador */}
@@ -284,7 +220,7 @@ const eliminarRegistro = (id) => {
                             <thead className="table-light">
                                 <tr>
                                     <th>Empleado</th>
-[01/04/2026 04:34 p. m.] Kevin Cabeza: <th>Fecha Inicio</th>
+                                    <th>Fecha Inicio</th>
                                     <th>Fecha Fin</th>
                                     <th>Días</th>
                                     <th>Motivo</th>
@@ -314,18 +250,8 @@ const eliminarRegistro = (id) => {
                                         <td>{reg.aprobado ? 'Sí' : 'No'}</td>
                                         <td>{reg.observaciones}</td>
                                         <td className="text-center">
-                                            <button
-                                                className="btn btn-sm me-1"
-                                                onClick={() => editarRegistro(reg)}
-                                            >
-                                                <img src="/images/editar.png" alt="" width="40" height="40" />
-                                            </button>
-                                            <button
-                                                className="btn btn-sm me-1"
-                                                onClick={() => eliminarRegistro(reg.id_tabla)}
-                                            >
-                                                <img src="/images/eliminar.png" alt="" width="40" height="40" />
-                                            </button>
+                                            <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
+                                            <DeleteTableActionButton onClick={() => eliminarRegistro(reg.id_tabla)} />
                                         </td>
                                     </tr>
                                 ))}

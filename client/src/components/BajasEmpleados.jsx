@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
+import { FormModal } from './FormModal';
 
 const esActivo = (e) => e.activo == null || e.activo === 1 || e.activo === '1';
 
@@ -11,6 +12,7 @@ const BajasEmpleados = () => {
   const [carnetBaja, setCarnetBaja] = useState('');
   const [fechaBaja, setFechaBaja] = useState(() => new Date().toISOString().slice(0, 10));
   const [motivoBaja, setMotivoBaja] = useState('');
+  const [showBajaModal, setShowBajaModal] = useState(false);
 
   const cargar = () => {
     Axios.get('http://localhost:3001/empleados')
@@ -60,6 +62,7 @@ const BajasEmpleados = () => {
           setCarnetBaja('');
           setMotivoBaja('');
           setFechaBaja(new Date().toISOString().slice(0, 10));
+          setShowBajaModal(false);
           cargar();
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
@@ -95,49 +98,49 @@ const BajasEmpleados = () => {
         </small>
       </div>
 
-      <div className="card shadow-sm border-0 p-4 mb-4">
-        <h6 className="mb-3">Registrar baja</h6>
-        <form onSubmit={registrarBaja}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label">Empleado (solo activos)</label>
-              <select className="form-select" value={carnetBaja} onChange={(e) => setCarnetBaja(e.target.value)} required>
-                <option value="">— Seleccione —</option>
-                {empleadosParaBaja.map((emp) => (
-                  <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
-                    {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Fecha de baja</label>
-              <input
-                type="date"
-                className="form-control"
-                value={fechaBaja}
-                onChange={(e) => setFechaBaja(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label">Motivo (despido, renuncia, fin de contrato…)</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Opcional pero recomendado"
-                value={motivoBaja}
-                onChange={(e) => setMotivoBaja(e.target.value)}
-              />
-            </div>
-            <div className="col-md-2 d-flex align-items-end">
-              <button type="submit" className="btn btn-warning w-100">
-                Dar de baja
-              </button>
-            </div>
-          </div>
-        </form>
+      <div className="d-flex justify-content-end mb-3">
+        <button type="button" className="btn btn-primary" onClick={() => setShowBajaModal(true)}>
+          <i className="bi bi-person-dash me-2" aria-hidden="true" />
+          Registrar baja
+        </button>
       </div>
+
+      <FormModal
+        show={showBajaModal}
+        onHide={() => setShowBajaModal(false)}
+        title="+ Baja"
+        subtitle=""
+        onPrimary={() => registrarBaja({ preventDefault: () => {} })}
+        primaryLabel="Guardar"
+      >
+        <div className="minimal-form-stack">
+          <div className="minimal-field">
+            <label className="minimal-label">Empleado (solo activos):</label>
+            <select className={`minimal-select ${carnetBaja ? 'is-selected' : ''}`} value={carnetBaja} onChange={(e) => setCarnetBaja(e.target.value)}>
+              <option value="" disabled hidden>--- Seleccione ---</option>
+              {empleadosParaBaja.map((emp) => (
+                <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
+                  {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="minimal-field">
+            <label className="minimal-label">Fecha de baja:</label>
+            <input type="date" className="minimal-input" value={fechaBaja} onChange={(e) => setFechaBaja(e.target.value)} />
+          </div>
+          <div className="minimal-field">
+            <label className="minimal-label">Motivo:</label>
+            <input
+              type="text"
+              className="minimal-input"
+              placeholder="------------------------"
+              value={motivoBaja}
+              onChange={(e) => setMotivoBaja(e.target.value)}
+            />
+          </div>
+        </div>
+      </FormModal>
 
       <div className="card shadow-sm border-0 p-3">
         <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">

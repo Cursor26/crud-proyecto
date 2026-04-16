@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
+import { FormModal } from './FormModal';
 
 const TurnosTrabajo = () => {
   const [registros, setRegistros] = useState([]);
@@ -16,6 +17,7 @@ const TurnosTrabajo = () => {
   const [activo, setActivo] = useState(true);
   const [editando, setEditando] = useState(false);
   const [idOriginal, setIdOriginal] = useState('');
+  const [showTurnoModal, setShowTurnoModal] = useState(false);
 
   const getRegistros = () => {
     Axios.get('http://localhost:3001/turnos-trabajo')
@@ -79,6 +81,7 @@ const TurnosTrabajo = () => {
           Swal.fire('Actualizado', 'Turno actualizado correctamente', 'success');
           getRegistros();
           limpiarForm();
+          setShowTurnoModal(false);
         })
         .catch((err) =>
           Swal.fire('Error', err.response?.data?.message || err.message, 'error')
@@ -89,6 +92,7 @@ const TurnosTrabajo = () => {
           Swal.fire('Creado', 'Turno asignado correctamente', 'success');
           getRegistros();
           limpiarForm();
+          setShowTurnoModal(false);
         })
         .catch((err) =>
           Swal.fire('Error', err.response?.data?.message || err.message, 'error')
@@ -107,6 +111,7 @@ const TurnosTrabajo = () => {
     setHorasDiarias(reg.horas_diarias != null ? String(reg.horas_diarias) : '');
     setObservaciones(reg.observaciones || '');
     setActivo(reg.activo == 1);
+    setShowTurnoModal(true);
   };
 
   const eliminarRegistro = (id) => {
@@ -137,114 +142,41 @@ const TurnosTrabajo = () => {
         <small className="text-muted">Asigne horarios y turnos específicos a cada empleado</small>
       </div>
 
-      <div className="card shadow-sm border-0 p-4 mb-4">
-        <form onSubmit={handleSubmit}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label">Empleado</label>
-              <select
-                className="form-select"
-                value={carnet}
-                onChange={(e) => setCarnet(e.target.value)}
-                required
-              >
-                <option value="">— Seleccione —</option>
-                {empleados.map((emp) => (
-                  <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
-                    {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label">Nombre del turno</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Ej. Mañana, Tarde, Nocturno A"
-                value={nombreTurno}
-                onChange={(e) => setNombreTurno(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Hora entrada</label>
-              <input
-                type="time"
-                className="form-control"
-                value={horaEntrada}
-                onChange={(e) => setHoraEntrada(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Hora salida</label>
-              <input
-                type="time"
-                className="form-control"
-                value={horaSalida}
-                onChange={(e) => setHoraSalida(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label">Días de aplicación</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Ej. Lun–Vie, o Sábados"
-                value={diasAplicacion}
-                onChange={(e) => setDiasAplicacion(e.target.value)}
-              />
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Horas / día (opc.)</label>
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                className="form-control"
-                placeholder="8"
-                value={horasDiarias}
-                onChange={(e) => setHorasDiarias(e.target.value)}
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label">Observaciones</label>
-              <input
-                type="text"
-                className="form-control"
-                value={observaciones}
-                onChange={(e) => setObservaciones(e.target.value)}
-              />
-            </div>
-            <div className="col-md-2 d-flex align-items-end">
-              <div className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="activoTurno"
-                  checked={activo}
-                  onChange={(e) => setActivo(e.target.checked)}
-                />
-                <label className="form-check-label" htmlFor="activoTurno">
-                  Activo
-                </label>
-              </div>
-            </div>
-          </div>
-          <div className="mt-3">
-            <button type="submit" className="btn btn-primary">
-              {editando ? 'Actualizar turno' : 'Asignar turno'}
-            </button>
-            {editando && (
-              <button type="button" className="btn btn-secondary ms-2" onClick={limpiarForm}>
-                Cancelar
-              </button>
-            )}
-          </div>
-        </form>
+      <div className="d-flex justify-content-end mb-3">
+        <button type="button" className="btn btn-primary" onClick={() => { limpiarForm(); setShowTurnoModal(true); }}>
+          <i className="bi bi-calendar2-week me-2" aria-hidden="true" />
+          Asignar turno
+        </button>
       </div>
+
+      <FormModal
+        show={showTurnoModal}
+        onHide={() => setShowTurnoModal(false)}
+        title={editando ? 'Editar turno' : '+ Turno'}
+        subtitle=""
+        onPrimary={() => handleSubmit({ preventDefault: () => {} })}
+        primaryLabel={editando ? 'Actualizar' : 'Guardar'}
+      >
+        <div className="minimal-form-stack">
+          <div className="minimal-field">
+            <label className="minimal-label">Empleado:</label>
+            <select className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
+              <option value="" disabled hidden>--- Seleccione ---</option>
+              {empleados.map((emp) => (
+                <option key={emp.carnet_identidad} value={emp.carnet_identidad}>{emp.carnet_identidad} — {emp.nombre} {emp.apellidos}</option>
+              ))}
+            </select>
+          </div>
+          <div className="minimal-field"><label className="minimal-label">Nombre del turno:</label><input type="text" className="minimal-input" placeholder="------------------------" value={nombreTurno} onChange={(e) => setNombreTurno(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Hora entrada:</label><input type="time" className="minimal-input" value={horaEntrada} onChange={(e) => setHoraEntrada(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Hora salida:</label><input type="time" className="minimal-input" value={horaSalida} onChange={(e) => setHoraSalida(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Días de aplicación:</label><input type="text" className="minimal-input" placeholder="------------------------" value={diasAplicacion} onChange={(e) => setDiasAplicacion(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Horas / día:</label><input type="number" step="0.25" min="0" className="minimal-input" placeholder="------------------------" value={horasDiarias} onChange={(e) => setHorasDiarias(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Observaciones:</label><input type="text" className="minimal-input" placeholder="------------------------" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} /></div>
+          <label className="minimal-radio"><input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Activo</label>
+        </div>
+      </FormModal>
+
 
       <div className="card shadow-sm border-0 p-3">
         <h6 className="mb-3">Turnos asignados</h6>

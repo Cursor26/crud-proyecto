@@ -128,7 +128,7 @@ const Jubilaciones = () => {
             <div className="col-md-4">
               <label className="form-label">Empleado</label>
               <select className="form-select" value={carnet} onChange={(e) => setCarnet(e.target.value)} required>
-                <option value="">— Seleccione —</option>
+                <option value="" disabled hidden>— Seleccione —</option>
                 {empleados.map((emp) => (
                   <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
                     {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}

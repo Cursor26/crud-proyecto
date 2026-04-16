@@ -304,7 +304,7 @@ const Departamentos = () => {
           <div className="col-md-5">
             <label className="form-label">Departamento destino</label>
             <select className="form-select" value={deptoAsignar} onChange={(e) => setDeptoAsignar(e.target.value)}>
-              <option value="">— Seleccione departamento —</option>
+              <option value="" disabled hidden>— Seleccione departamento —</option>
               {departamentos.map((d) => (
                 <option key={d.id_departamento} value={d.id_departamento}>
                   {d.nombre}
@@ -315,7 +315,7 @@ const Departamentos = () => {
           <div className="col-md-5">
             <label className="form-label">Empleado a asignar</label>
             <select className="form-select" value={carnetAsignar} onChange={(e) => setCarnetAsignar(e.target.value)}>
-              <option value="">— Seleccione empleado —</option>
+              <option value="" disabled hidden>— Seleccione empleado —</option>
               {empleados.map((emp) => (
                 <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
                   {emp.carnet_identidad} — {emp.nombre} {emp.apellidos} ({etiquetaDeptoActual(emp)})

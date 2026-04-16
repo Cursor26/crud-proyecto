@@ -1,7 +1,7 @@
-import './App.css';
 import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import './App.css';
 import { Nav, Navbar, NavDropdown } from 'react-bootstrap';
 
 import SacrificioVacuno from './components/SacrificioVacuno';
@@ -66,6 +66,13 @@ const SIDEBAR_RRHH_KEYS = new Set([
 ]);
 
 const SIDEBAR_PROD_KEYS = new Set(['sacrificio', 'matadero', 'leche', 'produccion-historico']);
+const SIDEBAR_CONTRATOS_KEYS = new Set([
+  'contratos-resumen',
+  'contratos-lista',
+  'contratos-vencimientos',
+  'contratos-renovaciones',
+  'contratos-reportes',
+]);
 
 const setAuthToken = (token) => {
   if (token) {
@@ -88,6 +95,46 @@ function App() {
   const [key, setKey] = useState('');
   const [sidebarRrhhOpen, setSidebarRrhhOpen] = useState(false);
   const [sidebarProdOpen, setSidebarProdOpen] = useState(false);
+  const [sidebarContratosOpen, setSidebarContratosOpen] = useState(false);
+  const [now, setNow] = useState(new Date());
+
+  const moduloLabel = {
+    usuarios: 'Gestión de usuarios',
+    contratos: 'Contratación',
+    'contratos-resumen': 'Contratación · Resumen',
+    'contratos-lista': 'Contratación · Contratos',
+    'contratos-vencimientos': 'Contratación · Vencimientos',
+    'contratos-renovaciones': 'Contratación · Renovaciones',
+    'contratos-reportes': 'Contratación · Reportes',
+    empleados: 'Gestión de empleados',
+    'bajas-empleados': 'Bajas de empleado',
+    'reporte-personal': 'Reporte de personal',
+    'cambios-cargo': 'Cambios de cargo',
+    'reporte-consolidado': 'Reporte consolidado',
+    vacaciones: 'Vacaciones',
+    'turnos-trabajo': 'Turnos de trabajo',
+    'grupos-trabajo': 'Grupos de trabajo',
+    sanciones: 'Sanciones',
+    reconocimientos: 'Reconocimientos',
+    jubilaciones: 'Jubilaciones y retiros',
+    asistencias: 'Asistencias',
+    certificaciones: 'Certificaciones',
+    cursos: 'Cursos',
+    evalcapacitacion: 'Eval. capacitación',
+    evaluaciones: 'Evaluaciones',
+    objetivos: 'Objetivos',
+    salarios: 'Salarios',
+    segseguridad: 'Seg. Seguridad',
+    seguridad: 'Seguridad',
+    cargos: 'Cargos',
+    departamentos: 'Departamentos',
+    'cert-medicos': 'Certificados médicos',
+    'eval-medicas': 'Evaluaciones médicas',
+    sacrificio: 'Sacrificio vacuno',
+    matadero: 'Matadero vivo',
+    leche: 'Leche',
+    'produccion-historico': 'Histórico producción',
+  };
 
   const handleSidebarRrhhToggle = (nextOpen) => {
     setSidebarRrhhOpen(nextOpen);
@@ -99,17 +146,32 @@ function App() {
     if (nextOpen) setSidebarRrhhOpen(false);
   };
 
+  const handleSidebarContratosToggle = (nextOpen) => {
+    setSidebarContratosOpen(nextOpen);
+    if (nextOpen) {
+      setSidebarRrhhOpen(false);
+      setSidebarProdOpen(false);
+    }
+  };
+
   const handleNavSelect = (selectedKey) => {
     setKey(selectedKey);
     if (selectedKey === 'usuarios' || selectedKey === 'contratos') {
       setSidebarRrhhOpen(false);
       setSidebarProdOpen(false);
+      setSidebarContratosOpen(false);
     } else if (SIDEBAR_RRHH_KEYS.has(selectedKey)) {
       setSidebarRrhhOpen(true);
+      setSidebarProdOpen(false);
+      setSidebarContratosOpen(false);
+    } else if (SIDEBAR_CONTRATOS_KEYS.has(selectedKey)) {
+      setSidebarContratosOpen(true);
+      setSidebarRrhhOpen(false);
       setSidebarProdOpen(false);
     } else if (SIDEBAR_PROD_KEYS.has(selectedKey)) {
       setSidebarProdOpen(true);
       setSidebarRrhhOpen(false);
+      setSidebarContratosOpen(false);
     }
   };
 
@@ -122,6 +184,11 @@ function App() {
     }
     setLoading(false);
   }, [token]);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const login = async (email, password) => {
     try {
@@ -187,7 +254,7 @@ function App() {
   }
 
   return (
-    <div className="d-flex vh-100" style={{ overflow: 'hidden' }}>
+    <div className="dashboard-shell d-flex vh-100" style={{ overflow: 'hidden' }}>
       <div className="dashboard-sidebar vh-100 p-4 d-flex flex-column shadow-lg" style={{ width: '280px', minWidth: '280px' }}>
         <div className="text-white mb-2 pb-4 border-bottom dashboard-sidebar-divider">
           <h3 className="fw-bold mb-2">AEPG</h3>
@@ -204,11 +271,34 @@ function App() {
           )}
 
           {mostrarContratos && (
-            <Nav.Item className="mb-2">
-              <Nav.Link eventKey="contratos" className="dashboard-nav-link rounded-3 p-1">
-                <i className="bi bi-file-earmark-ruled me-2" aria-hidden="true"></i>Contratación
-              </Nav.Link>
-            </Nav.Item>
+            <NavDropdown
+              title={
+                <span className="d-inline-flex align-items-center">
+                  <i className="bi bi-file-earmark-ruled me-2" aria-hidden="true"></i>Contratación
+                </span>
+              }
+              id="sidebar-dropdown-contratos"
+              className="mi-dropdown-sidebar"
+              autoClose={false}
+              show={sidebarContratosOpen}
+              onToggle={handleSidebarContratosToggle}
+            >
+              <NavDropdown.Item eventKey="contratos-resumen" active={key === 'contratos-resumen'}>
+                <i className="bi bi-speedometer2 me-2" aria-hidden="true"></i>Resumen ejecutivo
+              </NavDropdown.Item>
+              <NavDropdown.Item eventKey="contratos-lista" active={key === 'contratos-lista'}>
+                <i className="bi bi-table me-2" aria-hidden="true"></i>Contratos
+              </NavDropdown.Item>
+              <NavDropdown.Item eventKey="contratos-vencimientos" active={key === 'contratos-vencimientos'}>
+                <i className="bi bi-calendar2-week me-2" aria-hidden="true"></i>Vencimientos
+              </NavDropdown.Item>
+              <NavDropdown.Item eventKey="contratos-renovaciones" active={key === 'contratos-renovaciones'}>
+                <i className="bi bi-arrow-repeat me-2" aria-hidden="true"></i>Renovaciones
+              </NavDropdown.Item>
+              <NavDropdown.Item eventKey="contratos-reportes" active={key === 'contratos-reportes'}>
+                <i className="bi bi-bar-chart-line me-2" aria-hidden="true"></i>Reportes
+              </NavDropdown.Item>
+            </NavDropdown>
           )}
 
           {mostrarRHum && (
@@ -385,58 +475,96 @@ function App() {
         </Nav>
       </div>
 
-      <div className="flex-grow-1 p-4 overflow-auto" style={{ backgroundColor: '#f8f9fa' }}>
-        <Navbar expand="lg" className="bg-white shadow-sm rounded-3 mb-4 py-3 px-4">
+      <div className="dashboard-main flex-grow-1 p-4 overflow-auto">
+        <Navbar expand="lg" className="dashboard-topbar shadow-sm rounded-4 mb-4 py-3 px-4">
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
-            <Nav className="ms-auto">
-              <h4>
-                Bienvenido, {user.nombre} ({user.rol})
-              </h4>
-              <img src="/images/usuario.png" alt="" width="40" height="40" />
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <button type="button" className="btn btn-cerrar" onClick={logout}>
-                  Cerrar sesión
-                </button>
+            <Nav className="ms-auto align-items-center gap-3 dashboard-topbar-actions">
+              <div className="dashboard-user-badge">
+                <div className="dashboard-user-badge__title">Bienvenido</div>
+                <div className="dashboard-user-badge__name">
+                  {user.nombre} <span className="dashboard-user-badge__role">({user.rol})</span>
+                </div>
               </div>
+              <img src="/images/usuario.png" alt="" width="40" height="40" className="dashboard-user-avatar" />
+              <button type="button" className="btn btn-cerrar mb-0" onClick={logout}>
+                Cerrar sesión
+              </button>
             </Nav>
           </Navbar.Collapse>
         </Navbar>
 
-        {key === 'contratos' && <GestionContratos />}
+        <div className="dashboard-content-layout">
+          <div className="dashboard-content-main">
+            {(key === 'contratos' || key === 'contratos-lista') && <GestionContratos vistaInicial="contratos" />}
+            {key === 'contratos-resumen' && <GestionContratos vistaInicial="resumen" />}
+            {key === 'contratos-vencimientos' && <GestionContratos vistaInicial="vencimientos" />}
+            {key === 'contratos-renovaciones' && <GestionContratos vistaInicial="renovaciones" />}
+            {key === 'contratos-reportes' && <GestionContratos vistaInicial="reportes" />}
+            {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios />}
+            {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
+            {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
+            {key === 'leche' && mostrarLeche && <Leche />}
+            {key === 'asistencias' && mostrarAsistencias && <Asistencias />}
+            {key === 'certificaciones' && mostrarCertificaciones && <Certificaciones />}
+            {key === 'cursos' && mostrarCursos && <Cursos />}
+            {key === 'evalcapacitacion' && mostrarEvalcapacitacion && <Evalcapacitacion />}
+            {key === 'evaluaciones' && mostrarEvaluaciones && <Evaluaciones />}
+            {key === 'objetivos' && mostrarObjetivos && <Objetivos />}
+            {key === 'salarios' && mostrarSalarios && <Salarios />}
+            {key === 'segseguridad' && mostrarSegSeguridad && <SegSeguridad />}
+            {key === 'seguridad' && mostrarSeguridad && <Seguridad />}
+            {key === 'cargos' && mostrarCargos && <Cargos />}
+            {key === 'departamentos' && mostrarDepartamentos && <Departamentos />}
+            {key === 'cert-medicos' && mostrarCertMedicos && <CertificadosMedicos />}
+            {key === 'eval-medicas' && mostrarEvalMedicas && <EvaluacionesMedicas />}
+            {key === 'vacaciones' && mostrarVacaciones && <Vacaciones />}
+            {key === 'turnos-trabajo' && mostrarTurnosTrabajo && <TurnosTrabajo />}
+            {key === 'grupos-trabajo' && mostrarGruposTrabajo && <GruposTrabajo />}
+            {key === 'sanciones' && mostrarSanciones && <Sanciones />}
+            {key === 'reconocimientos' && mostrarReconocimientos && <Reconocimientos />}
+            {key === 'jubilaciones' && mostrarJubilaciones && <Jubilaciones />}
+            {key === 'empleados' && mostrarEmpleados && <GestionEmpleados />}
+            {key === 'bajas-empleados' && mostrarEmpleados && <BajasEmpleados />}
+            {key === 'reporte-personal' && mostrarEmpleados && <ReportePersonal />}
+            {key === 'cambios-cargo' && mostrarEmpleados && <CambiosCargo />}
+            {key === 'reporte-consolidado' && mostrarEmpleados && <ReporteConsolidado />}
+            {key === 'produccion-historico' && mostrarProduccion && (mostrarSacrificio || mostrarMatadero || mostrarLeche) && (
+              <ProduccionHistorico />
+            )}
+          </div>
 
-        {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios />}
-
-        {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
-        {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
-        {key === 'leche' && mostrarLeche && <Leche />}
-        {key === 'asistencias' && mostrarAsistencias && <Asistencias />}
-        {key === 'certificaciones' && mostrarCertificaciones && <Certificaciones />}
-        {key === 'cursos' && mostrarCursos && <Cursos />}
-        {key === 'evalcapacitacion' && mostrarEvalcapacitacion && <Evalcapacitacion />}
-        {key === 'evaluaciones' && mostrarEvaluaciones && <Evaluaciones />}
-        {key === 'objetivos' && mostrarObjetivos && <Objetivos />}
-        {key === 'salarios' && mostrarSalarios && <Salarios />}
-        {key === 'segseguridad' && mostrarSegSeguridad && <SegSeguridad />}
-        {key === 'seguridad' && mostrarSeguridad && <Seguridad />}
-        {key === 'cargos' && mostrarCargos && <Cargos />}
-        {key === 'departamentos' && mostrarDepartamentos && <Departamentos />}
-        {key === 'cert-medicos' && mostrarCertMedicos && <CertificadosMedicos />}
-        {key === 'eval-medicas' && mostrarEvalMedicas && <EvaluacionesMedicas />}
-        {key === 'vacaciones' && mostrarVacaciones && <Vacaciones />}
-        {key === 'turnos-trabajo' && mostrarTurnosTrabajo && <TurnosTrabajo />}
-        {key === 'grupos-trabajo' && mostrarGruposTrabajo && <GruposTrabajo />}
-        {key === 'sanciones' && mostrarSanciones && <Sanciones />}
-        {key === 'reconocimientos' && mostrarReconocimientos && <Reconocimientos />}
-        {key === 'jubilaciones' && mostrarJubilaciones && <Jubilaciones />}
-        {key === 'empleados' && mostrarEmpleados && <GestionEmpleados />}
-        {key === 'bajas-empleados' && mostrarEmpleados && <BajasEmpleados />}
-        {key === 'reporte-personal' && mostrarEmpleados && <ReportePersonal />}
-        {key === 'cambios-cargo' && mostrarEmpleados && <CambiosCargo />}
-        {key === 'reporte-consolidado' && mostrarEmpleados && <ReporteConsolidado />}
-        {key === 'produccion-historico' && mostrarProduccion && (mostrarSacrificio || mostrarMatadero || mostrarLeche) && (
-          <ProduccionHistorico />
-        )}
+          <aside className="dashboard-side-info">
+            <div className="dashboard-side-info__card">
+              <span className="dashboard-side-info__pill">Información</span>
+              <p className="dashboard-side-info__line">
+                Módulo: <strong>{moduloLabel[key] || 'Panel principal'}</strong>
+              </p>
+              <p className="dashboard-side-info__line">
+                Usuario: <strong>{user.nombre}</strong>
+              </p>
+              <p className="dashboard-side-info__line">
+                Rol: <strong>{user.rol}</strong>
+              </p>
+              <p className="dashboard-side-info__date">
+                {now.toLocaleDateString('es-ES')}
+              </p>
+              <p className="dashboard-side-info__time">
+                {now.toLocaleTimeString('es-ES')}
+              </p>
+            </div>
+            <div className="dashboard-side-info__logo-wrap">
+              <img
+                src="/images/LOGOTIPO.png"
+                alt="Logotipo"
+                className="dashboard-side-info__logo"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          </aside>
+        </div>
       </div>
     </div>
   );

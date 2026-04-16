@@ -104,9 +104,7 @@ const Usuarios = () => {
           </div>
           <div className="col-md-2">
             <button type="submit" className="btn btn-primary">{editando ? 'Actualizar' : 'Crear'}</button>
-
-Kevin Cabeza, [28/02/2026 06:28 p. m.]
-{editando && <button type="button" className="btn btn-secondary ms-2" onClick={limpiar}>Cancelar</button>}
+            {editando && <button type="button" className="btn btn-secondary ms-2" onClick={limpiar}>Cancelar</button>}
           </div>
         </div>
       </form>

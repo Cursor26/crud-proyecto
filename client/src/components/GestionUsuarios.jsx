@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { FormModal } from './FormModal';
 
 function GestionUsuarios() {
   const [usuariosList, setUsuarios] = useState([]);
   const [userEmail, setUserEmail] = useState('');
   const [userNombre, setUserNombre] = useState('');
   const [userPassword, setUserPassword] = useState('');
-  const [userRol, setUserRol] = useState('rrhh');
+  const [userRol, setUserRol] = useState('');
   const [editandoUsuario, setEditandoUsuario] = useState(false);
   const [userEmailOriginal, setUserEmailOriginal] = useState('');
+  const [showUsuarioModal, setShowUsuarioModal] = useState(false);
 
   const getUsuarios = () => {
     Axios.get('http://localhost:3001/usuarios')
@@ -26,8 +29,23 @@ function GestionUsuarios() {
     setUserEmail('');
     setUserNombre('');
     setUserPassword('');
-    setUserRol('rrhh');
+    setUserRol('');
     setUserEmailOriginal('');
+  };
+
+  const cerrarModalUsuario = () => {
+    limpiarUsuario();
+    setShowUsuarioModal(false);
+  };
+
+  const abrirModalNuevoUsuario = () => {
+    limpiarUsuario();
+    setShowUsuarioModal(true);
+  };
+
+  const guardarUsuarioModal = () => {
+    if (editandoUsuario) updateUsuario();
+    else addUsuario();
   };
 
   const addUsuario = () => {
@@ -39,7 +57,7 @@ function GestionUsuarios() {
     })
       .then(() => {
         getUsuarios();
-        limpiarUsuario();
+        cerrarModalUsuario();
         Swal.fire('Creado', 'Usuario creado', 'success');
       })
       .catch((error) => {
@@ -48,14 +66,15 @@ function GestionUsuarios() {
   };
 
   const updateUsuario = () => {
-    Axios.put(`http://localhost:3001/update-usuario/${userEmailOriginal}`, {
+    Axios.put(`http://localhost:3001/update-usuario/${encodeURIComponent(userEmailOriginal)}`, {
+      email: userEmail,
       nombre: userNombre,
       password: userPassword,
       rol: userRol,
     })
       .then(() => {
         getUsuarios();
-        limpiarUsuario();
+        cerrarModalUsuario();
         Swal.fire('Actualizado', 'Usuario actualizado', 'success');
       })
       .catch((error) => {
@@ -91,83 +110,94 @@ function GestionUsuarios() {
     setUserNombre(u.nombre);
     setUserRol(u.rol);
     setUserPassword('');
+    setShowUsuarioModal(true);
   };
 
   return (
     <div>
-      <h4>Gestión de Usuarios</h4>
-      <small className="text-muted">Administración de los usuarios del programa</small>
-      <div className="card p-3">
-        <div className="row">
-          <div className="col-md-3">
+      <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <h4 className="mb-1">Gestión de Usuarios</h4>
+          <small className="text-muted">Administración de los usuarios del programa</small>
+        </div>
+        <button type="button" className="btn btn-primary d-inline-flex align-items-center" onClick={abrirModalNuevoUsuario}>
+          <i className="bi bi-person-plus me-2" aria-hidden="true" />
+          Agregar usuario
+        </button>
+      </div>
+
+      <FormModal
+        show={showUsuarioModal}
+        onHide={cerrarModalUsuario}
+        title={editandoUsuario ? 'Editar usuario' : '+ Usuario'}
+        subtitle=""
+        onPrimary={guardarUsuarioModal}
+        primaryLabel={editandoUsuario ? 'Actualizar' : 'Crear'}
+      >
+        <div className="minimal-form-stack">
+          <div className="minimal-field">
+            <label className="minimal-label">Email:</label>
             <input
               type="email"
-              className="form-control"
-              placeholder="Email"
+              className="minimal-input"
+              placeholder="------------------------"
               value={userEmail}
               onChange={(e) => setUserEmail(e.target.value)}
-              disabled={editandoUsuario}
             />
           </div>
-          <div className="col-md-3">
-            <input type="text" className="form-control" placeholder="Nombre" value={userNombre} onChange={(e) => setUserNombre(e.target.value)} />
+          <div className="minimal-field">
+            <label className="minimal-label">Nombre:</label>
+            <input type="text" className="minimal-input" placeholder="------------------------" value={userNombre} onChange={(e) => setUserNombre(e.target.value)} />
           </div>
-          <div className="col-md-2">
+          <div className="minimal-field">
+            <label className="minimal-label">Contraseña:</label>
             <input
               type="password"
-              className="form-control"
-              placeholder={editandoUsuario ? 'Nueva contraseña' : 'Contraseña'}
+              className="minimal-input"
+              placeholder="------------------------"
               value={userPassword}
               onChange={(e) => setUserPassword(e.target.value)}
             />
           </div>
-          <div className="col-md-2">
-            <select className="form-control" value={userRol} onChange={(e) => setUserRol(e.target.value)}>
+          <div className="minimal-field">
+            <label className="minimal-label">Rol:</label>
+            <select className={`minimal-select ${userRol ? 'is-selected' : ''}`} value={userRol} onChange={(e) => setUserRol(e.target.value)}>
+              <option value="" disabled hidden>--- Seleccione ---</option>
               <option value="rrhh">Rec. humanos</option>
               <option value="contratacion">Contratación</option>
               <option value="admin">Administrador</option>
               <option value="produccion">Producción</option>
             </select>
           </div>
-          <div className="col-md-2">
-            <button type="button" className="btn btn-primary" onClick={editandoUsuario ? updateUsuario : addUsuario}>
-              {editandoUsuario ? 'Actualizar' : 'Crear'}
-            </button>
-            {editandoUsuario && (
-              <button type="button" className="btn btn-secondary ms-2" onClick={limpiarUsuario}>
-                Cancelar
-              </button>
-            )}
-          </div>
         </div>
-        <hr />
-        <table className="table table-bordered table-striped">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Nombre</th>
-              <th>Rol</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {usuariosList.map((u) => (
-              <tr key={u.email}>
-                <td>{u.email}</td>
-                <td>{u.nombre}</td>
-                <td>{u.rol}</td>
-                <td>
-                  <button type="button" className="btn btn-sm me-2" onClick={() => editarUsuario(u)}>
-                    <img src="/images/editar.png" alt="" width="40" height="40" />
-                  </button>
-                  <button type="button" className="btn  btn-sm" onClick={() => deleteUsuario(u.email)}>
-                    <img src="/images/eliminar.png" alt="" width="40" height="40" />
-                  </button>
-                </td>
+      </FormModal>
+
+      <div className="card p-3">
+        <div className="table-responsive">
+          <table className="table table-bordered table-striped">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Nombre</th>
+                <th>Rol</th>
+                <th>Acciones</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {usuariosList.map((u) => (
+                <tr key={u.email}>
+                  <td>{u.email}</td>
+                  <td>{u.nombre}</td>
+                  <td>{u.rol}</td>
+                  <td>
+                    <EditTableActionButton onClick={() => editarUsuario(u)} className="me-2" />
+                    <DeleteTableActionButton onClick={() => deleteUsuario(u.email)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

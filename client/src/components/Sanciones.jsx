@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
+import { FormModal } from './FormModal';
 
 const Sanciones = () => {
   const [registros, setRegistros] = useState([]);
@@ -15,6 +16,7 @@ const Sanciones = () => {
   const [activo, setActivo] = useState(true);
   const [editando, setEditando] = useState(false);
   const [idOriginal, setIdOriginal] = useState('');
+  const [showSancionModal, setShowSancionModal] = useState(false);
 
   const getRegistros = () => {
     Axios.get('http://localhost:3001/sanciones-empleado')
@@ -74,6 +76,7 @@ const Sanciones = () => {
           Swal.fire('Listo', 'Sanción actualizada', 'success');
           getRegistros();
           limpiarForm();
+          setShowSancionModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     } else {
@@ -82,6 +85,7 @@ const Sanciones = () => {
           Swal.fire('Listo', 'Sanción registrada', 'success');
           getRegistros();
           limpiarForm();
+          setShowSancionModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     }
@@ -97,6 +101,7 @@ const Sanciones = () => {
     setDiasSuspension(r.dias_suspension != null ? String(r.dias_suspension) : '');
     setObservaciones(r.observaciones || '');
     setActivo(r.activo == 1);
+    setShowSancionModal(true);
   };
 
   const eliminarRegistro = (r) => {
@@ -124,89 +129,39 @@ const Sanciones = () => {
         <h4>Sanciones</h4>
         <small className="text-muted">Registro de sanciones aplicadas a empleados</small>
       </div>
-
-      <div className="card shadow-sm border-0 p-4 mb-4">
-        <h6 className="mb-3">{editando ? 'Editar sanción' : 'Registrar sanción'}</h6>
-        <form onSubmit={handleSubmit}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label">Empleado</label>
-              <select className="form-select" value={carnet} onChange={(e) => setCarnet(e.target.value)} required>
-                <option value="">— Seleccione —</option>
-                {empleados.map((emp) => (
-                  <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
-                    {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label">Tipo de sanción</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Ej. Apercibimiento, Amonestación escrita, Suspensión"
-                value={tipoSancion}
-                onChange={(e) => setTipoSancion(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Fecha aplicación</label>
-              <input
-                type="date"
-                className="form-control"
-                value={fechaAplicacion}
-                onChange={(e) => setFechaAplicacion(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Días suspensión (opc.)</label>
-              <input
-                type="number"
-                min={0}
-                className="form-control"
-                placeholder="—"
-                value={diasSuspension}
-                onChange={(e) => setDiasSuspension(e.target.value)}
-              />
-            </div>
-            <div className="col-12">
-              <label className="form-label">Motivo</label>
-              <textarea className="form-control" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} required />
-            </div>
-            <div className="col-md-8">
-              <label className="form-label">Observaciones</label>
-              <input className="form-control" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
-            </div>
-            <div className="col-md-2 d-flex align-items-end">
-              <div className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="activoSan"
-                  checked={activo}
-                  onChange={(e) => setActivo(e.target.checked)}
-                />
-                <label className="form-check-label" htmlFor="activoSan">
-                  Activo
-                </label>
-              </div>
-            </div>
-            <div className="col-md-2 d-flex align-items-end gap-1 flex-wrap">
-              <button type="submit" className="btn btn-primary">
-                {editando ? 'Guardar' : 'Registrar'}
-              </button>
-              {editando && (
-                <button type="button" className="btn btn-secondary" onClick={limpiarForm}>
-                  Cancelar
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
+      <div className="d-flex justify-content-end mb-3">
+        <button type="button" className="btn btn-primary" onClick={() => { limpiarForm(); setShowSancionModal(true); }}>
+          <i className="bi bi-exclamation-octagon me-2" aria-hidden="true" />
+          Registrar sanción
+        </button>
       </div>
+
+      <FormModal
+        show={showSancionModal}
+        onHide={() => setShowSancionModal(false)}
+        title={editando ? 'Editar sanción' : '+ Sanción'}
+        subtitle=""
+        onPrimary={() => handleSubmit({ preventDefault: () => {} })}
+        primaryLabel={editando ? 'Actualizar' : 'Guardar'}
+      >
+        <div className="minimal-form-stack">
+          <div className="minimal-field">
+            <label className="minimal-label">Empleado:</label>
+            <select className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
+              <option value="" disabled hidden>--- Seleccione ---</option>
+              {empleados.map((emp) => (
+                <option key={emp.carnet_identidad} value={emp.carnet_identidad}>{emp.carnet_identidad} — {emp.nombre} {emp.apellidos}</option>
+              ))}
+            </select>
+          </div>
+          <div className="minimal-field"><label className="minimal-label">Tipo de sanción:</label><input type="text" className="minimal-input" placeholder="------------------------" value={tipoSancion} onChange={(e) => setTipoSancion(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Fecha aplicación:</label><input type="date" className="minimal-input" value={fechaAplicacion} onChange={(e) => setFechaAplicacion(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Días suspensión:</label><input type="number" min={0} className="minimal-input" placeholder="------------------------" value={diasSuspension} onChange={(e) => setDiasSuspension(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Motivo:</label><input type="text" className="minimal-input" placeholder="------------------------" value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Observaciones:</label><input type="text" className="minimal-input" placeholder="------------------------" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} /></div>
+          <label className="minimal-radio"><input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Activo</label>
+        </div>
+      </FormModal>
 
       <div className="card shadow-sm border-0 p-3">
         <h6 className="mb-3">Sanciones registradas</h6>

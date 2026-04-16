@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 
 const Cargos = () => {
   const [registros, setRegistros] = useState([]);
@@ -240,18 +241,8 @@ const Cargos = () => {
                       </span>
                     </td>
                     <td className="text-center">
-                      <button
-                        className="btn btn-sm me-2"
-                        onClick={() => editarRegistro(reg)}
-                      >
-                        <img src="/images/editar.png" alt="Editar" width="32" height="32"/>
-                      </button>
-                      <button
-                        className="btn btn-sm"
-                        onClick={() => eliminarRegistro(reg.id_cargo)}
-                      >
-                        <img src="/images/eliminar.png" alt="Eliminar" width="32" height="32"/>
-                      </button>
+                      <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-2" />
+                      <DeleteTableActionButton onClick={() => eliminarRegistro(reg.id_cargo)} />
                     </td>
                   </tr>
                 ))}
