@@ -118,20 +118,11 @@ const Asistencias = () => {
             <div className="d-flex justify-content-between align-items-center mt-0">
                 <div>
                     <h4 className="">Gestión de Asistencias</h4>
-
-                    
-
-
-
-
-                    <small className="text-muted">
-                        Administración de causas de asistencia y horas trabajadas
-                    </small>
                 </div>
                 <div>
 {/*                     <button
                         type="button"
-                        className="btn btn-outline-primary btn-sm"
+                        className="btn btn-outline-info btn-sm"
                         onClick={getRegistros}
                     >
                         Actualizar lista
@@ -216,14 +207,10 @@ const Asistencias = () => {
                         />
                     </div>                    {/* Línea separadora */}
                     <hr className="mt-0" />                    {/* Encabezado de tabla y contador */}
-                    <div className="d-flex justify-content-between align-items-center mb-2">
-                        <h6 className="mb-0">Registros de asistencias</h6>
-                        <small className="text-muted">
-                            Total registros: {registros.length}
-                        </small>
-                    </div>                    {/* Tabla responsiva dentro de la tarjeta */}
+                    <h6 className="mb-2">Registros de asistencias</h6>
+                    {/* Tabla responsiva dentro de la tarjeta */}
                     <div className="table-responsive">
-                        <table className="table table-sm table-hover align-middle mb-0">
+                        <table className="table table-data-compact table-sm table-hover align-middle mb-0">
                             <thead className="table-light">
                                 <tr>
                                     <th style={{ width: '18%' }}>Empleado</th>

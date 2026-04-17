@@ -179,9 +179,6 @@ const Departamentos = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Departamentos y personal</h4>
-        <small className="text-muted">
-          RF15 — Crear departamentos, definir estructura (superior / subordinado) y asignar empleados
-        </small>
       </div>
 
       <div className="card shadow-sm border-0 p-4 mb-4">
@@ -225,11 +222,11 @@ const Departamentos = () => {
               </div>
             </div>
             <div className="col-md-2 d-flex align-items-end gap-1 flex-wrap">
-              <button type="submit" className="btn btn-primary">
+              <button type="submit" className="btn btn-success btn-form-nowrap">
                 {editando ? 'Guardar' : 'Crear'}
               </button>
               {editando && (
-                <button type="button" className="btn btn-secondary" onClick={limpiarFormDepto}>
+                <button type="button" className="btn btn-secondary btn-form-nowrap" onClick={limpiarFormDepto}>
                   Cancelar
                 </button>
               )}
@@ -251,7 +248,7 @@ const Departamentos = () => {
       <div className="card shadow-sm border-0 p-3 mb-4">
         <h6 className="mb-3">Catálogo de departamentos</h6>
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Nombre</th>
@@ -283,7 +280,7 @@ const Departamentos = () => {
                     <td>{d.num_empleados != null ? d.num_empleados : 0}</td>
                     <td>{d.activo == 1 ? 'Sí' : 'No'}</td>
                     <td>
-                      <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => editarDepto(d)}>
+                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarDepto(d)}>
                         Editar
                       </button>
                       <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarDepto(d)}>
@@ -300,8 +297,8 @@ const Departamentos = () => {
 
       <div className="card shadow-sm border-0 p-4">
         <h6 className="mb-3">Asignar empleados a un departamento</h6>
-        <div className="row g-3 mb-4">
-          <div className="col-md-5">
+        <div className="row g-3 mb-4 align-items-end">
+          <div className="col-12 col-md-5">
             <label className="form-label">Departamento destino</label>
             <select className="form-select" value={deptoAsignar} onChange={(e) => setDeptoAsignar(e.target.value)}>
               <option value="" disabled hidden>— Seleccione departamento —</option>
@@ -312,7 +309,7 @@ const Departamentos = () => {
               ))}
             </select>
           </div>
-          <div className="col-md-5">
+          <div className="col-12 col-md-4">
             <label className="form-label">Empleado a asignar</label>
             <select className="form-select" value={carnetAsignar} onChange={(e) => setCarnetAsignar(e.target.value)}>
               <option value="" disabled hidden>— Seleccione empleado —</option>
@@ -323,19 +320,17 @@ const Departamentos = () => {
               ))}
             </select>
           </div>
-          <div className="col-md-2 d-flex align-items-end">
-            <button type="button" className="btn btn-success w-100" onClick={asignarEmpleado}>
+          <div className="col-12 col-md-3 d-grid d-md-flex justify-content-md-end">
+            <button type="button" className="btn btn-success btn-form-nowrap" onClick={asignarEmpleado}>
               Asignar
             </button>
           </div>
         </div>
 
         <h6 className="mb-2">Empleados en el departamento seleccionado</h6>
-        {!deptoAsignar ? (
-          <p className="text-muted small mb-0">Elija un departamento para ver su personal.</p>
-        ) : (
+        {!deptoAsignar ? null : (
           <div className="table-responsive">
-            <table className="table table-bordered table-sm align-middle mb-0">
+            <table className="table table-data-compact table-bordered table-sm align-middle mb-0">
               <thead className="table-light">
                 <tr>
                   <th>Carnet</th>

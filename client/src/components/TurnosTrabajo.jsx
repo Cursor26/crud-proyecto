@@ -139,11 +139,10 @@ const TurnosTrabajo = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Turnos de trabajo</h4>
-        <small className="text-muted">Asigne horarios y turnos específicos a cada empleado</small>
       </div>
 
       <div className="d-flex justify-content-end mb-3">
-        <button type="button" className="btn btn-primary" onClick={() => { limpiarForm(); setShowTurnoModal(true); }}>
+        <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowTurnoModal(true); }}>
           <i className="bi bi-calendar2-week me-2" aria-hidden="true" />
           Asignar turno
         </button>
@@ -181,7 +180,7 @@ const TurnosTrabajo = () => {
       <div className="card shadow-sm border-0 p-3">
         <h6 className="mb-3">Turnos asignados</h6>
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Empleado</th>
@@ -216,7 +215,7 @@ const TurnosTrabajo = () => {
                     <td>{r.horas_diarias != null ? r.horas_diarias : '—'}</td>
                     <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
                     <td>
-                      <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => editarRegistro(r)}>
+                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarRegistro(r)}>
                         Editar
                       </button>
                       <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarRegistro(r.id_turno)}>

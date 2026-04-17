@@ -4,6 +4,7 @@ import '../App.css';
 import Swal from 'sweetalert2';
 import { Modal, Button } from 'react-bootstrap';
 import { exportRowsToExcel } from '../utils/exportExcel';
+import { fmtFechaTabla, fmtFechaHoraTabla } from '../utils/formatDates';
 
 const ProduccionHistorico = () => {
   const [items, setItems] = useState([]);
@@ -50,10 +51,6 @@ const ProduccionHistorico = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Histórico de producción</h4>
-        <small className="text-muted">
-          RF21 — Versiones archivadas al modificar o eliminar registros de sacrificio, matadero o leche. RF22 — columna
-          &quot;Quién archivó&quot; corresponde al usuario autenticado en esa operación.
-        </small>
       </div>
 
       <div className="card shadow-sm border-0 p-4 mb-4">
@@ -76,22 +73,20 @@ const ProduccionHistorico = () => {
             <input type="date" className="form-control" value={hasta} onChange={(e) => setHasta(e.target.value)} />
           </div>
           <div className="col-md-5 d-flex flex-wrap gap-2">
-            <button type="button" className="btn btn-primary" onClick={cargar} disabled={cargando}>
+            <button type="button" className="btn btn-info" onClick={cargar} disabled={cargando}>
               {cargando ? 'Consultando…' : 'Consultar'}
             </button>
-            <button type="button" className="btn btn-success" onClick={exportarExcel} disabled={items.length === 0}>
-              Exportar Excel (RF20)
+            <button type="button" className="btn btn-success btn-form-nowrap" onClick={exportarExcel} disabled={items.length === 0}>
+              Exportar Excel
             </button>
           </div>
         </div>
       </div>
 
       <div className="card shadow-sm border-0 p-3">
-        <h6 className="mb-3">
-          Registros archivados <span className="text-muted fw-normal">({items.length}, máx. 500)</span>
-        </h6>
+        <h6 className="mb-3">Registros archivados</h6>
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>ID</th>
@@ -115,10 +110,10 @@ const ProduccionHistorico = () => {
                   <tr key={r.id}>
                     <td>{r.id}</td>
                     <td>{r.fuente}</td>
-                    <td>{r.fecha_dato}</td>
+                    <td className="text-nowrap">{fmtFechaTabla(r.fecha_dato)}</td>
                     <td>{r.accion}</td>
                     <td className="small">{r.usuario_email || '—'}</td>
-                    <td className="small">{r.creado_en}</td>
+                    <td className="small text-nowrap">{fmtFechaHoraTabla(r.creado_en)}</td>
                     <td>
                       <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setDetalle(r)}>
                         Ver snapshot
@@ -140,7 +135,7 @@ const ProduccionHistorico = () => {
           {detalle && (
             <>
               <p className="small text-muted mb-2">
-                Fuente: {detalle.fuente} · Fecha dato: {detalle.fecha_dato} · Acción: {detalle.accion}
+                Fuente: {detalle.fuente} · Fecha dato: {fmtFechaTabla(detalle.fecha_dato)} · Acción: {detalle.accion}
               </p>
               <pre className="bg-light p-3 rounded small mb-0" style={{ maxHeight: '60vh', overflow: 'auto' }}>
                 {JSON.stringify(detalle.datos, null, 2)}

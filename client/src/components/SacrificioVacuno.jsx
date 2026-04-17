@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { exportRowsToExcel } from '../utils/exportExcel';
+import { fmtFechaTabla } from '../utils/formatDates';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 
 // Definición de categorías y sufijos (para generar los nombres de los campos)
@@ -154,10 +155,6 @@ const fechaSolo = fecha.split('T')[0];  // CORREGIDO
 
 <h4>Gestión de Sacrificio Vacuno</h4>
 
-                    <small className="text-muted">
-                        Administración del flujo de producción cárnica (RF20 Excel, RF22 responsables, RF21 histórico al editar/borrar)
-                    </small>
-
             <div className="card p-3">
                 
                 <form onSubmit={handleSubmit}>
@@ -193,21 +190,21 @@ const fechaSolo = fecha.split('T')[0];  // CORREGIDO
                         ))}
                     </div>
                     <div className="mt-3">
-                        <button type="submit" className="btn btn-primary">
+                        <button type="submit" className="btn btn-success btn-form-nowrap">
                             {editando ? 'Actualizar' : 'Guardar'}
                         </button>
-                        {editando && <button type="button" className="btn btn-secondary ms-2" onClick={limpiarForm}>Cancelar</button>}
+                        {editando && <button type="button" className="btn btn-secondary btn-form-nowrap ms-2" onClick={limpiarForm}>Cancelar</button>}
                     </div>
                 </form>
                 <hr />
                 <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                     <h4 className="mb-0">Registros existentes</h4>
-                    <button type="button" className="btn btn-success btn-sm" onClick={exportarExcel} disabled={!registros.length}>
+                    <button type="button" className="btn btn-success btn-sm btn-form-nowrap" onClick={exportarExcel} disabled={!registros.length}>
                         Exportar Excel
                     </button>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
-                    <table className="table table-bordered table-striped table-sm">
+                    <table className="table table-data-compact table-bordered table-striped table-sm">
                         <thead>
                             <tr>
                                 <th>Fecha</th>
@@ -222,7 +219,7 @@ const fechaSolo = fecha.split('T')[0];  // CORREGIDO
 
 {registros.map(reg => (
                                 <tr key={reg.fecha}>
-                                    <td>{reg.fecha ? reg.fecha.split('T')[0] : ''}</td>
+                                    <td className="text-nowrap">{fmtFechaTabla(reg.fecha)}</td>
                                     {campos.map(campo => <td key={campo}>{reg[campo]}</td>)}
                                     <td className="small">{reg.creado_por || '—'}</td>
                                     <td className="small">{reg.actualizado_por || '—'}</td>

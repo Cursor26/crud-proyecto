@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 const Reconocimientos = () => {
   const [registros, setRegistros] = useState([]);
@@ -127,10 +128,9 @@ const Reconocimientos = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Reconocimientos</h4>
-        <small className="text-muted">Premios y estímulos otorgados a empleados destacados</small>
       </div>
       <div className="d-flex justify-content-end mb-3">
-        <button type="button" className="btn btn-primary" onClick={() => { limpiarForm(); setShowReconocimientoModal(true); }}>
+        <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowReconocimientoModal(true); }}>
           <i className="bi bi-award me-2" aria-hidden="true" />
           Registrar reconocimiento
         </button>
@@ -166,7 +166,7 @@ const Reconocimientos = () => {
       <div className="card shadow-sm border-0 p-3">
         <h6 className="mb-3">Reconocimientos registrados</h6>
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Fecha</th>
@@ -189,7 +189,7 @@ const Reconocimientos = () => {
               ) : (
                 registros.map((r) => (
                   <tr key={r.id_reconocimiento}>
-                    <td>{r.fecha_otorgamiento}</td>
+                    <td className="text-nowrap">{fmtFechaTabla(r.fecha_otorgamiento)}</td>
                     <td>
                       {r.nombre} {r.apellidos}
                     </td>
@@ -199,7 +199,7 @@ const Reconocimientos = () => {
                     <td>{r.valor_estimulo != null ? r.valor_estimulo : '—'}</td>
                     <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
                     <td>
-                      <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => editarRegistro(r)}>
+                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarRegistro(r)}>
                         Editar
                       </button>
                       <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarRegistro(r)}>

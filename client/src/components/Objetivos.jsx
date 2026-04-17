@@ -4,6 +4,7 @@ import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 const Objetivos = () => {
     const [registros, setRegistros] = useState([]);
@@ -110,10 +111,6 @@ const Objetivos = () => {
 
 <h4>Gestión de Objetivos</h4>
 
-                    <small className="text-muted">
-                        Administración de las expectativas laborales concretas
-                    </small>
-
             <div className="card p-3">
                 
                 <form onSubmit={handleSubmit}>
@@ -180,16 +177,16 @@ const Objetivos = () => {
                         </div>
                     </div>
                     <div className="mt-3">
-                        <button type="submit" className="btn btn-primary">
+                        <button type="submit" className="btn btn-success btn-form-nowrap">
                             {editando ? 'Actualizar' : 'Guardar'}
                         </button>
-                        {editando && <button type="button" className="btn btn-secondary ms-2" onClick={limpiarForm}>Cancelar</button>}
+                        {editando && <button type="button" className="btn btn-secondary btn-form-nowrap ms-2" onClick={limpiarForm}>Cancelar</button>}
                     </div>
                 </form>
                 <hr />
                 <h4>Registros existentes</h4>
                 <div style={{ overflowX: 'auto' }}>
-                    <table className="table table-bordered table-striped">
+                    <table className="table table-data-compact table-bordered table-striped">
                         <thead>
                             <tr>
                                 <th>Empleado</th>
@@ -212,7 +209,7 @@ const Objetivos = () => {
 
 <td>{reg.descr}</td>
                                     <td>{reg.logrado ? 'Sí' : 'No'}</td>
-                                    <td>{reg.fecha_logrado}</td>
+                                    <td className="text-nowrap">{fmtFechaTabla(reg.fecha_logrado)}</td>
                                     <td>
                                         <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
                                         <DeleteTableActionButton onClick={() => eliminarRegistro(reg.id_tabla)} />

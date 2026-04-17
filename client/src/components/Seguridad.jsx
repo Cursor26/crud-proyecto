@@ -110,9 +110,6 @@ const Seguridad = () => {
             <div className="d-flex justify-content-between align-items-center mt-0">
                 <div>
                     <h4 className="">Gestión de Seguridad</h4>
-                    <small className="text-muted">
-                        Administración de accesos y permisos
-                    </small>
                 </div>
                 <div>
                     {/* Botón de actualizar comentado, igual que en asistencias */}
@@ -173,16 +170,11 @@ const Seguridad = () => {
                     <hr className="mt-0" />
 
                     {/* Encabezado de tabla y contador */}
-                    <div className="d-flex justify-content-between align-items-center mb-2">
-                        <h6 className="mb-0">Registros de seguridad</h6>
-                        <small className="text-muted">
-                            Total registros: {registros.length}
-                        </small>
-                    </div>
+                    <h6 className="mb-2">Registros de seguridad</h6>
 
                     {/* Tabla responsiva dentro de la tarjeta */}
                     <div className="table-responsive">
-                        <table className="table table-sm table-hover align-middle mb-0">
+                        <table className="table table-data-compact table-sm table-hover align-middle mb-0">
                             <thead className="table-light">
                                 <tr>
                                     <th style={{ width: '40%' }}>Empleado</th>

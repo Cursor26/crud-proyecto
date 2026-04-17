@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { Modal, Button, Table as BTable } from 'react-bootstrap';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 function GestionEmpleados() {
   const [empCarnet, setEmpCarnet] = useState('');
@@ -206,11 +207,8 @@ function GestionEmpleados() {
       <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
           <h4 className="mb-1">Gestión de empleados</h4>
-          <small className="text-muted">
-            Administración de los empleados de la empresa (RF19: nivel escolar y superación en el formulario)
-          </small>
         </div>
-        <button type="button" className="btn btn-primary d-inline-flex align-items-center" onClick={abrirModalAgregarEmpleado}>
+        <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalAgregarEmpleado}>
           <i className="bi bi-person-plus me-2" aria-hidden="true" />
           Agregar empleado
         </button>
@@ -247,7 +245,7 @@ function GestionEmpleados() {
 
       <div className="card p-3">
         <div className="table-responsive">
-        <table className="table table-bordered table-striped">
+        <table className="table table-data-compact table-bordered table-striped">
           <thead>
             <tr>
               <th>Carnet</th>
@@ -311,7 +309,7 @@ function GestionEmpleados() {
               <tbody>
                 {historialRows.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.fecha_cambio}</td>
+                    <td className="text-nowrap">{fmtFechaTabla(row.fecha_cambio)}</td>
                     <td>{etiquetaTipoCambio(row.tipo_cambio)}</td>
                     <td>{row.valor_anterior ?? '—'}</td>
                     <td>{row.valor_nuevo ?? '—'}</td>

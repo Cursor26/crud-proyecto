@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 const esActivo = (e) => e.activo == null || e.activo === 1 || e.activo === '1';
 
@@ -93,13 +94,10 @@ const BajasEmpleados = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Bajas de empleado</h4>
-        <small className="text-muted">
-          RF16 — Marcar como inactivos a quienes se retiran o son despedidos; puede reactivarlos si corresponde
-        </small>
       </div>
 
       <div className="d-flex justify-content-end mb-3">
-        <button type="button" className="btn btn-primary" onClick={() => setShowBajaModal(true)}>
+        <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => setShowBajaModal(true)}>
           <i className="bi bi-person-dash me-2" aria-hidden="true" />
           Registrar baja
         </button>
@@ -148,21 +146,21 @@ const BajasEmpleados = () => {
           <div className="btn-group btn-group-sm">
             <button
               type="button"
-              className={`btn ${filtro === 'activos' ? 'btn-primary' : 'btn-outline-primary'}`}
+              className={`btn ${filtro === 'activos' ? 'btn-info' : 'btn-outline-info'}`}
               onClick={() => setFiltro('activos')}
             >
               Activos
             </button>
             <button
               type="button"
-              className={`btn ${filtro === 'inactivos' ? 'btn-primary' : 'btn-outline-primary'}`}
+              className={`btn ${filtro === 'inactivos' ? 'btn-info' : 'btn-outline-info'}`}
               onClick={() => setFiltro('inactivos')}
             >
               Inactivos
             </button>
             <button
               type="button"
-              className={`btn ${filtro === 'todos' ? 'btn-primary' : 'btn-outline-primary'}`}
+              className={`btn ${filtro === 'todos' ? 'btn-info' : 'btn-outline-info'}`}
               onClick={() => setFiltro('todos')}
             >
               Todos
@@ -170,7 +168,7 @@ const BajasEmpleados = () => {
           </div>
         </div>
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Carnet</th>
@@ -200,7 +198,7 @@ const BajasEmpleados = () => {
                     <td>{emp.puesto || '—'}</td>
                     <td>{emp.departamento || '—'}</td>
                     <td>{esActivo(emp) ? <span className="text-success">Activo</span> : <span className="text-danger">Inactivo</span>}</td>
-                    <td>{emp.fecha_baja || '—'}</td>
+                    <td className="text-nowrap">{fmtFechaTabla(emp.fecha_baja)}</td>
                     <td style={{ maxWidth: 220, whiteSpace: 'pre-wrap' }}>{emp.motivo_baja || '—'}</td>
                     <td>
                       {!esActivo(emp) && (

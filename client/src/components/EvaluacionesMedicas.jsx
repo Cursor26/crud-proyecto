@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 const EvaluacionesMedicas = () => {
   const [registros, setRegistros] = useState([]);
@@ -126,7 +127,6 @@ const EvaluacionesMedicas = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Evaluaciones médicas</h4>
-        <small className="text-muted">Chequeos médicos periódicos y controles ocupacionales</small>
       </div>
 
       <div className="card shadow-sm border-0 p-4 mb-4">
@@ -213,11 +213,11 @@ const EvaluacionesMedicas = () => {
               <textarea className="form-control" rows={2} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
             </div>
             <div className="col-12">
-              <button type="submit" className="btn btn-primary me-2">
+              <button type="submit" className="btn btn-success btn-form-nowrap me-2">
                 {editando ? 'Guardar cambios' : 'Registrar'}
               </button>
               {editando && (
-                <button type="button" className="btn btn-secondary" onClick={limpiarForm}>
+                <button type="button" className="btn btn-secondary btn-form-nowrap" onClick={limpiarForm}>
                   Cancelar
                 </button>
               )}
@@ -229,7 +229,7 @@ const EvaluacionesMedicas = () => {
       <div className="card shadow-sm border-0 p-3">
         <h6 className="mb-3">Historial de evaluaciones</h6>
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Fecha</th>
@@ -253,7 +253,7 @@ const EvaluacionesMedicas = () => {
               ) : (
                 registros.map((r) => (
                   <tr key={r.id_eval_medica}>
-                    <td>{r.fecha_evaluacion}</td>
+                    <td className="text-nowrap">{fmtFechaTabla(r.fecha_evaluacion)}</td>
                     <td>
                       {r.nombre} {r.apellidos}
                     </td>
@@ -261,10 +261,10 @@ const EvaluacionesMedicas = () => {
                     <td>{r.tipo_chequeo}</td>
                     <td>{r.resultado}</td>
                     <td>{r.medico_nombre}</td>
-                    <td>{r.proximo_chequeo || '—'}</td>
+                    <td className="text-nowrap">{r.proximo_chequeo ? fmtFechaTabla(r.proximo_chequeo) : '—'}</td>
                     <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
                     <td>
-                      <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => editarRegistro(r)}>
+                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarRegistro(r)}>
                         Editar
                       </button>
                       <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarRegistro(r)}>

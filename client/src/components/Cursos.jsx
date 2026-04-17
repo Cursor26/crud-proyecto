@@ -4,6 +4,7 @@ import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 const Cursos = () => {
     const [registros, setRegistros] = useState([]);
@@ -110,10 +111,6 @@ const Cursos = () => {
 
             <h4>Gestión de Cursos</h4>
 
-                    <small className="text-muted">
-                        Administración de la superación
-                    </small>
-
             <div className="card p-3">
                 
                 <form onSubmit={handleSubmit}>
@@ -177,17 +174,17 @@ const Cursos = () => {
                             />
                         </div>
                     </div>
-                    <div className="d-flex gap-2 mt-3">
-                        <button type="submit" className={`btn ${editando ? 'btn-warning' : 'btn-success'} btn-sm`}>
+                    <div className="d-flex gap-2 mt-3 flex-wrap align-items-center">
+                        <button type="submit" className={`btn ${editando ? 'btn-warning' : 'btn-success'} btn-sm btn-form-nowrap`}>
                             {editando ? 'Actualizar' : 'Guardar'}
                         </button>
-                        {editando && <button type="button" className="btn btn-secondary ms-2" onClick={limpiarForm}>Cancelar</button>}
+                        {editando && <button type="button" className="btn btn-secondary btn-sm btn-form-nowrap ms-2" onClick={limpiarForm}>Cancelar</button>}
                     </div>
                 </form>
                 <hr />
                 <h4>Registros existentes</h4>
                 <div style={{ overflowX: 'auto' }}>
-                    <table className="table table-bordered table-striped">
+                    <table className="table table-data-compact table-bordered table-striped">
                         <thead>
                             <tr>
                                 <th>Empleado</th>
@@ -208,8 +205,7 @@ const Cursos = () => {
                                     <td>{reg.curso}</td>
                                     <td>{reg.descr}</td>
                                     <td>{reg.logrado ? 'Sí' : 'No'}</td>
-
-<td>{reg.fech_fin_curso}</td>
+                                    <td className="text-nowrap">{fmtFechaTabla(reg.fech_fin_curso)}</td>
                                     <td>
                                         <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
                                         <DeleteTableActionButton onClick={() => eliminarRegistro(reg.id_tabla)} />

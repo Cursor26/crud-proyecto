@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 const Jubilaciones = () => {
   const [registros, setRegistros] = useState([]);
@@ -118,7 +119,6 @@ const Jubilaciones = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Jubilaciones y retiros</h4>
-        <small className="text-muted">RF14 — Registro de empleados que se jubilan o dejan la empresa</small>
       </div>
 
       <div className="card shadow-sm border-0 p-4 mb-4">
@@ -180,11 +180,11 @@ const Jubilaciones = () => {
               </div>
             </div>
             <div className="col-md-2 d-flex align-items-end gap-1 flex-wrap">
-              <button type="submit" className="btn btn-primary">
+              <button type="submit" className="btn btn-success btn-form-nowrap">
                 {editando ? 'Guardar' : 'Registrar'}
               </button>
               {editando && (
-                <button type="button" className="btn btn-secondary" onClick={limpiarForm}>
+                <button type="button" className="btn btn-secondary btn-form-nowrap" onClick={limpiarForm}>
                   Cancelar
                 </button>
               )}
@@ -196,7 +196,7 @@ const Jubilaciones = () => {
       <div className="card shadow-sm border-0 p-3">
         <h6 className="mb-3">Registros</h6>
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Fecha efectiva</th>
@@ -218,7 +218,7 @@ const Jubilaciones = () => {
               ) : (
                 registros.map((r) => (
                   <tr key={r.id_jubilacion}>
-                    <td>{r.fecha_efectiva}</td>
+                    <td className="text-nowrap">{fmtFechaTabla(r.fecha_efectiva)}</td>
                     <td>
                       {r.nombre} {r.apellidos}
                     </td>
@@ -227,7 +227,7 @@ const Jubilaciones = () => {
                     <td style={{ maxWidth: 280, whiteSpace: 'pre-wrap' }}>{r.motivo}</td>
                     <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
                     <td>
-                      <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => editarRegistro(r)}>
+                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarRegistro(r)}>
                         Editar
                       </button>
                       <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarRegistro(r)}>

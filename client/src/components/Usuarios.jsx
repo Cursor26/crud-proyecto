@@ -102,14 +102,14 @@ const Usuarios = () => {
               <option value="admin">Administrador</option>
             </select>
           </div>
-          <div className="col-md-2">
-            <button type="submit" className="btn btn-primary">{editando ? 'Actualizar' : 'Crear'}</button>
-            {editando && <button type="button" className="btn btn-secondary ms-2" onClick={limpiar}>Cancelar</button>}
+          <div className="col-md-2 d-flex flex-wrap align-items-center gap-2">
+            <button type="submit" className="btn btn-success btn-form-nowrap">{editando ? 'Actualizar' : 'Crear'}</button>
+            {editando && <button type="button" className="btn btn-secondary btn-form-nowrap" onClick={limpiar}>Cancelar</button>}
           </div>
         </div>
       </form>
       <hr />
-      <table className="table table-striped">
+      <table className="table table-data-compact table-striped">
         <thead>
           <tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Acciones</th></tr>
         </thead>

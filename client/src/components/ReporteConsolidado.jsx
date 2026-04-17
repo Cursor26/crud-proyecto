@@ -61,23 +61,20 @@ const ReporteConsolidado = () => {
       <div className="mb-4 d-flex flex-wrap align-items-start justify-content-between gap-2">
         <div>
           <h4>Reporte consolidado</h4>
-          <small className="text-muted">
-            RF23 — Vista global del personal por departamento (activos, inactivos y masa salarial aproximada)
-          </small>
         </div>
         <div className="d-flex gap-2">
-          <button type="button" className="btn btn-primary btn-sm" onClick={cargar} disabled={cargando}>
+          <button type="button" className="btn btn-info btn-sm" onClick={cargar} disabled={cargando}>
             {cargando ? 'Actualizando…' : 'Actualizar'}
           </button>
-          <button type="button" className="btn btn-success btn-sm" onClick={exportarExcel} disabled={filas.length === 0}>
-            Exportar Excel (RF20)
+          <button type="button" className="btn btn-success btn-sm btn-form-nowrap" onClick={exportarExcel} disabled={filas.length === 0}>
+            Exportar Excel
           </button>
         </div>
       </div>
 
       <div className="card shadow-sm border-0 p-3">
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Departamento</th>

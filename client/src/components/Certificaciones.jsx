@@ -90,9 +90,6 @@ const Certificaciones = () => {
         <div className="container mt-4">
 <div className='mt-8'>
  <h4>Gestión de Certificaciones</h4>
-                    <small className="text-muted">
-                        Administración de certificaciones del personal
-                    </small>
 
 </div>
 
@@ -121,25 +118,23 @@ const Certificaciones = () => {
                             <label>Certificación</label>
                             <input
                                 type="text"
-
-
-className="form-control"
+                                className="form-control"
                                 value={certificacion}
                                 onChange={e => setCertificacion(e.target.value)}
                             />
                         </div>
                     </div>
-                    <div className="d-flex gap-2">
-                        <button type="submit" className={`btn ${editando ? 'btn-warning' : 'btn-success'} btn-sm`}>
+                    <div className="d-flex gap-2 flex-wrap align-items-center">
+                        <button type="submit" className={`btn ${editando ? 'btn-warning' : 'btn-success'} btn-sm btn-form-nowrap`}>
                             {editando ? 'Actualizar' : 'Guardar'}
                         </button>
-                        {editando && <button type="button" className="btn btn-secondary btn-sm" onClick={limpiarForm}>Cancelar</button>}
+                        {editando && <button type="button" className="btn btn-secondary btn-sm btn-form-nowrap" onClick={limpiarForm}>Cancelar</button>}
                     </div>
                 </form>
                 <hr />
                 <h4>Registros existentes</h4>
                 <div style={{ overflowX: 'auto' }}>
-                    <table className="table table-bordered table-striped">
+                    <table className="table table-data-compact table-bordered table-striped">
                         <thead>
                             <tr>
                                 <th>Empleado</th>

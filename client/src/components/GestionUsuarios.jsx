@@ -118,9 +118,8 @@ function GestionUsuarios() {
       <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
           <h4 className="mb-1">Gestión de Usuarios</h4>
-          <small className="text-muted">Administración de los usuarios del programa</small>
         </div>
-        <button type="button" className="btn btn-primary d-inline-flex align-items-center" onClick={abrirModalNuevoUsuario}>
+        <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalNuevoUsuario}>
           <i className="bi bi-person-plus me-2" aria-hidden="true" />
           Agregar usuario
         </button>
@@ -174,7 +173,7 @@ function GestionUsuarios() {
 
       <div className="card p-3">
         <div className="table-responsive">
-          <table className="table table-bordered table-striped">
+          <table className="table table-data-compact table-bordered table-striped">
             <thead>
               <tr>
                 <th>Email</th>

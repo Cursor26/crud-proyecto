@@ -4,6 +4,7 @@ import '../App.css';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 const CertificadosMedicos = () => {
   const [registros, setRegistros] = useState([]);
@@ -111,15 +112,12 @@ const CertificadosMedicos = () => {
       <div className="d-flex justify-content-between align-items-center mt-0">
         <div>
           <h4>Certificados Médicos</h4>
-          <small className="text-muted">
-            Registro de certificaciones médicas que justifican ausencias
-          </small>
         </div>
       </div>
       <div className="card shadow-sm border-0">
         <div className="card-body">
-          <div className="row g-3 mb-3">
-            <div className="col-md-4">
+          <div className="row g-3 mb-2 align-items-end">
+            <div className="col-12 col-md-6 col-xl-3">
               <label className="form-label mb-1 fw-bold">Empleado *</label>
               <select
                 className="form-select form-select-lg"
@@ -135,7 +133,7 @@ const CertificadosMedicos = () => {
                 ))}
               </select>
             </div>
-            <div className="col-md-2">
+            <div className="col-6 col-md-3 col-xl-2">
               <label className="form-label mb-1">Fecha emisión</label>
               <input
                 type="date"
@@ -144,7 +142,7 @@ const CertificadosMedicos = () => {
                 onChange={e => setFechaEmision(e.target.value)}
               />
             </div>
-            <div className="col-md-2">
+            <div className="col-6 col-md-3 col-xl-2">
               <label className="form-label mb-1">Fecha venc.</label>
               <input
                 type="date"
@@ -153,16 +151,17 @@ const CertificadosMedicos = () => {
                 onChange={e => setFechaVencimiento(e.target.value)}
               />
             </div>
-            <div className="col-md-2">
+            <div className="col-6 col-md-3 col-xl-2">
               <label className="form-label mb-1">Días licencia</label>
               <input
                 type="number"
                 className="form-control form-control-lg"
                 value={diasLicencia}
                 onChange={e => setDiasLicencia(e.target.value)}
+                min={0}
               />
             </div>
-            <div className="col-md-2">
+            <div className="col-12 col-md-9 col-xl-3 form-field-min-12">
               <label className="form-label mb-1">Médico</label>
               <input
                 placeholder="Nombre del médico"
@@ -170,12 +169,15 @@ const CertificadosMedicos = () => {
                 className="form-control form-control-lg"
                 value={medicoNombre}
                 onChange={e => setMedicoNombre(e.target.value)}
+                autoComplete="off"
               />
             </div>
-            <div className="col-md-2 d-flex align-items-end">
+          </div>
+          <div className="row g-3 mb-3">
+            <div className="col-12 d-flex flex-wrap justify-content-end gap-2 align-items-center">
               <button
                 type="button"
-                className={`btn w-100 ${editando ? 'btn-warning' : 'btn-success'} btn-lg`}
+                className={`btn btn-form-nowrap ${editando ? 'btn-warning' : 'btn-success'} btn-lg`}
                 onClick={handleSubmit}
               >
                 {editando ? 'Actualizar' : 'Registrar'}
@@ -205,17 +207,14 @@ const CertificadosMedicos = () => {
             </label>
           </div>
           {editando && (
-            <button className="btn btn-secondary mb-3" onClick={limpiarForm}>
+            <button type="button" className="btn btn-secondary btn-form-nowrap mb-3" onClick={limpiarForm}>
               Cancelar edición
             </button>
           )}
           <hr />
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <h6>Certificados médicos registrados</h6>
-            <small className="text-muted">Total: {registros.length}</small>
-          </div>
+          <h6 className="mb-3">Certificados médicos registrados</h6>
           <div className="table-responsive">
-            <table className="table table-hover">
+            <table className="table table-hover table-data-compact">
               <thead className="table-light">
                 <tr>
                   <th>ID</th>
@@ -239,12 +238,12 @@ const CertificadosMedicos = () => {
                   registros.map(reg => (
                     <tr key={reg.id_cert_medico}>
                       <td><strong>{reg.id_cert_medico}</strong></td>
-                      <td>
-                        <div>{nombrePorCarnet(reg.carnet_identidad) || '—'}</div>
-                        <small className="text-muted">{reg.carnet_identidad}</small>
+                      <td className="cell-empleado-max">
+                        <div className="cell-nombre-wrap">{nombrePorCarnet(reg.carnet_identidad) || '—'}</div>
+                        <small className="text-muted cell-id-nowrap">{reg.carnet_identidad}</small>
                       </td>
-                      <td>{reg.fecha_emision}</td>
-                      <td>{reg.fecha_vencimiento || '-'}</td>
+                      <td className="text-nowrap">{fmtFechaTabla(reg.fecha_emision)}</td>
+                      <td className="text-nowrap">{fmtFechaTabla(reg.fecha_vencimiento)}</td>
                       <td>{reg.dias_licencia}</td>
                       <td>{reg.medico_nombre}</td>
                       <td>

@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 const Vacaciones = () => {
     const [registros, setRegistros] = useState([]);
@@ -155,12 +156,9 @@ const eliminarRegistro = (id) => {
             <div className="d-flex justify-content-between align-items-center mt-0">
                 <div>
                     <h4 className="">Gestión de Vacaciones</h4>
-                    <small className="text-muted">
-                        Administración de períodos vacacionales
-                    </small>
                 </div>
                 <div>
-                    <button type="button" className="btn btn-primary" onClick={() => { limpiarForm(); setShowVacacionesModal(true); }}>
+                    <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowVacacionesModal(true); }}>
                         <i className="bi bi-calendar-plus me-2" aria-hidden="true" />
                         Agregar vacaciones
                     </button>
@@ -207,16 +205,11 @@ const eliminarRegistro = (id) => {
                     <hr className="mt-0" />
 
                     {/* Encabezado de tabla y contador */}
-                    <div className="d-flex justify-content-between align-items-center mb-2">
-                        <h6 className="mb-0">Registros de vacaciones</h6>
-                        <small className="text-muted">
-                            Total registros: {registros.length}
-                        </small>
-                    </div>
+                    <h6 className="mb-2">Registros de vacaciones</h6>
 
                     {/* Tabla responsiva dentro de la tarjeta */}
                     <div className="table-responsive">
-                        <table className="table table-sm table-hover align-middle mb-0">
+                        <table className="table table-data-compact table-sm table-hover align-middle mb-0">
                             <thead className="table-light">
                                 <tr>
                                     <th>Empleado</th>
@@ -243,8 +236,8 @@ const eliminarRegistro = (id) => {
                                             <div>{nombrePorCarnet(reg.id_tabla) || '—'}</div>
                                             <small className="text-muted">{reg.id_tabla}</small>
                                         </td>
-                                        <td>{reg.fecha_inicio}</td>
-                                        <td>{reg.fecha_fin}</td>
+                                        <td className="text-nowrap">{fmtFechaTabla(reg.fecha_inicio)}</td>
+                                        <td className="text-nowrap">{fmtFechaTabla(reg.fecha_fin)}</td>
                                         <td>{reg.dias_totales}</td>
                                         <td>{reg.motivo}</td>
                                         <td>{reg.aprobado ? 'Sí' : 'No'}</td>

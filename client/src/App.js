@@ -476,7 +476,7 @@ function App() {
       </div>
 
       <div className="dashboard-main flex-grow-1 p-4 overflow-auto">
-        <Navbar expand="lg" className="dashboard-topbar shadow-sm rounded-4 mb-4 py-3 px-4">
+        <Navbar expand="lg" className="dashboard-topbar shadow-none mb-4 py-3 px-4">
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="ms-auto align-items-center gap-3 dashboard-topbar-actions">

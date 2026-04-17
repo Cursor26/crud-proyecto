@@ -95,10 +95,6 @@ const Evalcapacitacion = () => {
 
 <h4>Gestión de Evaluación de Capacitación</h4>
 
-                    <small className="text-muted">
-                        Administración del desempeño en función de la capacitación
-                    </small>
-
             <div className="card p-3">
                 
                 <form onSubmit={handleSubmit}>
@@ -144,16 +140,16 @@ const Evalcapacitacion = () => {
                         </div>
                     </div>
                     <div className="mt-3">
-                        <button type="submit" className="btn btn-primary">
+                        <button type="submit" className="btn btn-success btn-form-nowrap">
                             {editando ? 'Actualizar' : 'Guardar'}
                         </button>
-                        {editando && <button type="button" className="btn btn-secondary ms-2" onClick={limpiarForm}>Cancelar</button>}
+                        {editando && <button type="button" className="btn btn-secondary btn-form-nowrap ms-2" onClick={limpiarForm}>Cancelar</button>}
                     </div>
                 </form>
                 <hr />
                 <h4>Registros existentes</h4>
                 <div style={{ overflowX: 'auto' }}>
-                    <table className="table table-bordered table-striped">
+                    <table className="table table-data-compact table-bordered table-striped">
                         <thead>
                             <tr>
                                 <th>Empleado</th>

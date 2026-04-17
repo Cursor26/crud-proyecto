@@ -415,21 +415,20 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
           <div>
             <h4 className="mb-1">Gestión de Contratos</h4>
-            <small className="text-muted">Módulo premium de administración contractual</small>
           </div>
           <div className="d-flex gap-2 flex-wrap">
-            <button type="button" className="btn btn-primary d-inline-flex align-items-center" onClick={abrirModalNuevoContrato}>
+            <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalNuevoContrato}>
               <i className="bi bi-file-earmark-plus me-2" aria-hidden="true" />
               Agregar contrato
             </button>
             {activeSection === 'renovaciones' && (
-              <button type="button" className="btn btn-success" onClick={renovarMasivos}>
+              <button type="button" className="btn btn-success btn-form-nowrap" onClick={renovarMasivos}>
                 <i className="bi bi-arrow-repeat me-2" aria-hidden="true" />
                 Renovar masivo
               </button>
             )}
             {activeSection === 'reportes' && (
-              <button type="button" className="btn btn-outline-primary" onClick={exportarReporteCSV}>
+              <button type="button" className="btn btn-outline-primary btn-form-nowrap" onClick={exportarReporteCSV}>
                 <i className="bi bi-filetype-csv me-2" aria-hidden="true" />
                 Exportar CSV
               </button>
@@ -629,7 +628,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
               <div className="card p-3">
                 <h6 className="mb-3">Alertas prioritarias (&lt;= 30 días)</h6>
                 <div className="table-responsive">
-                  <table className="table table-sm table-bordered">
+                  <table className="table table-data-compact table-sm table-bordered">
                     <thead>
                       <tr>
                         <th>N° Contrato</th>
@@ -646,7 +645,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                           <td>{c.empresa}</td>
                           <td><span className={`badge ${getBadgeClass(c.estado)}`}>{c.estado}</span></td>
                           <td>{c.diasRestantes}</td>
-                          <td><button type="button" className="btn btn-sm btn-outline-primary" onClick={() => renovarContrato(c)}>Renovar</button></td>
+                          <td><button type="button" className="btn btn-sm btn-outline-success" onClick={() => renovarContrato(c)}>Renovar</button></td>
                         </tr>
                       ))}
                       {contratosCriticos.length === 0 && (
@@ -725,7 +724,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
 
             <div className="card p-3">
               <div className="table-responsive">
-                <table className="table table-bordered table-striped">
+                <table className="table table-data-compact table-bordered table-striped">
                   <thead>
                     <tr>
                       <th>N° Contrato</th><th>Tipo</th><th>Empresa</th><th>Vigencia</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Estado</th><th>Días</th><th>Alerta</th><th>Acciones</th>
@@ -745,7 +744,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                         <td>{con.alerta}</td>
                         <td>
                           <EditTableActionButton onClick={() => editarContratoTabla(con)} className="me-2" />
-                          <button type="button" className="btn btn-sm btn-outline-primary me-2" title="Renovar contrato" onClick={() => renovarContrato(con)}>
+                          <button type="button" className="btn btn-sm btn-outline-success me-2" title="Renovar contrato" onClick={() => renovarContrato(con)}>
                             <i className="bi bi-arrow-repeat" />
                           </button>
                           <DeleteTableActionButton onClick={() => deleteContrato(con)} />
@@ -766,7 +765,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
           <div className="card p-3">
             <h6 className="mb-3">Bandeja de vencimientos y seguimiento (&lt;= 90 días)</h6>
             <div className="table-responsive">
-              <table className="table table-bordered">
+              <table className="table table-data-compact table-bordered">
                 <thead>
                   <tr>
                     <th>N° Contrato</th><th>Empresa</th><th>Tipo</th><th>Fecha Fin</th><th>Días</th><th>Estado</th><th>Alerta</th><th>Acción</th>
@@ -782,7 +781,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                       <td>{c.diasRestantes}</td>
                       <td><span className={`badge ${getBadgeClass(c.estado)}`}>{c.estado}</span></td>
                       <td>{c.alerta}</td>
-                      <td><button type="button" className="btn btn-sm btn-outline-primary" onClick={() => renovarContrato(c)}>Renovar</button></td>
+                      <td><button type="button" className="btn btn-sm btn-outline-success" onClick={() => renovarContrato(c)}>Renovar</button></td>
                     </tr>
                   ))}
                   {contratosPrioritarios.length === 0 && (
@@ -801,14 +800,13 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                 <h6>Panel de renovaciones</h6>
                 <p className="mb-2">Candidatos inmediatos (&lt;= 30 días): <strong>{contratosCriticos.length}</strong></p>
                 <p className="mb-2">Vencidos pendientes: <strong>{contratosVencidos.length}</strong></p>
-                <p className="text-muted mb-0">Usa renovación masiva para mantener continuidad operacional.</p>
               </div>
             </div>
             <div className="col-12 col-lg-8">
               <div className="card p-3">
                 <h6 className="mb-3">Cola de renovación priorizada</h6>
                 <div className="table-responsive">
-                  <table className="table table-sm table-bordered">
+                  <table className="table table-data-compact table-sm table-bordered">
                     <thead>
                       <tr><th>N° Contrato</th><th>Empresa</th><th>Días</th><th>Estado</th><th>Acción</th></tr>
                     </thead>
@@ -819,7 +817,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                           <td>{c.empresa}</td>
                           <td>{c.diasRestantes}</td>
                           <td><span className={`badge ${getBadgeClass(c.estado)}`}>{c.estado}</span></td>
-                          <td><button type="button" className="btn btn-sm btn-outline-primary" onClick={() => renovarContrato(c)}>Renovar</button></td>
+                          <td><button type="button" className="btn btn-sm btn-outline-success" onClick={() => renovarContrato(c)}>Renovar</button></td>
                         </tr>
                       ))}
                       {contratosPrioritarios.length === 0 && (

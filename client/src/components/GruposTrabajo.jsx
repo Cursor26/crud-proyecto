@@ -4,6 +4,7 @@ import '../App.css';
 import Swal from 'sweetalert2';
 import { Modal, Button } from 'react-bootstrap';
 import { FormModal } from './FormModal';
+import { fmtFechaTabla } from '../utils/formatDates';
 
 const GruposTrabajo = () => {
   const [grupos, setGrupos] = useState([]);
@@ -250,11 +251,10 @@ const GruposTrabajo = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Grupos de trabajo</h4>
-        <small className="text-muted">Defina grupos, asigne integrantes y registre la asistencia del grupo por día</small>
       </div>
 
       <div className="d-flex justify-content-end mb-3">
-        <button type="button" className="btn btn-primary" onClick={() => { limpiarGrupo(); setShowGrupoModal(true); }}>
+        <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarGrupo(); setShowGrupoModal(true); }}>
           <i className="bi bi-people me-2" aria-hidden="true" />
           Nuevo grupo
         </button>
@@ -284,7 +284,7 @@ const GruposTrabajo = () => {
       <div className="card shadow-sm border-0 p-3 mb-4">
         <h6 className="mb-3">Grupos registrados</h6>
         <div className="table-responsive">
-          <table className="table table-bordered table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Nombre</th>
@@ -332,7 +332,7 @@ const GruposTrabajo = () => {
         <h6 className="mb-3">{editAsistencia ? 'Editar asistencia grupal' : 'Registrar asistencia del grupo'}</h6>
         <form onSubmit={submitAsistencia}>
           <div className="row g-3 align-items-end">
-            <div className="col-md-4">
+            <div className="col-12 col-md-6 col-xl-4">
               <label className="form-label">Grupo</label>
               <select className="form-select" value={asGrupo} onChange={(e) => setAsGrupo(e.target.value)} required>
                 <option value="" disabled hidden>— Seleccione —</option>
@@ -343,11 +343,11 @@ const GruposTrabajo = () => {
                 ))}
               </select>
             </div>
-            <div className="col-md-2">
+            <div className="col-6 col-md-3 col-xl-2">
               <label className="form-label">Fecha</label>
               <input type="date" className="form-control" value={asFecha} onChange={(e) => setAsFecha(e.target.value)} required />
             </div>
-            <div className="col-md-2">
+            <div className="col-6 col-md-3 col-xl-2">
               <label className="form-label">Presentes</label>
               <input
                 type="number"
@@ -359,31 +359,34 @@ const GruposTrabajo = () => {
                 onChange={(e) => setAsPresentes(e.target.value)}
                 disabled={!asGrupo || maxPresentes === 0}
               />
-              <small className="text-muted">Vacío = todo el grupo</small>
             </div>
-            <div className="col-md-2">
+            <div className="col-12 col-md-12 col-xl-4 d-grid d-xl-block">
               <button
                 type="button"
-                className="btn btn-outline-success w-100"
+                className="btn btn-outline-success btn-form-nowrap"
                 disabled={!asGrupo || maxPresentes === 0}
                 onClick={marcarTodosPresentes}
               >
                 Todo el grupo
               </button>
             </div>
-            <div className="col-md-10">
+          </div>
+          <div className="row g-3 align-items-end mt-1">
+            <div className="col-12 col-lg-9">
               <label className="form-label">Observaciones</label>
               <input className="form-control" value={asObs} onChange={(e) => setAsObs(e.target.value)} />
             </div>
-            <div className="col-md-2">
-              <button type="submit" className="btn btn-primary w-100">
-                {editAsistencia ? 'Actualizar' : 'Registrar'}
-              </button>
-              {editAsistencia && (
-                <button type="button" className="btn btn-secondary w-100 mt-1" onClick={limpiarAsistencia}>
-                  Cancelar
+            <div className="col-12 col-lg-3">
+              <div className="d-grid gap-2">
+                <button type="submit" className="btn btn-success btn-form-nowrap">
+                  {editAsistencia ? 'Actualizar' : 'Registrar'}
                 </button>
-              )}
+                {editAsistencia && (
+                  <button type="button" className="btn btn-secondary btn-form-nowrap" onClick={limpiarAsistencia}>
+                    Cancelar
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </form>
@@ -392,7 +395,7 @@ const GruposTrabajo = () => {
       <div className="card shadow-sm border-0 p-3">
         <h6 className="mb-3">Historial de asistencia grupal</h6>
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Fecha</th>
@@ -413,13 +416,13 @@ const GruposTrabajo = () => {
               ) : (
                 asistencias.map((a) => (
                   <tr key={a.id_asistencia}>
-                    <td>{a.fecha}</td>
+                    <td className="text-nowrap">{fmtFechaTabla(a.fecha)}</td>
                     <td>{a.nombre_grupo}</td>
                     <td>{a.miembros_presentes}</td>
                     <td>{a.miembros_total}</td>
                     <td>{a.observaciones || '—'}</td>
                     <td>
-                      <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => editarAsistenciaRow(a)}>
+                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarAsistenciaRow(a)}>
                         Editar
                       </button>
                       <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarAsistencia(a)}>

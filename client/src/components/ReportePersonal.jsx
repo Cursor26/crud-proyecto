@@ -97,21 +97,18 @@ const ReportePersonal = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Reporte de personal</h4>
-        <small className="text-muted">
-          RF17 — Listado de empleados filtrado por departamento y/o cargo (puesto). RF20 — exportación Excel.
-        </small>
       </div>
 
       <div className="card shadow-sm border-0 p-4 mb-4">
         <div className="d-flex flex-wrap gap-2">
-          <button type="button" className="btn btn-primary" onClick={() => setShowFiltrosModal(true)}>
+          <button type="button" className="btn btn-info" onClick={() => setShowFiltrosModal(true)}>
             <i className="bi bi-funnel me-2" aria-hidden="true" />
             Filtros
           </button>
           <button type="button" className="btn btn-outline-secondary" onClick={exportarCsv} disabled={empleados.length === 0}>
             Exportar CSV
           </button>
-          <button type="button" className="btn btn-success" onClick={exportarExcel} disabled={empleados.length === 0}>
+          <button type="button" className="btn btn-success btn-form-nowrap" onClick={exportarExcel} disabled={empleados.length === 0}>
             Exportar Excel
           </button>
         </div>
@@ -170,11 +167,9 @@ const ReportePersonal = () => {
       </FormModal>
 
       <div className="card shadow-sm border-0 p-3">
-        <h6 className="mb-3">
-          Resultados <span className="text-muted fw-normal">({empleados.length})</span>
-        </h6>
+        <h6 className="mb-3">Resultados</h6>
         <div className="table-responsive">
-          <table className="table table-bordered table-striped table-sm align-middle mb-0">
+          <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Carnet</th>

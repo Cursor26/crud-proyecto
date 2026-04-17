@@ -37,7 +37,7 @@ export function FormModal({
       <Modal.Footer className="modal-premium-footer modal-minimal-footer border-0">
         <button
           type="button"
-          className="btn btn-primary modal-premium-btn-save modal-minimal-btn"
+          className="btn btn-success modal-premium-btn-save modal-minimal-btn"
           onClick={onPrimary}
           disabled={primaryDisabled}
         >

@@ -115,9 +115,6 @@ const Cargos = () => {
       <div className="d-flex justify-content-between align-items-center mt-0">
         <div>
           <h4 className="">Gestión de Cargos</h4>
-          <small className="text-muted">
-            Define y administra los puestos de trabajo disponibles
-          </small>
         </div>
       </div>
       <div className="card shadow-sm border-0">
@@ -197,14 +194,9 @@ const Cargos = () => {
             </label>
           </div>
           <hr className="mt-0" />
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <h6 className="mb-0">Lista de cargos</h6>
-            <small className="text-muted">
-              Total cargos: {registros.length}
-            </small>
-          </div>
+          <h6 className="mb-2">Lista de cargos</h6>
           <div className="table-responsive">
-            <table className="table table-hover align-middle mb-0">
+            <table className="table table-data-compact table-hover align-middle mb-0">
               <thead className="table-light">
                 <tr>
                   <th style={{ width: '8%' }}>#</th>

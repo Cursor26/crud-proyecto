@@ -75,9 +75,6 @@ const CambiosCargo = () => {
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <div className="mb-4">
         <h4>Cambios de cargo</h4>
-        <small className="text-muted">
-          RF18 — Ascensos o cambios de puesto; se guardan en el historial laboral (puesto y salario si aplica)
-        </small>
       </div>
 
       <div className="card shadow-sm border-0 p-4 mb-4">
@@ -105,8 +102,8 @@ const CambiosCargo = () => {
                 required
               />
             </div>
-            <div className="col-md-4 d-flex align-items-end">
-              <button type="submit" className="btn btn-primary w-100">
+            <div className="col-md-4 d-grid d-md-flex align-items-end">
+              <button type="submit" className="btn btn-success btn-form-nowrap w-100">
                 Guardar cambio
               </button>
             </div>
@@ -144,10 +141,7 @@ const CambiosCargo = () => {
       </div>
 
       <div className="card shadow-sm border-0 p-3">
-        <h6 className="mb-2">Vista rápida del personal activo</h6>
-        <p className="text-muted small mb-0">
-          Para ver el detalle histórico por persona use &quot;Historial&quot; en la pantalla de empleados.
-        </p>
+        <h6 className="mb-0">Vista rápida del personal activo</h6>
       </div>
     </div>
   );
