@@ -3,6 +3,7 @@ import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
+import ModuleTitleBar from './ModuleTitleBar';
 
 function GestionUsuarios() {
   const [usuariosList, setUsuarios] = useState([]);
@@ -13,11 +14,21 @@ function GestionUsuarios() {
   const [editandoUsuario, setEditandoUsuario] = useState(false);
   const [userEmailOriginal, setUserEmailOriginal] = useState('');
   const [showUsuarioModal, setShowUsuarioModal] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const getUsuarios = () => {
+    setLoadError('');
     Axios.get('http://localhost:3001/usuarios')
-      .then((response) => setUsuarios(response.data))
-      .catch((error) => console.error('Error al cargar usuarios:', error));
+      .then((response) => {
+        const data = response.data;
+        setUsuarios(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        console.error('Error al cargar usuarios:', error);
+        setUsuarios([]);
+        const msg = error.response?.data?.message || error.message || 'No se pudo cargar la lista de usuarios';
+        setLoadError(msg);
+      });
   };
 
   useEffect(() => {
@@ -115,15 +126,21 @@ function GestionUsuarios() {
 
   return (
     <div>
-      <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-        <div>
-          <h4 className="mb-1">Gestión de Usuarios</h4>
+      <ModuleTitleBar
+        title="Gestión de Usuarios"
+        actions={
+          <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalNuevoUsuario}>
+            <i className="bi bi-person-plus me-2" aria-hidden="true" />
+            Agregar usuario
+          </button>
+        }
+      />
+
+      {loadError ? (
+        <div className="alert alert-danger py-2 mb-3" role="alert">
+          {loadError}
         </div>
-        <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalNuevoUsuario}>
-          <i className="bi bi-person-plus me-2" aria-hidden="true" />
-          Agregar usuario
-        </button>
-      </div>
+      ) : null}
 
       <FormModal
         show={showUsuarioModal}

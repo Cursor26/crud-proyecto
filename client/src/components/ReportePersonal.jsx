@@ -4,6 +4,7 @@ import '../App.css';
 import Swal from 'sweetalert2';
 import { exportRowsToExcel } from '../utils/exportExcel';
 import { FormModal } from './FormModal';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const esActivo = (e) => e.activo == null || e.activo === 1 || e.activo === '1';
 
@@ -95,24 +96,23 @@ const ReportePersonal = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4">
-        <h4>Reporte de personal</h4>
-      </div>
-
-      <div className="card shadow-sm border-0 p-4 mb-4">
-        <div className="d-flex flex-wrap gap-2">
-          <button type="button" className="btn btn-info" onClick={() => setShowFiltrosModal(true)}>
-            <i className="bi bi-funnel me-2" aria-hidden="true" />
-            Filtros
-          </button>
-          <button type="button" className="btn btn-outline-secondary" onClick={exportarCsv} disabled={empleados.length === 0}>
-            Exportar CSV
-          </button>
-          <button type="button" className="btn btn-success btn-form-nowrap" onClick={exportarExcel} disabled={empleados.length === 0}>
-            Exportar Excel
-          </button>
-        </div>
-      </div>
+      <ModuleTitleBar
+        title="Reporte de personal"
+        actions={
+          <>
+            <button type="button" className="btn btn-info" onClick={() => setShowFiltrosModal(true)}>
+              <i className="bi bi-funnel me-2" aria-hidden="true" />
+              Filtros
+            </button>
+            <button type="button" className="btn btn-outline-secondary" onClick={exportarCsv} disabled={empleados.length === 0}>
+              Exportar CSV
+            </button>
+            <button type="button" className="btn btn-success btn-form-nowrap" onClick={exportarExcel} disabled={empleados.length === 0}>
+              Exportar Excel
+            </button>
+          </>
+        }
+      />
 
       <FormModal
         show={showFiltrosModal}

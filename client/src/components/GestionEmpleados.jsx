@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { Modal, Button, Table as BTable } from 'react-bootstrap';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
+import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
 
 function GestionEmpleados() {
@@ -204,15 +205,15 @@ function GestionEmpleados() {
 
   return (
     <div>
-      <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-        <div>
-          <h4 className="mb-1">Gestión de empleados</h4>
-        </div>
-        <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalAgregarEmpleado}>
-          <i className="bi bi-person-plus me-2" aria-hidden="true" />
-          Agregar empleado
-        </button>
-      </div>
+      <ModuleTitleBar
+        title="Gestión de empleados"
+        actions={
+          <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalAgregarEmpleado}>
+            <i className="bi bi-person-plus me-2" aria-hidden="true" />
+            Agregar empleado
+          </button>
+        }
+      />
 
       <FormModal
         show={showEmpleadoModal}

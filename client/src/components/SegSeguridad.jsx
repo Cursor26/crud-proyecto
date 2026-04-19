@@ -4,6 +4,7 @@ import '../App.css';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const SegSeguridad = () => {
     const [registros, setRegistros] = useState([]);
@@ -125,15 +126,7 @@ const SegSeguridad = () => {
     };
  return (
         <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-            {/* Encabezado tipo dashboard */}
-            <div className="d-flex justify-content-between align-items-center mt-0">
-                <div>
-                    <h4 className="">Gestión de Seg. Seguridad</h4>
-                </div>
-                <div>
-                    {/* Botón de actualizar comentado, igual que en asistencias */}
-                </div>
-            </div>
+            <ModuleTitleBar title="Gestión de Seg. Seguridad" />
 
             {/* Tarjeta principal */}
             <div className="card shadow-sm border-0">

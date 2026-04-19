@@ -4,6 +4,7 @@ import '../App.css';
 import Swal from 'sweetalert2';
 import { Modal, Button } from 'react-bootstrap';
 import { FormModal } from './FormModal';
+import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
 
 const GruposTrabajo = () => {
@@ -249,16 +250,15 @@ const GruposTrabajo = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4">
-        <h4>Grupos de trabajo</h4>
-      </div>
-
-      <div className="d-flex justify-content-end mb-3">
-        <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarGrupo(); setShowGrupoModal(true); }}>
-          <i className="bi bi-people me-2" aria-hidden="true" />
-          Nuevo grupo
-        </button>
-      </div>
+      <ModuleTitleBar
+        title="Grupos de trabajo"
+        actions={
+          <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarGrupo(); setShowGrupoModal(true); }}>
+            <i className="bi bi-people me-2" aria-hidden="true" />
+            Nuevo grupo
+          </button>
+        }
+      />
 
       <FormModal
         show={showGrupoModal}

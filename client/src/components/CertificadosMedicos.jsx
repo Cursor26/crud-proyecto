@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { fmtFechaTabla } from '../utils/formatDates';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const CertificadosMedicos = () => {
   const [registros, setRegistros] = useState([]);
@@ -109,11 +110,7 @@ const CertificadosMedicos = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="d-flex justify-content-between align-items-center mt-0">
-        <div>
-          <h4>Certificados Médicos</h4>
-        </div>
-      </div>
+      <ModuleTitleBar title="Certificados Médicos" />
       <div className="card shadow-sm border-0">
         <div className="card-body">
           <div className="row g-3 mb-2 align-items-end">

@@ -4,6 +4,7 @@ import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const Certificaciones = () => {
     const [registros, setRegistros] = useState([]);
@@ -87,12 +88,8 @@ const Certificaciones = () => {
     };
 
     return (
-        <div className="container mt-4">
-<div className='mt-8'>
- <h4>Gestión de Certificaciones</h4>
-
-</div>
-
+        <div className="container-fluid px-0">
+            <ModuleTitleBar title="Gestión de Certificaciones" />
             <div className="card p-3">
                
                 <form onSubmit={handleSubmit}>

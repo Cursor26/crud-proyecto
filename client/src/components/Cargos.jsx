@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const Cargos = () => {
   const [registros, setRegistros] = useState([]);
@@ -112,11 +113,7 @@ const Cargos = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="d-flex justify-content-between align-items-center mt-0">
-        <div>
-          <h4 className="">Gestión de Cargos</h4>
-        </div>
-      </div>
+      <ModuleTitleBar title="Gestión de Cargos" />
       <div className="card shadow-sm border-0">
         <div className="card-body">
           <div className="d-flex flex-column flex-lg-row align-items-stretch align-items-lg-end mb-3 gap-3">

@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { fmtFechaTabla } from '../utils/formatDates';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const Objetivos = () => {
     const [registros, setRegistros] = useState([]);
@@ -107,10 +108,8 @@ const Objetivos = () => {
     };
 
     return (
-        <div className="container mt-3">
-
-<h4>Gestión de Objetivos</h4>
-
+        <div className="container-fluid px-0">
+            <ModuleTitleBar title="Gestión de Objetivos" />
             <div className="card p-3">
                 
                 <form onSubmit={handleSubmit}>

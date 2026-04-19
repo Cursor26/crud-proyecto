@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { exportRowsToExcel } from '../utils/exportExcel';
 import { fmtFechaTabla } from '../utils/formatDates';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import ModuleTitleBar from './ModuleTitleBar';
 
 // Definición de categorías y sufijos (para generar los nombres de los campos)
 const categorias = [
@@ -151,10 +152,8 @@ const fechaSolo = fecha.split('T')[0];  // CORREGIDO
     };
 
     return (
-        <div className="container-fluid mt-3">
-
-<h4>Gestión de Sacrificio Vacuno</h4>
-
+        <div className="container-fluid px-0">
+            <ModuleTitleBar title="Gestión de Sacrificio Vacuno" />
             <div className="card p-3">
                 
                 <form onSubmit={handleSubmit}>

@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { exportRowsToExcel } from '../utils/exportExcel';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const ReporteConsolidado = () => {
   const [filas, setFilas] = useState([]);
@@ -58,19 +59,19 @@ const ReporteConsolidado = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4 d-flex flex-wrap align-items-start justify-content-between gap-2">
-        <div>
-          <h4>Reporte consolidado</h4>
-        </div>
-        <div className="d-flex gap-2">
-          <button type="button" className="btn btn-info btn-sm" onClick={cargar} disabled={cargando}>
-            {cargando ? 'Actualizando…' : 'Actualizar'}
-          </button>
-          <button type="button" className="btn btn-success btn-sm btn-form-nowrap" onClick={exportarExcel} disabled={filas.length === 0}>
-            Exportar Excel
-          </button>
-        </div>
-      </div>
+      <ModuleTitleBar
+        title="Reporte consolidado"
+        actions={
+          <>
+            <button type="button" className="btn btn-info btn-sm" onClick={cargar} disabled={cargando}>
+              {cargando ? 'Actualizando…' : 'Actualizar'}
+            </button>
+            <button type="button" className="btn btn-success btn-sm btn-form-nowrap" onClick={exportarExcel} disabled={filas.length === 0}>
+              Exportar Excel
+            </button>
+          </>
+        }
+      />
 
       <div className="card shadow-sm border-0 p-3">
         <div className="table-responsive">

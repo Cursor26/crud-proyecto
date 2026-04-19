@@ -9,6 +9,7 @@ import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const Asistencias = () => {
 
@@ -114,21 +115,8 @@ const Asistencias = () => {
         }); 
     };    return (
         <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-            {/* Encabezado tipo dashboard */}
-            <div className="d-flex justify-content-between align-items-center mt-0">
-                <div>
-                    <h4 className="">Gestión de Asistencias</h4>
-                </div>
-                <div>
-{/*                     <button
-                        type="button"
-                        className="btn btn-outline-info btn-sm"
-                        onClick={getRegistros}
-                    >
-                        Actualizar lista
-                    </button> */}
-                </div>
-            </div>            {/* Tarjeta principal */}
+            <ModuleTitleBar title="Gestión de Asistencias" />
+            {/* Tarjeta principal */}
             <div className="card shadow-sm border-0">
                 <div className="card-body">
                     {/* Barra superior de filtros / formulario compacto */}

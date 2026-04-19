@@ -97,8 +97,9 @@ app.post('/login', async (req, res) => {
 
 // Obtener todos los usuarios (sin contraseñas)
 app.get("/usuarios", verificarToken, autorizarRol(['admin']), (req, res) => {
-  db.query('SELECT email, nombre, rol, created_at FROM usuarios', (err, results) => {
-    if (err) return res.status(500).send(err);
+  // No incluir created_at: muchas instalaciones no tienen esa columna y el SELECT falla (tabla vacía en el cliente).
+  db.query('SELECT email, nombre, rol FROM usuarios ORDER BY nombre ASC', (err, results) => {
+    if (err) return res.status(500).json({ message: err.message || 'Error al listar usuarios' });
     res.send(results);
   });
 });

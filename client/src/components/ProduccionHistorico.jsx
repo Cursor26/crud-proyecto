@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { Modal, Button } from 'react-bootstrap';
 import { exportRowsToExcel } from '../utils/exportExcel';
 import { fmtFechaTabla, fmtFechaHoraTabla } from '../utils/formatDates';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const ProduccionHistorico = () => {
   const [items, setItems] = useState([]);
@@ -49,9 +50,7 @@ const ProduccionHistorico = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4">
-        <h4>Histórico de producción</h4>
-      </div>
+      <ModuleTitleBar title="Histórico de producción" />
 
       <div className="card shadow-sm border-0 p-4 mb-4">
         <div className="row g-3 align-items-end">

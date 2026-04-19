@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
+import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
 
 const esActivo = (e) => e.activo == null || e.activo === 1 || e.activo === '1';
@@ -92,16 +93,15 @@ const BajasEmpleados = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4">
-        <h4>Bajas de empleado</h4>
-      </div>
-
-      <div className="d-flex justify-content-end mb-3">
-        <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => setShowBajaModal(true)}>
-          <i className="bi bi-person-dash me-2" aria-hidden="true" />
-          Registrar baja
-        </button>
-      </div>
+      <ModuleTitleBar
+        title="Bajas de empleado"
+        actions={
+          <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => setShowBajaModal(true)}>
+            <i className="bi bi-person-dash me-2" aria-hidden="true" />
+            Registrar baja
+          </button>
+        }
+      />
 
       <FormModal
         show={showBajaModal}

@@ -6,6 +6,7 @@ import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
 import { fmtFechaTabla } from '../utils/formatDates';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const Vacaciones = () => {
     const [registros, setRegistros] = useState([]);
@@ -152,18 +153,15 @@ const eliminarRegistro = (id) => {
 
     return (
         <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-            {/* Encabezado tipo dashboard */}
-            <div className="d-flex justify-content-between align-items-center mt-0">
-                <div>
-                    <h4 className="">Gestión de Vacaciones</h4>
-                </div>
-                <div>
+            <ModuleTitleBar
+                title="Gestión de Vacaciones"
+                actions={
                     <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowVacacionesModal(true); }}>
                         <i className="bi bi-calendar-plus me-2" aria-hidden="true" />
                         Agregar vacaciones
                     </button>
-                </div>
-            </div>
+                }
+            />
 
             <FormModal
                 show={showVacacionesModal}

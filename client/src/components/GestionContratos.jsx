@@ -412,11 +412,11 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   return (
     <div className="row">
       <div className="col-12">
-        <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-          <div>
-            <h4 className="mb-1">Gestión de Contratos</h4>
-          </div>
-          <div className="d-flex gap-2 flex-wrap">
+        <div className="dashboard-module-red-title-flow-spacer" aria-hidden="true" />
+        <div className="dashboard-module-red-title-anchor dashboard-module-red-title-anchor--overlay">
+          <h4 className="mb-1">Gestión de Contratos</h4>
+        </div>
+        <div className="d-flex flex-wrap justify-content-end gap-2 mb-3 mt-1">
             <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalNuevoContrato}>
               <i className="bi bi-file-earmark-plus me-2" aria-hidden="true" />
               Agregar contrato
@@ -433,7 +433,6 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                 Exportar CSV
               </button>
             )}
-          </div>
         </div>
 
         <div className="card p-2 mb-3">

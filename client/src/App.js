@@ -475,18 +475,15 @@ function App() {
         </Nav>
       </div>
 
-      <div className="dashboard-main flex-grow-1 p-4 overflow-auto">
-        <Navbar expand="lg" className="dashboard-topbar shadow-none mb-4 py-3 px-4">
+      <div className="dashboard-main flex-grow-1 ps-4 pb-4 pe-0">
+        <div className="dashboard-topbar-wave" aria-hidden="true" />
+        <Navbar expand="lg" className="dashboard-topbar shadow-none mb-2 py-2 px-4">
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
-            <Nav className="ms-auto align-items-center gap-3 dashboard-topbar-actions">
-              <div className="dashboard-user-badge">
-                <div className="dashboard-user-badge__title">Bienvenido</div>
-                <div className="dashboard-user-badge__name">
-                  {user.nombre} <span className="dashboard-user-badge__role">({user.rol})</span>
-                </div>
-              </div>
-              <img src="/images/usuario.png" alt="" width="40" height="40" className="dashboard-user-avatar" />
+            <div className="dashboard-topbar-avatar-wrap">
+              <img src="/images/usuario.png" alt="" width="52" height="52" className="dashboard-user-avatar" />
+            </div>
+            <Nav className="ms-auto align-items-center gap-2 dashboard-topbar-actions">
               <button type="button" className="btn btn-cerrar mb-0" onClick={logout}>
                 Cerrar sesión
               </button>
@@ -494,7 +491,8 @@ function App() {
           </Navbar.Collapse>
         </Navbar>
 
-        <div className="dashboard-content-layout">
+        <div className="dashboard-main-scroll">
+          <div className="dashboard-content-layout">
           <div className="dashboard-content-main">
             {(key === 'contratos' || key === 'contratos-lista') && <GestionContratos vistaInicial="contratos" />}
             {key === 'contratos-resumen' && <GestionContratos vistaInicial="resumen" />}
@@ -564,6 +562,7 @@ function App() {
               />
             </div>
           </aside>
+          </div>
         </div>
       </div>
     </div>

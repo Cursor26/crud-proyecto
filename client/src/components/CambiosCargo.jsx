@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const esActivo = (e) => e.activo == null || e.activo === 1 || e.activo === '1';
 
@@ -73,9 +74,7 @@ const CambiosCargo = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4">
-        <h4>Cambios de cargo</h4>
-      </div>
+      <ModuleTitleBar title="Cambios de cargo" />
 
       <div className="card shadow-sm border-0 p-4 mb-4">
         <h6 className="mb-3">Registrar cambio</h6>

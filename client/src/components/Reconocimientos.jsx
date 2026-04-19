@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
+import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
 
 const Reconocimientos = () => {
@@ -126,15 +127,15 @@ const Reconocimientos = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4">
-        <h4>Reconocimientos</h4>
-      </div>
-      <div className="d-flex justify-content-end mb-3">
-        <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowReconocimientoModal(true); }}>
-          <i className="bi bi-award me-2" aria-hidden="true" />
-          Registrar reconocimiento
-        </button>
-      </div>
+      <ModuleTitleBar
+        title="Reconocimientos"
+        actions={
+          <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowReconocimientoModal(true); }}>
+            <i className="bi bi-award me-2" aria-hidden="true" />
+            Registrar reconocimiento
+          </button>
+        }
+      />
 
       <FormModal
         show={showReconocimientoModal}

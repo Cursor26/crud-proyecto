@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 100" preserveAspectRatio="none">
+  <!-- Ola: curva un poco más corta en horizontal -->
+  <path
+    fill="#000000"
+    d="M 0 0
+       L 1600 0
+       L 1600 94
+       L 1375 94
+       C 1320 91 1285 24 1238 22
+       L 0 22
+       L 0 0 Z"
+  />
+</svg>

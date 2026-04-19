@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const TurnosTrabajo = () => {
   const [registros, setRegistros] = useState([]);
@@ -137,16 +138,15 @@ const TurnosTrabajo = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4">
-        <h4>Turnos de trabajo</h4>
-      </div>
-
-      <div className="d-flex justify-content-end mb-3">
-        <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowTurnoModal(true); }}>
-          <i className="bi bi-calendar2-week me-2" aria-hidden="true" />
-          Asignar turno
-        </button>
-      </div>
+      <ModuleTitleBar
+        title="Turnos de trabajo"
+        actions={
+          <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowTurnoModal(true); }}>
+            <i className="bi bi-calendar2-week me-2" aria-hidden="true" />
+            Asignar turno
+          </button>
+        }
+      />
 
       <FormModal
         show={showTurnoModal}

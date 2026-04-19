@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
+import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
 
 const Sanciones = () => {
@@ -126,15 +127,15 @@ const Sanciones = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4">
-        <h4>Sanciones</h4>
-      </div>
-      <div className="d-flex justify-content-end mb-3">
-        <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowSancionModal(true); }}>
-          <i className="bi bi-exclamation-octagon me-2" aria-hidden="true" />
-          Registrar sanción
-        </button>
-      </div>
+      <ModuleTitleBar
+        title="Sanciones"
+        actions={
+          <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowSancionModal(true); }}>
+            <i className="bi bi-exclamation-octagon me-2" aria-hidden="true" />
+            Registrar sanción
+          </button>
+        }
+      />
 
       <FormModal
         show={showSancionModal}

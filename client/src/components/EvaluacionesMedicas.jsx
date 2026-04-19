@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { fmtFechaTabla } from '../utils/formatDates';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const EvaluacionesMedicas = () => {
   const [registros, setRegistros] = useState([]);
@@ -125,9 +126,7 @@ const EvaluacionesMedicas = () => {
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <div className="mb-4">
-        <h4>Evaluaciones médicas</h4>
-      </div>
+      <ModuleTitleBar title="Evaluaciones médicas" />
 
       <div className="card shadow-sm border-0 p-4 mb-4">
         <h6 className="mb-3">{editando ? 'Editar evaluación' : 'Registrar chequeo médico'}</h6>

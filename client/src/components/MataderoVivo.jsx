@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { exportRowsToExcel } from '../utils/exportExcel';
 import { fmtFechaTabla } from '../utils/formatDates';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import ModuleTitleBar from './ModuleTitleBar';
 
 // Definición de categorías y sufijos
 const categorias = [
@@ -146,10 +147,8 @@ const MataderoVivo = () => {
     };
 
     return (
-        <div className="container-fluid mt-3">
-
-<h4>Gestión de Matadero Vivo</h4>
-
+        <div className="container-fluid px-0">
+            <ModuleTitleBar title="Gestión de Matadero Vivo" />
             <div className="card p-3">
                 
                 <form onSubmit={handleSubmit}>

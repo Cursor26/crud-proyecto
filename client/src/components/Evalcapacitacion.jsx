@@ -4,6 +4,7 @@ import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import ModuleTitleBar from './ModuleTitleBar';
 
 const Evalcapacitacion = () => {
     const [registros, setRegistros] = useState([]);
@@ -91,10 +92,8 @@ const Evalcapacitacion = () => {
     };
 
     return (
-        <div className="container mt-3">
-
-<h4>Gestión de Evaluación de Capacitación</h4>
-
+        <div className="container-fluid px-0">
+            <ModuleTitleBar title="Gestión de Evaluación de Capacitación" />
             <div className="card p-3">
                 
                 <form onSubmit={handleSubmit}>

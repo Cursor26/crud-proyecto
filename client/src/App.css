@@ -295,6 +295,20 @@ margin-top: 15px;
 .dashboard-main {
   position: relative;
   background: #b6b6b6;
+  padding-top: 0 !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Scroll solo del contenido: la barra empieza debajo de la ola/topbar, no detrás del listón */
+.dashboard-main-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: var(--dashboard-main-scroll-offset-top, 0.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .dashboard-main::before {
@@ -314,10 +328,22 @@ margin-top: 15px;
   z-index: 1;
 }
 
+/* Por encima de .dashboard-topbar-wave (z-index 5): el scroll envuelve el contenido y el título fijo rojo */
+.dashboard-main .dashboard-main-scroll {
+  z-index: 6;
+}
+
 .dashboard-content-layout {
   display: flex;
   gap: 0.9rem;
   align-items: flex-start;
+  /* Sin hueco extra: los títulos de módulo quedan alineados arriba como en Gestión de contratos */
+  padding-top: 0;
+  /*
+   * Por encima de .dashboard-topbar-wave (z-index 5): el título fijo vive dentro de este árbol;
+   * si todo el bloque queda en z-index 1, el rojo queda *debajo* del listón negro y no se ve la invasión.
+   */
+  z-index: 6;
 }
 
 .dashboard-content-main {
@@ -327,6 +353,16 @@ margin-top: 15px;
 
 .dashboard-content-main .content-wrapper {
   min-width: 0;
+}
+
+/* Módulos con .content-wrapper.p-3: menos padding superior para que el h4 quede arriba como Contratos */
+.dashboard-content-main .content-wrapper.p-3 {
+  padding-top: 0.5rem !important;
+}
+
+.dashboard-content-main .content-wrapper.p-3 > .mb-4:first-child,
+.dashboard-content-main .content-wrapper.p-3 > .d-flex:first-child {
+  margin-top: 0 !important;
 }
 
 /* Botones de formulario: una sola línea de texto y ancho mínimo estable */
@@ -460,12 +496,15 @@ margin-top: 15px;
 
 .dashboard-topbar {
   background: transparent !important;
-  backdrop-filter: blur(8px);
   border: none !important;
   box-shadow: none !important;
   border-radius: 0 !important;
-  padding-top: 0.42rem !important;
-  padding-bottom: 0.42rem !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 /* Oculta antes el panel lateral para ganar ancho útil (p. ej. ventana estrecha o IDE con panel derecho) */
@@ -475,18 +514,65 @@ margin-top: 15px;
   }
 }
 
+/* Avatar: fuera del Nav, misma franja vertical que la ola; posición horizontal a la izquierda del botón */
+.dashboard-topbar-avatar-wrap {
+  position: fixed;
+  top: 0 !important;
+  right: calc(14px + var(--dashboard-topbar-logout-slot, 10rem) + 0.625rem);
+  width: var(--dashboard-user-avatar-size, 3.25rem);
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  z-index: 12;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.dashboard-topbar-avatar-wrap .dashboard-user-avatar {
+  margin-top: calc(
+    var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem)) * var(--dashboard-avatar-wave-center, 0.58) -
+      (var(--dashboard-user-avatar-size, 3.25rem) * 0.5)
+  );
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+
 .dashboard-topbar-actions {
   width: auto;
   max-width: fit-content;
   justify-content: flex-end;
+  align-items: flex-start;
   gap: 0.65rem !important;
   padding: 0.28rem 0.46rem;
   border-radius: 0;
-  background: #121417;
+  background: transparent;
   border: none;
   box-shadow: none;
   margin-left: auto;
+  margin-right: 0 !important;
   display: inline-flex !important;
+  position: fixed !important;
+  right: 0 !important;
+  /* Misma caja vertical que el listón negro de la ola */
+  top: 0 !important;
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  box-sizing: border-box;
+  transform: none !important;
+  z-index: 12;
+  margin-left: 0 !important;
+  padding-right: 0 !important;
+  overflow: visible;
+}
+
+/* Botón: centrado en el medio vertical del listón negro */
+.dashboard-topbar-actions .btn-cerrar {
+  margin-top: calc(
+    var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem)) * 0.5 -
+      (var(--dashboard-topbar-logout-h, 2.38rem) * 0.5)
+  ) !important;
+  align-self: flex-start;
+  flex-shrink: 0;
 }
 
 .dashboard-user-badge {
@@ -518,6 +604,8 @@ margin-top: 15px;
 }
 
 .dashboard-user-avatar {
+  width: var(--dashboard-user-avatar-size, 3.25rem) !important;
+  height: var(--dashboard-user-avatar-size, 3.25rem) !important;
   border-radius: 999px;
   border: 2px solid rgba(226, 232, 240, 0.5);
   box-shadow: 0 2px 8px rgba(2, 6, 23, 0.22);
@@ -598,6 +686,55 @@ margin-top: 15px;
 }
 
 .dashboard-main .dashboard-content-main > .row > .col-12 > .d-flex > div:first-child > h4 {
+  box-shadow: -3rem 0 0 0 var(--brand-red);
+}
+
+/* Reserva altura en el flujo mientras el título real va en position:fixed (no lo recorta overflow-auto) */
+.dashboard-module-red-title-flow-spacer {
+  height: 2.875rem;
+  min-height: 2.875rem;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/*
+ * Recuadro rojo pegado al borde del menú / inicio del listón de la ola (z-index por encima de la ola).
+ * Extensión hacia arriba: se hace en el h4 con padding-top + margin-top negativo (mismo ancho que el recuadro);
+ * el ::before no se veía bien en todos los navegadores con width del ancla.
+ */
+.dashboard-main .dashboard-module-red-title-anchor--overlay {
+  position: fixed;
+  top: 0.58rem;
+  left: var(--dashboard-sidebar-width, 280px);
+  z-index: 14;
+  margin: 0 !important;
+  padding: 0;
+  width: fit-content;
+  max-width: min(28rem, calc(100vw - var(--dashboard-sidebar-width, 280px) - 11rem));
+  overflow: visible;
+  /* Cuánto “sube” el rojo invadiendo el listón negro (mismo color que el h4) */
+  --dashboard-red-title-lip: 0.12rem;
+}
+
+@media (max-width: 991.98px) {
+  .dashboard-main .dashboard-module-red-title-anchor--overlay {
+    left: var(--dashboard-sidebar-width, 280px);
+    max-width: calc(100vw - var(--dashboard-sidebar-width, 280px) - 9rem);
+  }
+}
+
+.dashboard-main .dashboard-module-red-title-anchor--overlay > h4 {
+  box-shadow: none !important;
+  /* Más área roja hacia arriba; el margen negativo compensa para que el texto no baje */
+  padding-top: calc(0.36rem + var(--dashboard-red-title-lip, 0.12rem)) !important;
+  padding-bottom: 0.36rem !important;
+  padding-left: 0.9rem !important;
+  padding-right: 0.9rem !important;
+  margin-top: calc(-1 * var(--dashboard-red-title-lip, 0.12rem)) !important;
+}
+
+/* Títulos rojos que no usen overlay (si los hubiera) mantienen extensión visual hacia la izquierda */
+.dashboard-main .dashboard-module-red-title-anchor:not(.dashboard-module-red-title-anchor--overlay) > h4 {
   box-shadow: -3rem 0 0 0 var(--brand-red);
 }
 
@@ -2025,3 +2162,143 @@ body .btn:not(.btn-link) {
   opacity: 0.55;
   filter: none;
 }
+
+/* Ajuste visual solicitado: fondo blanco + paneles gris claro + logo abajo */
+.dashboard-shell {
+  background: #ffffff;
+  --dashboard-sidebar-width: 280px;
+  /* Misma altura que .dashboard-topbar-wave: sirve para centrar avatar en el borde negro/blanco */
+  --dashboard-topbar-wave-h: clamp(3.65rem, 5.6vw, 5rem);
+  --dashboard-user-avatar-size: 3.25rem;
+  /* Altura aproximada del botón cerrar sesión (para centrarlo en el listón) */
+  --dashboard-topbar-logout-h: 2.38rem;
+  /* Espacio reservado a la derecha para botón + separación (el avatar va a la izquierda de esto) */
+  --dashboard-topbar-logout-slot: 10rem;
+  /* Fracción de la altura de la ola donde centramos el avatar (tramo de descenso del borde inferior del SVG) */
+  --dashboard-avatar-wave-center: 0.58;
+  /* Separa un poco el inicio de la barra de scroll del bloque superior */
+  --dashboard-main-scroll-offset-top: 0.5rem;
+}
+
+/* Franja decorativa tipo “ola”: continúa el bloque oscuro del menú hasta el borde derecho; la zona ancha queda detrás del avatar y cerrar sesión */
+.dashboard-topbar-wave {
+  position: fixed;
+  top: 0;
+  left: var(--dashboard-sidebar-width);
+  right: 0;
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  z-index: 5;
+  pointer-events: none;
+  background-image: url('./assets/dashboard-topbar-wave.svg');
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: left top;
+  filter: drop-shadow(0 5px 14px rgba(0, 0, 0, 0.28));
+}
+
+.dashboard-main {
+  background: #ffffff;
+}
+
+.dashboard-main .card,
+.dashboard-main .table-responsive {
+  background: #ececec !important;
+}
+
+.dashboard-main .table.table-data-compact {
+  --bs-table-bg: #efefef;
+  --bs-table-accent-bg: #efefef;
+  --bs-table-striped-bg: #efefef;
+  --bs-table-hover-bg: #e5e5e5;
+  background-color: #efefef;
+}
+
+.dashboard-main .table.table-data-compact tbody td,
+.dashboard-main .table.table-data-compact.table-striped > tbody > tr:nth-of-type(odd) > *,
+.dashboard-main .table.table-data-compact.table-striped > tbody > tr:nth-of-type(even) > * {
+  background-color: #efefef !important;
+}
+
+.dashboard-main .table.table-data-compact.table-hover tbody tr:hover td,
+.dashboard-main .table.table-data-compact tbody tr:hover td {
+  background-color: #e5e5e5 !important;
+}
+
+.dashboard-side-info {
+  min-height: calc(100vh - 3.2rem);
+  justify-content: space-between;
+}
+
+.dashboard-side-info__logo-wrap {
+  margin-top: 0;
+  background: transparent;
+  padding: 0;
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1rem;
+  width: 190px;
+  z-index: 3;
+}
+
+.dashboard-side-info__logo {
+  max-width: 165px;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* Fijos sin alterar ubicacion visual */
+.dashboard-side-info__card {
+  position: fixed;
+  right: 1.2rem;
+  top: 8.05rem;
+  width: 190px;
+  z-index: 4;
+}
+
+.dashboard-topbar-actions {
+  position: fixed !important;
+  top: 0 !important;
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  right: 0 !important;
+  left: auto !important;
+  margin: 0 !important;
+  transform: none !important;
+  z-index: 12;
+}
+
+.dashboard-main--contratos .contratos-top-header__right {
+  position: fixed !important;
+  right: 1rem;
+  top: 0.45rem;
+  z-index: 7;
+}
+
+/* Reserva espacio para el bloque fijo y evita que suba/mueva el contenido */
+.dashboard-topbar {
+  min-height: 3.65rem;
+}
+
+.dashboard-topbar .navbar-collapse {
+  min-height: 2.2rem;
+}
+
+@media (max-width: 992px) {
+  .dashboard-side-info__card,
+  .dashboard-side-info__logo-wrap,
+  .dashboard-main--contratos .contratos-top-header__right {
+    position: static;
+    width: auto;
+    top: auto;
+    right: auto;
+    bottom: auto;
+  }
+}
+
+/* Ajuste fino: compensa el ancho del scrollbar para evitar recorte del bloque fijo */
+.dashboard-main .dashboard-topbar-actions {
+  right: 14px !important;
+  top: 0 !important;
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  transform: none !important;
+}
+

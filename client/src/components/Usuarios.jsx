@@ -15,8 +15,8 @@ const Usuarios = () => {
 
   const getUsuarios = () => {
     Axios.get('http://localhost:3001/usuarios')
-      .then(res => setUsuarios(res.data))
-      .catch(err => console.error(err));
+      .then((res) => setUsuarios(Array.isArray(res.data) ? res.data : []))
+      .catch((err) => console.error(err));
   };
 
   useEffect(() => { getUsuarios(); }, []);
