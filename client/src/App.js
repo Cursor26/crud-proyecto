@@ -475,12 +475,16 @@ function App() {
         </Nav>
       </div>
 
-      <div className="dashboard-main flex-grow-1 ps-4 pb-4 pe-0">
+      <div className={`dashboard-main flex-grow-1 ps-4 pb-4 pe-0 ${key && (key === 'contratos' || key.startsWith('contratos-')) ? 'dashboard-main--contratos' : ''}`}>
         <div className="dashboard-topbar-wave" aria-hidden="true" />
         <Navbar expand="lg" className="dashboard-topbar shadow-none mb-2 py-2 px-4">
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <div className="dashboard-topbar-avatar-wrap">
+              <div className="dashboard-topbar-user-meta">
+                <span className="dashboard-topbar-user-name">{user.nombre}</span>
+                <span className="dashboard-topbar-user-role">{user.rol}</span>
+              </div>
               <img src="/images/usuario.png" alt="" width="52" height="52" className="dashboard-user-avatar" />
             </div>
             <Nav className="ms-auto align-items-center gap-2 dashboard-topbar-actions">
@@ -537,12 +541,6 @@ function App() {
               <span className="dashboard-side-info__pill">Información</span>
               <p className="dashboard-side-info__line">
                 Módulo: <strong>{moduloLabel[key] || 'Panel principal'}</strong>
-              </p>
-              <p className="dashboard-side-info__line">
-                Usuario: <strong>{user.nombre}</strong>
-              </p>
-              <p className="dashboard-side-info__line">
-                Rol: <strong>{user.rol}</strong>
               </p>
               <p className="dashboard-side-info__date">
                 {now.toLocaleDateString('es-ES')}

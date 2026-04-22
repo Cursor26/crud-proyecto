@@ -5,6 +5,7 @@ import { EditTableActionButton, DeleteTableActionButton } from './TableActionIco
 import { FormModal } from './FormModal';
 
 function GestionContratos({ vistaInicial = 'contratos' }) {
+  const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
   const [contratoNumero, setContratoNumero] = useState('');
   const [contratoProveedorCliente, setContratoProveedorCliente] = useState(false);
   const [contratoEmpresa, setContratoEmpresa] = useState('');
@@ -26,6 +27,11 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroVencimiento, setFiltroVencimiento] = useState('todos');
   const [activeSection, setActiveSection] = useState(vistaInicial);
+  const [renovFechaDesde, setRenovFechaDesde] = useState('');
+  const [renovFechaHasta, setRenovFechaHasta] = useState('');
+  const [pasoRenovacion, setPasoRenovacion] = useState(1);
+  const [empresaIconos, setEmpresaIconos] = useState({});
+  const [empresaVistaPrevia, setEmpresaVistaPrevia] = useState(null);
 
   const getContratos = () => {
     Axios.get('http://localhost:3001/contratos')
@@ -48,6 +54,76 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   useEffect(() => {
     setActiveSection(vistaInicial || 'contratos');
   }, [vistaInicial]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(EMPRESA_ICONOS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setEmpresaIconos(parsed);
+      }
+    } catch (error) {
+      console.warn('No se pudieron cargar iconos de empresas:', error);
+    }
+  }, []);
+
+  const normalizarEmpresaKey = (empresa) => String(empresa || '').trim().toLowerCase();
+
+  const persistirIconosEmpresa = (nextIconos) => {
+    setEmpresaIconos(nextIconos);
+    try {
+      localStorage.setItem(EMPRESA_ICONOS_STORAGE_KEY, JSON.stringify(nextIconos));
+    } catch (error) {
+      console.warn('No se pudo guardar icono de empresa:', error);
+    }
+  };
+
+  const getIconoEmpresa = (empresa) => {
+    const key = normalizarEmpresaKey(empresa);
+    return key ? empresaIconos[key] : '';
+  };
+
+  const guardarIconoEmpresa = (empresa, dataUrl) => {
+    const key = normalizarEmpresaKey(empresa);
+    if (!key || !dataUrl) return;
+    persistirIconosEmpresa({ ...empresaIconos, [key]: dataUrl });
+  };
+
+  const eliminarIconoEmpresa = (empresa) => {
+    const key = normalizarEmpresaKey(empresa);
+    if (!key || !empresaIconos[key]) return;
+    const nextIconos = { ...empresaIconos };
+    delete nextIconos[key];
+    persistirIconosEmpresa(nextIconos);
+  };
+
+  const manejarIconoEmpresaChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const empresaNombre = String(contratoEmpresa || '').trim();
+    if (!empresaNombre) {
+      Swal.fire('Empresa requerida', 'Primero escribe la empresa para asociar su icono.', 'info');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      Swal.fire('Archivo inválido', 'Selecciona una imagen válida (PNG, JPG, SVG, etc.).', 'warning');
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      Swal.fire('Imagen muy pesada', 'Usa una imagen de hasta 1 MB para mantener fluidez.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      if (dataUrl) guardarIconoEmpresa(empresaNombre, dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const sumarTiempoConVigencia = (fechaStr, vigenciaValor) => {
     if (!fechaStr) return fechaStr;
@@ -114,6 +190,47 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     if (estado === 'Activo') return 'bg-success';
     return 'bg-secondary';
   };
+
+  /* Diferencia de días en formato legible: nunca muestra negativos planos */
+  const formatDiferenciaDias = (dias) => {
+    if (dias == null) return 'Sin fecha';
+    if (dias < 0) return `Vencido hace ${Math.abs(dias)} días`;
+    if (dias === 0) return 'Vence hoy';
+    return `${dias} días restantes`;
+  };
+
+  /* Posición 0–100 del marcador en la barra tricolor (verde -> amarillo -> rojo) */
+  const calcularPosicionTiempo = (dias) => {
+    if (dias == null) return 50;
+    const min = -30;
+    const max = 90;
+    const v = Math.max(min, Math.min(max, dias));
+    return Math.round(((max - v) / (max - min)) * 100);
+  };
+
+  /* Etiqueta visual de estado para la cola de renovación (Activo/En Revisión/Vencido) */
+  const getEstadoRenovacion = (estado) => {
+    if (estado === 'Vencido') return { label: 'Vencido', mod: 'vencido' };
+    if (estado === 'Por vencer') return { label: 'En Revisión', mod: 'revision' };
+    if (estado === 'En seguimiento') return { label: 'En Revisión', mod: 'revision' };
+    if (estado === 'Activo') return { label: 'Activo', mod: 'activo' };
+    return { label: estado || 'N/D', mod: 'neutro' };
+  };
+
+  /* Inicial visible en el avatar de la empresa */
+  const inicialEmpresa = (empresa) => {
+    if (!empresa) return '?';
+    return String(empresa).trim().charAt(0).toUpperCase();
+  };
+
+  useEffect(() => {
+    if (empresaVistaPrevia == null) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setEmpresaVistaPrevia(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [empresaVistaPrevia]);
 
   const limpiarContrato = () => {
     setContratoNumero('');
@@ -239,20 +356,48 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   };
 
   const renovarContrato = (contrato) => {
-    const baseInicio = toISODate(contrato.fecha_fin) || toISODate(contrato.fecha_inicio);
-    const nuevaFechaFin = sumarTiempoConVigencia(baseInicio, contrato.vigencia);
-    if (!baseInicio || !nuevaFechaFin) {
-      Swal.fire('Datos incompletos', 'El contrato no tiene fechas suficientes para renovar.', 'warning');
-      return;
-    }
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const inicioRenovacion = toISODate(hoy.toISOString());
+    const sugeridaFin = sumarTiempoConVigencia(inicioRenovacion, contrato.vigencia) || inicioRenovacion;
+
     Swal.fire({
       title: 'Renovar contrato',
-      text: `Se extenderá la vigencia y nueva fecha fin será ${nuevaFechaFin}.`,
       icon: 'question',
+      html: `
+        <div style="text-align:left">
+          <p style="margin-bottom:0.45rem;">
+            <strong>Inicio:</strong> ${inicioRenovacion}
+          </p>
+          <label for="swal-renov-fecha-fin" style="display:block;font-weight:600;margin-bottom:0.25rem;">
+            Fecha fin
+          </label>
+          <input id="swal-renov-fecha-fin" type="date" class="swal2-input" style="margin:0;width:100%;" value="${sugeridaFin}" min="${inicioRenovacion}" />
+          <small style="display:block;color:#6b7280;margin-top:0.4rem;">
+            Elige la nueva fecha fin del contrato.
+          </small>
+        </div>
+      `,
       showCancelButton: true,
       confirmButtonText: 'Sí, renovar',
+      focusConfirm: false,
+      preConfirm: () => {
+        const fechaFin = document.getElementById('swal-renov-fecha-fin')?.value;
+        if (!fechaFin) {
+          Swal.showValidationMessage('Debes seleccionar una fecha fin.');
+          return false;
+        }
+        if (fechaFin < inicioRenovacion) {
+          Swal.showValidationMessage('La fecha fin no puede ser menor a la fecha de inicio.');
+          return false;
+        }
+        return { fechaFin };
+      },
     }).then((result) => {
       if (!result.isConfirmed) return;
+      const nuevaFechaFin = result.value?.fechaFin;
+      if (!nuevaFechaFin) return;
+
       Axios.put('http://localhost:3001/update-contrato', {
         numero_contrato: contrato.numero_contrato,
         proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
@@ -260,7 +405,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         suplementos: contrato.suplementos || '',
         vigencia: contrato.vigencia,
         tipo_contrato: contrato.tipo_contrato,
-        fecha_inicio: toISODate(contrato.fecha_inicio),
+        fecha_inicio: inicioRenovacion,
         fecha_fin: nuevaFechaFin,
         vencido: 0,
       })
@@ -330,6 +475,49 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   const contratosCriticos = useMemo(() => contratosPrioritarios.filter((c) => c.diasRestantes <= 30), [contratosPrioritarios]);
   const contratosVencidos = useMemo(() => contratosEnriquecidos.filter((c) => c.estado === 'Vencido'), [contratosEnriquecidos]);
 
+  /* Cola priorizada filtrada por búsqueda y rango de fechas (vista renovaciones) */
+  const colaRenovacion = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const desde = renovFechaDesde ? new Date(`${renovFechaDesde}T00:00:00`) : null;
+    const hasta = renovFechaHasta ? new Date(`${renovFechaHasta}T23:59:59`) : null;
+    return contratosPrioritarios.filter((c) => {
+      const matchTerm =
+        !term ||
+        String(c.numero_contrato).toLowerCase().includes(term) ||
+        String(c.empresa || '').toLowerCase().includes(term) ||
+        String(c.tipo_contrato || '').toLowerCase().includes(term);
+      if (!matchTerm) return false;
+      if (!c.fecha_fin || (!desde && !hasta)) return true;
+      const fin = new Date(`${toISODate(c.fecha_fin)}T00:00:00`);
+      if (desde && fin < desde) return false;
+      if (hasta && fin > hasta) return false;
+      return true;
+    });
+  }, [contratosPrioritarios, searchTerm, renovFechaDesde, renovFechaHasta]);
+
+  /* Datos para el gráfico de barras "Contratos por Mes de Vencimiento" */
+  const vencimientosPorMes = useMemo(() => {
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const counts = Array(12).fill(0);
+    contratosEnriquecidos.forEach((c) => {
+      if (c.fecha_fin) {
+        const m = new Date(`${toISODate(c.fecha_fin)}T00:00:00`).getMonth();
+        counts[m] += 1;
+      }
+    });
+    const max = Math.max(...counts, 1);
+    return counts.map((valor, i) => ({ mes: meses[i], valor, altura: Math.round((valor / max) * 100) }));
+  }, [contratosEnriquecidos]);
+
+  /* Porcentaje (sobre el total) de inmediatos y vencidos para barras de progreso del panel */
+  const porcentajePanel = useMemo(() => {
+    const total = contratosEnriquecidos.length || 1;
+    return {
+      inmediatos: Math.round((contratosCriticos.length / total) * 100),
+      vencidos: Math.round((contratosVencidos.length / total) * 100),
+    };
+  }, [contratosEnriquecidos, contratosCriticos, contratosVencidos]);
+
   const topEmpresas = useMemo(() => {
     const mapa = new Map();
     contratosEnriquecidos.forEach((c) => {
@@ -383,6 +571,49 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     });
   };
 
+  /* Avanza un paso en el stepper de Renovación Masiva (Selección -> Revisión -> Confirmación -> Ejecución) */
+  const avanzarPasoRenovacion = () => {
+    setPasoRenovacion((p) => {
+      if (p >= 4) {
+        renovarMasivos();
+        return 1;
+      }
+      if (p === 3) {
+        renovarMasivos();
+        return 4;
+      }
+      return p + 1;
+    });
+  };
+
+  const reiniciarStepper = () => setPasoRenovacion(1);
+
+  const enviarRecordatorio = (contrato) => {
+    Swal.fire(
+      'Recordatorio enviado',
+      `Se envió un correo de recordatorio para el contrato ${contrato.numero_contrato} (${contrato.empresa || 'sin empresa'}).`,
+      'success'
+    );
+  };
+
+  const verDetalleContrato = (contrato) => {
+    Swal.fire({
+      title: `Contrato ${contrato.numero_contrato}`,
+      html: `
+        <div style="text-align:left">
+          <p><strong>Empresa:</strong> ${contrato.empresa || '-'}</p>
+          <p><strong>Tipo:</strong> ${contrato.tipo_contrato || '-'}</p>
+          <p><strong>Vigencia:</strong> ${contrato.vigencia || '-'} año(s)</p>
+          <p><strong>Inicio:</strong> ${toISODate(contrato.fecha_inicio) || '-'}</p>
+          <p><strong>Fin:</strong> ${toISODate(contrato.fecha_fin) || '-'}</p>
+          <p><strong>Estado:</strong> ${contrato.estado}</p>
+          <p><strong>${formatDiferenciaDias(contrato.diasRestantes)}</strong></p>
+        </div>
+      `,
+      icon: 'info',
+    });
+  };
+
   const exportarReporteCSV = () => {
     const headers = ['numero_contrato', 'parte', 'empresa', 'tipo_contrato', 'vigencia', 'fecha_inicio', 'fecha_fin', 'estado', 'dias_restantes', 'alerta'];
     const rows = contratosEnriquecidos.map((c) => [
@@ -409,51 +640,122 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     URL.revokeObjectURL(url);
   };
 
+  const seccionLabel = {
+    resumen: 'Resumen',
+    contratos: 'Contratos',
+    vencimientos: 'Vencimientos',
+    renovaciones: 'Renovaciones',
+    reportes: 'Reportes',
+  };
+
+  const pasosRenovacion = [
+    { id: 1, label: 'Selección' },
+    { id: 2, label: 'Revisión' },
+    { id: 3, label: 'Confirmación' },
+    { id: 4, label: 'Ejecución' },
+  ];
+
+  const AvatarEmpresaClic = ({ empresa }) => {
+    const src = getIconoEmpresa(empresa);
+    const nombre = String(empresa || 'Sin empresa').trim() || 'Sin empresa';
+    return (
+      <button
+        type="button"
+        className="renov-empresa-avatar renov-empresa-avatar--clic"
+        onClick={(e) => {
+          e.stopPropagation();
+          setEmpresaVistaPrevia(empresa);
+        }}
+        title="Ampliar icono de la empresa"
+        aria-label={`Ampliar icono de ${nombre}`}
+      >
+        {src ? <img src={src} alt="" className="renov-empresa-avatar__img" /> : inicialEmpresa(empresa)}
+      </button>
+    );
+  };
+
   return (
-    <div className="row">
-      <div className="col-12">
-        <div className="dashboard-module-red-title-flow-spacer" aria-hidden="true" />
-        <div className="dashboard-module-red-title-anchor dashboard-module-red-title-anchor--overlay">
-          <h4 className="mb-1">Gestión de Contratos</h4>
-        </div>
-        <div className="d-flex flex-wrap justify-content-end gap-2 mb-3 mt-1">
-            <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalNuevoContrato}>
-              <i className="bi bi-file-earmark-plus me-2" aria-hidden="true" />
+    <div className="contratos-page">
+      {/* Encabezado: título + acciones (sin breadcrumbs) */}
+      <header className="contratos-page__header">
+        <div className="contratos-page__title-row">
+          <div>
+            <h1 className="contratos-page__title">Gestión de Contratos</h1>
+          </div>
+
+          <div className="contratos-page__actions">
+            <button
+              type="button"
+              className="btn btn-primary contratos-btn-primary d-inline-flex align-items-center"
+              onClick={abrirModalNuevoContrato}
+            >
+              <i className="bi bi-plus-lg me-2" aria-hidden="true" />
               Agregar contrato
             </button>
-            {activeSection === 'renovaciones' && (
-              <button type="button" className="btn btn-success btn-form-nowrap" onClick={renovarMasivos}>
-                <i className="bi bi-arrow-repeat me-2" aria-hidden="true" />
-                Renovar masivo
+
+            <div className="contratos-masiva">
+              <button
+                type="button"
+                className="btn contratos-btn-secondary d-inline-flex align-items-center"
+                onClick={() => { setActiveSection('renovaciones'); avanzarPasoRenovacion(); }}
+                title="Avanza un paso del flujo de renovación masiva"
+              >
+                <i className="bi bi-lightning-charge me-2" aria-hidden="true" />
+                Renovación Masiva
               </button>
-            )}
+
+              <ol className="contratos-masiva__stepper" aria-label="Progreso de renovación masiva">
+                {pasosRenovacion.map((paso, idx) => {
+                  const completed = paso.id < pasoRenovacion;
+                  const active = paso.id === pasoRenovacion;
+                  return (
+                    <li
+                      key={paso.id}
+                      className={`contratos-masiva__step ${active ? 'is-active' : ''} ${completed ? 'is-done' : ''}`}
+                    >
+                      <button
+                        type="button"
+                        className="contratos-masiva__dot"
+                        onClick={() => { setActiveSection('renovaciones'); setPasoRenovacion(paso.id); }}
+                        aria-label={`Ir al paso ${paso.label}`}
+                      >
+                        {completed ? <i className="bi bi-check-lg" aria-hidden="true" /> : paso.id}
+                      </button>
+                      <span className="contratos-masiva__label">{paso.label}</span>
+                      {idx < pasosRenovacion.length - 1 && (
+                        <span className="contratos-masiva__link" aria-hidden="true" />
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+
             {activeSection === 'reportes' && (
-              <button type="button" className="btn btn-outline-primary btn-form-nowrap" onClick={exportarReporteCSV}>
+              <button type="button" className="btn btn-outline-primary d-inline-flex align-items-center" onClick={exportarReporteCSV}>
                 <i className="bi bi-filetype-csv me-2" aria-hidden="true" />
                 Exportar CSV
               </button>
             )}
-        </div>
-
-        <div className="card p-2 mb-3">
-          <div className="d-flex flex-wrap gap-2">
-            <button type="button" className={`btn btn-sm ${activeSection === 'resumen' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setActiveSection('resumen')}>
-              Resumen
-            </button>
-            <button type="button" className={`btn btn-sm ${activeSection === 'contratos' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setActiveSection('contratos')}>
-              Contratos
-            </button>
-            <button type="button" className={`btn btn-sm ${activeSection === 'vencimientos' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setActiveSection('vencimientos')}>
-              Vencimientos
-            </button>
-            <button type="button" className={`btn btn-sm ${activeSection === 'renovaciones' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setActiveSection('renovaciones')}>
-              Renovaciones
-            </button>
-            <button type="button" className={`btn btn-sm ${activeSection === 'reportes' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setActiveSection('reportes')}>
-              Reportes
-            </button>
           </div>
         </div>
+      </header>
+
+      {/* Tabs de secciones */}
+      <div className="contratos-tabs-card mb-3">
+        <div className="d-flex flex-wrap align-items-end gap-2 contratos-tabs-row">
+          {Object.entries(seccionLabel).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`btn btn-sm contratos-tab ${activeSection === id ? 'contratos-tab--active' : ''}`}
+              onClick={() => setActiveSection(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
         <FormModal
           show={showContratoModal}
@@ -506,6 +808,31 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                 value={contratoEmpresa}
                 onChange={(e) => setContratoEmpresa(e.target.value)}
               />
+            </div>
+
+            <div className="minimal-field">
+              <label className="minimal-label">Icono empresa:</label>
+              <input
+                type="file"
+                accept="image/*"
+                className="minimal-input"
+                onChange={manejarIconoEmpresaChange}
+              />
+              <small className="text-muted d-block mt-1">
+                Selecciona una imagen (max 1 MB) para mostrarla como icono en la cola de renovación.
+              </small>
+              {getIconoEmpresa(contratoEmpresa) && (
+                <div className="d-flex align-items-center gap-2 mt-2">
+                  <img src={getIconoEmpresa(contratoEmpresa)} alt="" className="contrato-empresa-icon-preview" />
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={() => eliminarIconoEmpresa(contratoEmpresa)}
+                  >
+                    Quitar icono
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="minimal-field">
@@ -641,7 +968,12 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                       {contratosCriticos.slice(0, 8).map((c) => (
                         <tr key={c.numero_contrato}>
                           <td>{c.numero_contrato}</td>
-                          <td>{c.empresa}</td>
+                          <td>
+                            <div className="d-inline-flex align-items-center gap-2">
+                              <AvatarEmpresaClic empresa={c.empresa} />
+                              <span>{c.empresa || 'Sin empresa'}</span>
+                            </div>
+                          </td>
                           <td><span className={`badge ${getBadgeClass(c.estado)}`}>{c.estado}</span></td>
                           <td>{c.diasRestantes}</td>
                           <td><button type="button" className="btn btn-sm btn-outline-success" onClick={() => renovarContrato(c)}>Renovar</button></td>
@@ -660,7 +992,10 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                 <h6 className="mb-2">Top empresas por volumen contractual</h6>
                 {topEmpresas.map((e) => (
                   <div key={e.empresa} className="d-flex justify-content-between border-bottom py-1">
-                    <span>{e.empresa}</span>
+                    <span className="d-inline-flex align-items-center gap-2">
+                      <AvatarEmpresaClic empresa={e.empresa} />
+                      <span>{e.empresa}</span>
+                    </span>
                     <strong>{e.cantidad}</strong>
                   </div>
                 ))}
@@ -734,7 +1069,12 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                       <tr key={con.numero_contrato}>
                         <td>{con.numero_contrato}</td>
                         <td>{con.proveedor_cliente ? 'Proveedor' : 'Cliente'}</td>
-                        <td>{con.empresa}</td>
+                        <td>
+                          <div className="d-inline-flex align-items-center gap-2">
+                            <AvatarEmpresaClic empresa={con.empresa} />
+                            <span>{con.empresa || 'Sin empresa'}</span>
+                          </div>
+                        </td>
                         <td>{con.vigencia}</td>
                         <td>{toISODate(con.fecha_inicio)}</td>
                         <td>{toISODate(con.fecha_fin)}</td>
@@ -774,7 +1114,12 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                   {contratosPrioritarios.map((c) => (
                     <tr key={c.numero_contrato}>
                       <td>{c.numero_contrato}</td>
-                      <td>{c.empresa}</td>
+                      <td>
+                        <div className="d-inline-flex align-items-center gap-2">
+                          <AvatarEmpresaClic empresa={c.empresa} />
+                          <span>{c.empresa || 'Sin empresa'}</span>
+                        </div>
+                      </td>
                       <td>{c.tipo_contrato}</td>
                       <td>{toISODate(c.fecha_fin)}</td>
                       <td>{c.diasRestantes}</td>
@@ -793,37 +1138,235 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         )}
 
         {activeSection === 'renovaciones' && (
-          <div className="row g-3">
-            <div className="col-12 col-lg-4">
-              <div className="card p-3 h-100">
-                <h6>Panel de renovaciones</h6>
-                <p className="mb-2">Candidatos inmediatos (&lt;= 30 días): <strong>{contratosCriticos.length}</strong></p>
-                <p className="mb-2">Vencidos pendientes: <strong>{contratosVencidos.length}</strong></p>
+          <div className="renovaciones-dashboard">
+            <div className="card renov-search-card mb-2">
+              <div className="row g-2 align-items-center renov-search-card__row">
+                <div className="col-12 col-lg-6">
+                  <div className="input-group renov-search-card__main">
+                    <span className="input-group-text bg-white border-end-0">
+                      <i className="bi bi-search text-muted" aria-hidden="true" />
+                    </span>
+                    <input
+                      type="text"
+                      className="form-control border-start-0"
+                      placeholder="Contextual Search and Date Range"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="col-6 col-lg-3">
+                  <div className="input-group input-group-sm">
+                    <span className="input-group-text">Desde</span>
+                    <input type="date" className="form-control" value={renovFechaDesde} onChange={(e) => setRenovFechaDesde(e.target.value)} />
+                  </div>
+                </div>
+                <div className="col-6 col-lg-3">
+                  <div className="input-group input-group-sm">
+                    <span className="input-group-text">Hasta</span>
+                    <input type="date" className="form-control" value={renovFechaHasta} onChange={(e) => setRenovFechaHasta(e.target.value)} />
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="col-12 col-lg-8">
-              <div className="card p-3">
-                <h6 className="mb-3">Cola de renovación priorizada</h6>
-                <div className="table-responsive">
-                  <table className="table table-data-compact table-sm table-bordered">
-                    <thead>
-                      <tr><th>N° Contrato</th><th>Empresa</th><th>Días</th><th>Estado</th><th>Acción</th></tr>
-                    </thead>
-                    <tbody>
-                      {contratosPrioritarios.map((c) => (
-                        <tr key={c.numero_contrato}>
-                          <td>{c.numero_contrato}</td>
-                          <td>{c.empresa}</td>
-                          <td>{c.diasRestantes}</td>
-                          <td><span className={`badge ${getBadgeClass(c.estado)}`}>{c.estado}</span></td>
-                          <td><button type="button" className="btn btn-sm btn-outline-success" onClick={() => renovarContrato(c)}>Renovar</button></td>
-                        </tr>
-                      ))}
-                      {contratosPrioritarios.length === 0 && (
-                        <tr><td colSpan={5} className="text-center text-muted">Sin contratos en cola de renovación.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+
+            <div className="row g-2 renovaciones-dashboard__grid">
+              <div className="col-12 col-md-5 col-xl-4 renov-kpi-column align-self-start">
+                <div className="card renov-kpi-card">
+                  <div className="card-body renov-kpi-card__body">
+                    <h6 className="fw-bold mb-2 renov-card-title">Panel de renovaciones</h6>
+
+                    <div className="renov-kpi-subcard">
+                      <div className="renov-kpi-subcard__head">
+                        <div className="renov-kpi-item__title">Vencimientos Inmediatos</div>
+                        <small className="text-muted">(&lt;30 días)</small>
+                      </div>
+                      <div className="renov-kpi-subcard__bar-row">
+                        <div className="renov-progress-track-wrap">
+                          <div className="renov-progress__pct-row">
+                            <span className="renov-progress__pct">{porcentajePanel.inmediatos}%</span>
+                          </div>
+                          <div className="renov-progress renov-progress--panel">
+                            <div className="renov-progress__bar renov-progress__bar--teal" style={{ width: `${porcentajePanel.inmediatos}%` }} />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-sm renov-kpi-btn-todos flex-shrink-0"
+                          onClick={() => { setSearchTerm(''); setRenovFechaDesde(''); setRenovFechaHasta(''); }}
+                        >
+                          Ver todos
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="renov-kpi-subcard">
+                      <div className="renov-kpi-subcard__head">
+                        <div className="renov-kpi-item__title">Vencidos Pendientes</div>
+                        <small className="text-muted">requieren acción inmediata</small>
+                      </div>
+                      <div className="renov-kpi-subcard__bar-row">
+                        <div className="renov-progress-track-wrap">
+                          <div className="renov-progress__pct-row">
+                            <span className="renov-progress__pct">{porcentajePanel.vencidos}%</span>
+                          </div>
+                          <div className="renov-progress renov-progress--panel">
+                            <div className="renov-progress__bar renov-progress__bar--vencidos" style={{ width: `${porcentajePanel.vencidos}%` }} />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-sm renov-kpi-btn-todos flex-shrink-0"
+                          onClick={() => setActiveSection('vencimientos')}
+                        >
+                          Ver todos
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-7 col-xl-8 renov-cola-column">
+                <div className="card renov-cola-card h-100">
+                  <div className="card-body">
+                    <h6 className="fw-bold mb-2 renov-card-title">Cola de renovación priorizada</h6>
+                    <div className="renov-cola-table-wrap">
+                      <table className="table align-middle renov-cola-table mb-0">
+                        <thead>
+                          <tr>
+                            <th className="renov-cola-th-num">N°</th>
+                            <th>Empresa</th>
+                            <th>Estado de Tiempo</th>
+                            <th className="renov-cola-th-estado">Estado</th>
+                            <th className="renov-cola-th-accion">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {colaRenovacion.map((c) => {
+                            const pos = calcularPosicionTiempo(c.diasRestantes);
+                            const estado = getEstadoRenovacion(c.estado);
+                            const vencido = c.diasRestantes != null && c.diasRestantes < 0;
+                            return (
+                              <tr key={c.numero_contrato}>
+                                <td className="fw-semibold text-nowrap renov-cola-td-num">{c.numero_contrato}</td>
+                                <td>
+                                  <div className="d-inline-flex align-items-center gap-2">
+                                    <AvatarEmpresaClic empresa={c.empresa} />
+                                    <span className="renov-empresa-name">{c.empresa || 'Sin empresa'}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <div className="renov-time-wrap">
+                                    <div className="renov-time-bar">
+                                      <span className="renov-time-bar__marker" style={{ left: `${pos}%` }} aria-hidden="true" />
+                                    </div>
+                                    <small className={`renov-time-label ${vencido ? 'is-danger' : 'is-ok'}`}>
+                                      {formatDiferenciaDias(c.diasRestantes)}
+                                    </small>
+                                  </div>
+                                </td>
+                                <td>
+                                  <span className={`renov-badge renov-badge--${estado.mod}`}>{estado.label}</span>
+                                </td>
+                                <td>
+                                  <div className="d-flex flex-column gap-1 renov-actions">
+                                    <div className="d-flex align-items-stretch gap-1 renov-actions__row-renovar">
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-primary flex-grow-1 d-inline-flex align-items-center justify-content-center"
+                                        onClick={() => renovarContrato(c)}
+                                      >
+                                        Renovar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm renov-actions__eye"
+                                        onClick={() => verDetalleContrato(c)}
+                                        title="Ver detalles"
+                                        aria-label={`Ver detalles del contrato ${c.numero_contrato}`}
+                                      >
+                                        <i className="bi bi-eye-fill" aria-hidden="true" />
+                                      </button>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-1 text-truncate"
+                                      title="Enviar recordatorio"
+                                      onClick={() => enviarRecordatorio(c)}
+                                    >
+                                      <i className="bi bi-envelope-fill" aria-hidden="true" />
+                                      Enviar Rec…
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {colaRenovacion.length === 0 && (
+                            <tr>
+                              <td colSpan={5} className="text-center text-muted py-3">Sin contratos en cola de renovación.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-5">
+                <div className="card renov-alerts-card h-100">
+                  <div className="card-body">
+                    <h6 className="fw-bold mb-2 renov-card-title">Alertas Críticas</h6>
+                    {contratosCriticos.slice(0, 5).map((c) => (
+                      <div key={c.numero_contrato} className="renov-alert-item">
+                        <i className="bi bi-exclamation-triangle-fill renov-alert-item__icon" aria-hidden="true" />
+                        <div className="renov-alert-item__body">
+                          <div className="renov-alert-item__title">
+                            Contrato {c.numero_contrato}
+                            {c.empresa ? ` — ${c.empresa}` : ''}
+                          </div>
+                          <small className="renov-alert-item__sub">requiere atención inmediata · {formatDiferenciaDias(c.diasRestantes)}</small>
+                        </div>
+                      </div>
+                    ))}
+                    {contratosCriticos.length === 0 && (
+                      <small className="text-muted">No hay alertas críticas en este momento.</small>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-7">
+                <div className="card renov-stats-card h-100">
+                  <div className="card-body">
+                    <h6 className="fw-bold mb-2 renov-card-title">Estadísticas Rápidas</h6>
+                    <div className="row g-2 g-md-3 align-items-stretch renov-stats-row">
+                      <div className="col-12 col-md-7">
+                        <span className="renov-chart-caption">Contratos por Mes de Vencimiento</span>
+                        <div className="renov-bar-chart">
+                          {vencimientosPorMes.map((b) => (
+                            <div key={b.mes} className="renov-bar-col" title={`${b.mes}: ${b.valor}`}>
+                              <div className="renov-bar" style={{ height: `${Math.max(b.altura, 4)}%` }} />
+                              <small className="renov-bar-label">{b.mes}</small>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="col-12 col-md-5 d-flex flex-column align-items-center justify-content-start">
+                        <span className="renov-chart-caption">Total de Contratos por Estado</span>
+                        <RenovDonut
+                          segments={[
+                            { value: resumen.activos, color: '#1e3a5f', label: 'Activos' },
+                            { value: resumen.porVencer + resumen.seguimiento, color: '#ffc107', label: 'Seguimiento / próx.' },
+                            { value: resumen.vencidos, color: '#dc3545', label: 'Vencidos' },
+                          ]}
+                          total={resumen.total}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -849,7 +1392,11 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                 <ul className="list-group">
                   {topEmpresas.map((e) => (
                     <li key={e.empresa} className="list-group-item d-flex justify-content-between">
-                      <span>{e.empresa}</span><strong>{e.cantidad}</strong>
+                      <span className="d-inline-flex align-items-center gap-2">
+                        <AvatarEmpresaClic empresa={e.empresa} />
+                        <span>{e.empresa}</span>
+                      </span>
+                      <strong>{e.cantidad}</strong>
                     </li>
                   ))}
                   {topEmpresas.length === 0 && <li className="list-group-item text-muted">Sin datos</li>}
@@ -858,7 +1405,103 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
             </div>
           </div>
         )}
-      </div>
+
+      {empresaVistaPrevia != null && (
+        <div
+          className="renov-empresa-preview-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vista ampliada del icono de empresa"
+          onClick={() => setEmpresaVistaPrevia(null)}
+        >
+          <div className="renov-empresa-preview-stack" onClick={(e) => e.stopPropagation()}>
+            <div className="renov-empresa-preview-bubble">
+              <button
+                type="button"
+                className="renov-empresa-preview-close"
+                onClick={() => setEmpresaVistaPrevia(null)}
+                aria-label="Cerrar"
+              >
+                <i className="bi bi-x-lg" aria-hidden="true" />
+              </button>
+              <div className="renov-empresa-preview-inner">
+                {getIconoEmpresa(empresaVistaPrevia) ? (
+                  <img
+                    src={getIconoEmpresa(empresaVistaPrevia)}
+                    alt=""
+                    className="renov-empresa-preview-img"
+                  />
+                ) : (
+                  <span className="renov-empresa-preview-initial" aria-hidden="true">
+                    {inicialEmpresa(empresaVistaPrevia)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="renov-empresa-preview-nombre">
+              {String(empresaVistaPrevia || '').trim() || 'Sin empresa'}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/*
+ * Gráfico de dona (SVG puro) para "Total de Contratos por Estado".
+ * - `segments`: [{ value, color, label }]; ignora valores cero en la leyenda visual.
+ * - Muestra el total en el centro y una leyenda a la derecha/abajo.
+ */
+function RenovDonut({ segments = [], total = 0, size = 140, stroke = 22 }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const sum = segments.reduce((acc, s) => acc + (Number(s.value) || 0), 0) || 1;
+  let offset = 0;
+
+  return (
+    <div className="renov-donut">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Total de contratos por estado">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e9ecef" strokeWidth={stroke} />
+        {segments.map((seg) => {
+          const value = Number(seg.value) || 0;
+          if (value <= 0) return null;
+          const length = (value / sum) * circumference;
+          const dashArray = `${length} ${circumference - length}`;
+          const dashOffset = -offset;
+          offset += length;
+          return (
+            <circle
+              key={seg.label}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={stroke}
+              strokeDasharray={dashArray}
+              strokeDashoffset={dashOffset}
+              strokeLinecap="butt"
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+          );
+        })}
+        <text x="50%" y="46%" textAnchor="middle" dominantBaseline="central" fontSize="22" fontWeight="700" fill="#000000">
+          {total}
+        </text>
+        <text x="50%" y="62%" textAnchor="middle" dominantBaseline="central" fontSize="10" fill="#495057">
+          Contratos
+        </text>
+      </svg>
+      <ul className="renov-donut__legend">
+        {segments.map((seg) => (
+          <li key={seg.label}>
+            <span className="renov-donut__chip" style={{ background: seg.color }} aria-hidden="true" />
+            <span className="renov-donut__label">{seg.label}</span>
+            <span className="renov-donut__val">{seg.value}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -90,11 +90,11 @@ margin-top: 15px;
   --dashboard-muted: #30363d;
   --brand-black: #111111;
   --brand-black-soft: #1c1c1c;
-  --brand-red: #b00020;
-  --brand-red-deep: #8a0018;
+  --brand-red: #b91c1c;
+  --brand-red-deep: #7f1d1d;
   --brand-green: #1b7f3a;
   --brand-green-deep: #12612c;
-  --brand-red-rgb: 176, 0, 32;
+  --brand-red-rgb: 185, 28, 28;
   --brand-green-rgb: 27, 127, 58;
   /* Acción principal de interfaz (azul) — semántica estándar */
   --ui-primary: #007bff;
@@ -481,8 +481,8 @@ margin-top: 15px;
 .dashboard-side-info__logo-wrap {
   border: none;
   border-radius: 0;
-  background: #ffffff;
-  padding: 0.62rem 0.56rem;
+  background: transparent;
+  padding: 0;
   text-align: center;
   box-shadow: none;
 }
@@ -507,24 +507,36 @@ margin-top: 15px;
   z-index: 10;
 }
 
-/* Oculta antes el panel lateral para ganar ancho útil (p. ej. ventana estrecha o IDE con panel derecho) */
+/* Panel lateral: en Contratos se mantiene visible hasta viewport más estrecho (mockup con columna derecha) */
 @media (max-width: 1400px) {
   .dashboard-side-info {
     display: none;
   }
+
+  .dashboard-main.dashboard-main--contratos .dashboard-side-info {
+    display: flex !important;
+  }
 }
 
-/* Avatar: fuera del Nav, misma franja vertical que la ola; posición horizontal a la izquierda del botón */
+@media (max-width: 991.98px) {
+  .dashboard-main.dashboard-main--contratos .dashboard-side-info {
+    display: none !important;
+  }
+}
+
+/* Avatar + meta del usuario: misma franja vertical que la ola; horizontal a la izquierda del botón */
 .dashboard-topbar-avatar-wrap {
   position: fixed;
   top: 0 !important;
   right: calc(14px + var(--dashboard-topbar-logout-slot, 10rem) + 0.625rem);
-  width: var(--dashboard-user-avatar-size, 3.25rem);
+  width: auto;
+  min-width: var(--dashboard-user-avatar-size, 3.25rem);
   height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
   z-index: 12;
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: flex-start;
+  gap: 0.55rem;
   box-sizing: border-box;
   pointer-events: none;
 }
@@ -536,6 +548,49 @@ margin-top: 15px;
   );
   pointer-events: auto;
   flex-shrink: 0;
+  /* Pulido premium: borde blanco sutil + sombra para destacar sobre el listón oscuro */
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.25);
+  background: #ffffff;
+}
+
+/* Nombre + rol del usuario, colocados a la izquierda del avatar */
+.dashboard-topbar-user-meta {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05rem;
+  pointer-events: auto;
+  margin-top: calc(
+    var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem)) * var(--dashboard-avatar-wave-center, 0.58) -
+      (var(--dashboard-user-avatar-size, 3.25rem) * 0.52)
+  );
+  white-space: nowrap;
+  line-height: 1.15;
+}
+
+.dashboard-topbar-user-name {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.005em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.dashboard-topbar-user-role {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 767.98px) {
+  .dashboard-topbar-user-meta {
+    display: none;
+  }
 }
 
 .dashboard-topbar-actions {
@@ -2273,6 +2328,29 @@ body .btn:not(.btn-link) {
   z-index: 7;
 }
 
+/* Widget fijo derecho al estilo mockup (solo vista Contratos) */
+.dashboard-main.dashboard-main--contratos .dashboard-side-info__card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #1e3a5f;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-side-info__pill {
+  background: #1e3a5f;
+  border-radius: 4px;
+}
+
+/* Logotipo sin caja: solo el gris del área principal detrás */
+.dashboard-main.dashboard-main--contratos .dashboard-side-info__logo-wrap {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0;
+  box-shadow: none !important;
+  padding: 0;
+}
+
 /* Reserva espacio para el bloque fijo y evita que suba/mueva el contenido */
 .dashboard-topbar {
   min-height: 3.65rem;
@@ -2302,3 +2380,1216 @@ body .btn:not(.btn-link) {
   transform: none !important;
 }
 
+/* ============================================================
+ * Vista Gestión de Contratos — panel gris claro (ligeramente más profundo que gray-100),
+ * acentos navy #1e3a5f, verde acción #28a745 (mockup cliente).
+ * Activado con .dashboard-main--contratos en App.js
+ * ============================================================ */
+
+.dashboard-main.dashboard-main--contratos {
+  --contratos-navy: #1e3a5f;
+  --contratos-bg: #eceef2;
+  --contratos-green: #28a745;
+  background: var(--contratos-bg) !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+.dashboard-main.dashboard-main--contratos .card,
+.dashboard-main.dashboard-main--contratos .table-responsive {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
+}
+
+.dashboard-main.dashboard-main--contratos .card:hover {
+  box-shadow: 0 4px 12px rgba(17, 24, 39, 0.07);
+}
+
+/* ---- Oculta el listón negro (ola) SOLO en la vista Contratos ---- */
+.dashboard-main--contratos .dashboard-topbar-wave {
+  background-image: none !important;
+  background: #ffffff !important;
+  filter: none !important;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.03);
+}
+
+/* Nombre/rol del usuario en el topbar: texto oscuro sobre fondo blanco */
+.dashboard-main--contratos .dashboard-topbar-user-name {
+  color: #111827 !important;
+  text-shadow: none !important;
+}
+
+.dashboard-main--contratos .dashboard-topbar-user-role {
+  color: #6b7280 !important;
+  text-shadow: none !important;
+}
+
+/* El avatar pierde el borde de contraste negro: ahora va con sombra suave */
+.dashboard-main--contratos .dashboard-topbar-avatar-wrap .dashboard-user-avatar {
+  border-color: #ffffff;
+  box-shadow: 0 2px 6px rgba(17, 24, 39, 0.12), 0 0 0 1px rgba(17, 24, 39, 0.04) !important;
+}
+
+.dashboard-main--contratos .contratos-page {
+  padding-top: 0.25rem;
+  padding-right: 0.75rem;
+  max-width: 100%;
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-main-scroll {
+  margin-top: 0 !important;
+  padding-top: 0.2rem;
+  border-top: 1px solid #e5e7eb;
+  background: var(--contratos-bg, #eceef2);
+}
+
+/* Outline neutros en esta vista */
+.dashboard-main.dashboard-main--contratos .btn-outline-secondary:hover {
+  background: #f9fafb !important;
+  border-color: #ced4da !important;
+}
+
+/* Rejilla global contratos: compacta; la de renovaciones usa clase propia */
+.dashboard-main--contratos .row.g-3 {
+  --bs-gutter-x: 1.25rem;
+  --bs-gutter-y: 1.25rem;
+}
+
+.dashboard-main--contratos .renovaciones-dashboard__grid {
+  --bs-gutter-x: 1rem;
+  --bs-gutter-y: 1rem;
+}
+
+.dashboard-main--contratos .card-body {
+  padding: 1.25rem !important;
+}
+
+.dashboard-main--contratos .renovaciones-dashboard .card-body {
+  padding: 1rem 1.1rem !important;
+}
+
+.dashboard-main--contratos .renov-kpi-card .card-body.renov-kpi-card__body {
+  padding: 0.75rem 0.85rem !important;
+}
+
+/* Padding generoso para tarjetas sin card-body (stepper superior y buscador) */
+.dashboard-main--contratos .renov-stepper-card.p-3,
+.dashboard-main--contratos .renov-stepper-card {
+  padding: 1.5rem !important;
+}
+
+.dashboard-main--contratos .renov-search-card.p-2,
+.dashboard-main--contratos .renov-search-card {
+  padding: 1rem 1.15rem !important;
+}
+
+/* Sombras de hover para todas las tarjetas principales */
+.dashboard-main--contratos .card {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* Títulos de bloques renovación (mockup) */
+.dashboard-main--contratos h6.fw-bold.renov-card-title,
+.dashboard-main--contratos .renov-kpi-card h6,
+.dashboard-main--contratos .renov-alerts-card h6,
+.dashboard-main--contratos .renov-cola-card h6,
+.dashboard-main--contratos .renov-stats-card h6 {
+  color: #000000 !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem !important;
+}
+
+/* ---- Título + acciones (sin caja blanca; título sobre gris claro) ---- */
+.contratos-page__header {
+  margin-bottom: 0.5rem;
+  margin-top: 0;
+}
+
+.contratos-page__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.contratos-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #000000;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.contratos-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Botón primario navy (Agregar contrato) */
+.contratos-btn-primary.btn,
+.dashboard-main--contratos .btn.contratos-btn-primary {
+  background: #1e3a5f !important;
+  border-color: #1e3a5f !important;
+  color: #ffffff !important;
+  border-radius: 8px !important;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.875rem;
+  box-shadow: 0 1px 2px rgba(30, 58, 95, 0.2) !important;
+}
+
+.contratos-btn-primary.btn:hover,
+.dashboard-main--contratos .btn.contratos-btn-primary:hover {
+  background: #152a45 !important;
+  border-color: #152a45 !important;
+}
+
+/* Botón secundario (Renovación Masiva) */
+.contratos-btn-secondary {
+  background: #ffffff;
+  color: #212529;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.875rem;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.2s ease;
+}
+
+.contratos-btn-secondary:hover {
+  background: #f8f9fa;
+  border-color: #ced4da;
+  box-shadow: 0 2px 6px rgba(17, 24, 39, 0.08);
+}
+
+.contratos-btn-secondary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
+}
+
+/* ---- Stepper visual en encabezado (Renovación Masiva) ---- */
+.contratos-masiva {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.3rem 0.5rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.contratos-masiva__stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.contratos-masiva__step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-right: 0.35rem;
+}
+
+.contratos-masiva__dot {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 2px solid #dee2e6;
+  background: #f1f3f5;
+  color: #6c757d;
+  font-weight: 700;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  padding: 0;
+}
+
+.contratos-masiva__step.is-active .contratos-masiva__dot {
+  background: #1e3a5f;
+  border-color: #1e3a5f;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.2);
+}
+
+.contratos-masiva__step.is-done .contratos-masiva__dot {
+  background: #e9ecef;
+  border-color: #ced4da;
+  color: #1e3a5f;
+}
+
+.contratos-masiva__label {
+  font-size: 0.72rem;
+  color: #495057;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.contratos-masiva__step.is-active .contratos-masiva__label {
+  color: #1e3a5f;
+}
+
+.contratos-masiva__step.is-done .contratos-masiva__label {
+  color: #6c757d;
+}
+
+.contratos-masiva__link {
+  display: inline-block;
+  width: 1.4rem;
+  height: 2px;
+  background: #dee2e6;
+  margin: 0 0.25rem;
+  border-radius: 2px;
+}
+
+.contratos-masiva__step.is-done .contratos-masiva__link {
+  background: #adb5bd;
+}
+
+/* ---- Pestañas: sin caja; línea inferior visible (border:none !important anulaba el bottom) ---- */
+.contratos-tabs-card {
+  padding: 0.35rem 0 0.6rem;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 2px solid #4b5563 !important;
+}
+
+.dashboard-main--contratos .contratos-tabs-card {
+  margin-top: 0.65rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.contratos-tabs-row {
+  margin-bottom: 0.15rem;
+}
+
+.contratos-tab {
+  background: transparent;
+  color: #000000;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem 0.45rem;
+}
+
+.contratos-tab:hover {
+  background: transparent;
+  color: #000000;
+}
+
+.contratos-tab--active {
+  background: #1e3a5f;
+  color: #ffffff !important;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.contratos-tab--active:hover {
+  background: #152a45;
+  color: #ffffff !important;
+}
+
+/* Responsivo del encabezado */
+@media (max-width: 991.98px) {
+  .contratos-masiva__label {
+    display: none;
+  }
+  .contratos-page__title-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .contratos-masiva {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .contratos-masiva__link {
+    width: 0.8rem;
+  }
+}
+
+/* ============================================================
+ * Renovaciones dashboard (sección Contratos > Renovaciones)
+ * - Paleta y layout inspirados en el mockup del cliente.
+ * - Apilado en móvil gracias a col-12 + col-xl-* del JSX.
+ * ============================================================ */
+
+.renovaciones-dashboard .card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+}
+
+/* ---- Stepper Renovación Masiva ---- */
+.renov-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 0.25rem 0.25rem 0.5rem;
+}
+
+.renov-step {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.renov-step__circle {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid #d1d5db;
+  background: #ffffff;
+  color: #6b7280;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.renov-step__circle:hover {
+  border-color: #0d6efd;
+  color: #0d6efd;
+}
+
+.renov-step.is-active .renov-step__circle {
+  background: #0d6efd;
+  border-color: #0d6efd;
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.15);
+}
+
+.renov-step.is-done .renov-step__circle {
+  background: #0a8a6b;
+  border-color: #0a8a6b;
+  color: #ffffff;
+}
+
+.renov-step__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.renov-step.is-active .renov-step__label {
+  color: #0d6efd;
+}
+
+.renov-step.is-done .renov-step__label {
+  color: #0a8a6b;
+}
+
+.renov-step__bar {
+  flex: 1 1 auto;
+  height: 2px;
+  min-width: 2.2rem;
+  background: #e5e7eb;
+  margin: 0 0.75rem;
+  border-radius: 2px;
+}
+
+.renov-step.is-done + .renov-step .renov-step__bar,
+.renov-step.is-done .renov-step__bar {
+  background: #0a8a6b;
+}
+
+/* ---- Buscador contextual ---- */
+.renov-search-card .input-group-text {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  color: #6b7280;
+}
+
+.renov-search-card .form-control {
+  border-color: #e5e7eb;
+}
+
+.renov-search-card .form-control:focus {
+  border-color: rgba(30, 58, 95, 0.45);
+  box-shadow: 0 0 0 0.12rem rgba(30, 58, 95, 0.12);
+}
+
+.dashboard-main--contratos .renov-search-card {
+  border-radius: 12px !important;
+}
+
+.dashboard-main--contratos .renov-search-card__main .form-control {
+  font-size: 0.8125rem;
+}
+
+.dashboard-main--contratos .renov-search-card .input-group-text {
+  border-radius: 8px 0 0 8px;
+}
+
+.dashboard-main--contratos .renov-search-card__main .form-control {
+  border-radius: 0 8px 8px 0;
+}
+
+/* ---- Panel de renovaciones: dos subtarjetas + barras ---- */
+.renov-kpi-subcard {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.65rem 0.75rem 0.7rem;
+  margin-bottom: 0.6rem;
+}
+
+.renov-kpi-subcard:last-of-type {
+  margin-bottom: 0;
+}
+
+.renov-kpi-subcard__head {
+  margin-bottom: 0.25rem;
+}
+
+/* Barra al máximo ancho hasta el botón (sin hueco vacío a la derecha de la barra) */
+.renov-kpi-subcard__bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.renov-kpi-subcard__bar-row .renov-progress-track-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.renov-kpi-item__title {
+  font-weight: 700;
+  color: #2d3748;
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+/* "Ver todos" — recuadro azul oscuro (mockup) */
+.renov-kpi-btn-todos {
+  flex-shrink: 0;
+  background: #1a365d !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 0.7rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 6px;
+  line-height: 1.2;
+  box-shadow: 0 1px 2px rgba(26, 54, 93, 0.25);
+}
+
+.renov-kpi-btn-todos:hover {
+  background: #153e75 !important;
+  color: #ffffff !important;
+}
+
+.renov-kpi-btn-todos:focus-visible {
+  outline: 2px solid rgba(26, 54, 93, 0.45);
+  outline-offset: 1px;
+}
+
+/* Pista: ocupa el espacio horizontal disponible (junto al botón en la misma fila) */
+.renov-progress-track-wrap {
+  width: 100%;
+  max-width: 100%;
+}
+
+.renov-progress__pct-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.2rem;
+  min-height: 1rem;
+}
+
+.renov-progress__pct {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1a202c;
+  line-height: 1;
+}
+
+.renov-progress {
+  position: relative;
+  width: 100%;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: #e9ecef;
+  box-shadow: inset 0 1px 2px rgba(17, 24, 39, 0.05);
+  overflow: hidden;
+}
+
+.renov-progress--thick {
+  height: 0.85rem;
+}
+
+/* Subtarjetas: grosor vertical restaurado; el acortamiento es solo en ancho (.renov-progress-track-wrap) */
+.renov-progress--panel {
+  width: 100%;
+  height: 0.65rem;
+  background: #edf2f7;
+  box-shadow: inset 0 1px 1px rgba(45, 55, 72, 0.06);
+}
+
+.renov-progress__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.renov-progress__bar--warning {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.renov-progress__bar--danger {
+  background: linear-gradient(90deg, #f87171, #dc2626);
+}
+
+/* Inmediatos: teal vivo */
+.renov-progress__bar--teal {
+  background: linear-gradient(90deg, #319795, #2c7a7b);
+}
+
+/* Vencidos: rojo más saturado */
+.renov-progress__bar--vencidos {
+  background: linear-gradient(90deg, #e53e3e, #c53030);
+}
+
+.renov-progress__bar--navy {
+  background: #1e3a5f;
+}
+
+.renov-progress__bar--burgundy {
+  background: #8b1538;
+}
+
+/* ---- Alertas Críticas ---- */
+.renov-alert-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid #fee2e2;
+  background: #fef2f2;
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+}
+
+.renov-alert-item:last-child {
+  margin-bottom: 0;
+}
+
+.renov-alert-item__icon {
+  color: #dc2626;
+  font-size: 1.05rem;
+  margin-top: 0.1rem;
+}
+
+.renov-alert-item__title {
+  font-weight: 600;
+  font-size: 0.86rem;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.renov-alert-item__sub {
+  color: #991b1b;
+  display: block;
+  margin-top: 0.1rem;
+}
+
+/* ---- Cola de renovación priorizada (tabla): sin scroll interno ---- */
+.dashboard-main--contratos .renov-cola-table-wrap {
+  max-height: none;
+  overflow: visible;
+  border-radius: 8px;
+  border: 1px solid #edf2f7;
+}
+
+/* Tablas de Contratos: columna "N° Contrato" centrada y compacta */
+.dashboard-main--contratos .table.table-data-compact thead th:first-child,
+.dashboard-main--contratos .table.table-data-compact tbody td:first-child {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dashboard-main--contratos .table.table-data-compact thead th:first-child {
+  width: 1%;
+}
+
+/* Ajuste automático sin hueco blanco al final */
+.dashboard-main--contratos .table.table-data-compact {
+  table-layout: auto !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  border-radius: 0 !important;
+}
+
+.dashboard-main--contratos .table-responsive > .table.table-data-compact {
+  width: 100% !important;
+  border-radius: 0 !important;
+}
+
+.dashboard-main--contratos .table.table-data-compact thead th {
+  padding: 0.72rem 0.85rem;
+  white-space: nowrap;
+}
+
+.dashboard-main--contratos .table.table-data-compact tbody td {
+  padding: 0.68rem 0.85rem;
+  white-space: nowrap;
+}
+
+
+.renov-cola-table {
+  margin-bottom: 0;
+}
+
+.renov-cola-table > thead > tr > th {
+  background: #f8f9fa;
+  color: #212529;
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #dee2e6 !important;
+  border-radius: 0 !important;
+}
+
+.renov-cola-table > tbody > tr > td {
+  border-bottom: 1px solid #f1f3f5;
+  vertical-align: middle;
+  font-size: 0.8125rem;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  color: #212529;
+  border-radius: 0 !important;
+}
+
+.dashboard-main--contratos .table-responsive,
+.dashboard-main--contratos .renov-cola-table-wrap,
+.dashboard-main--contratos .renov-cola-table {
+  border-radius: 0 !important;
+}
+
+.renov-cola-th-num {
+  width: 4.5rem;
+}
+
+.renov-cola-th-estado {
+  width: 7rem;
+}
+
+.renov-cola-th-accion {
+  width: 8.5rem;
+  min-width: 7.5rem;
+}
+
+.renov-cola-td-num {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.renov-cola-table > thead > tr > th {
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+}
+
+.renov-empresa-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #495057;
+  font-weight: 700;
+  font-size: 0.8rem;
+  line-height: 1;
+  flex-shrink: 0;
+  border: 1px solid #dee2e6;
+  text-align: center;
+  overflow: hidden;
+}
+
+.renov-empresa-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+button.renov-empresa-avatar {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.renov-empresa-avatar:focus {
+  outline: none;
+}
+
+button.renov-empresa-avatar:focus-visible {
+  outline: 2px solid #4b5563;
+  outline-offset: 2px;
+}
+
+.renov-empresa-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  animation: renov-empresa-preview-fade 0.2s ease;
+}
+
+@keyframes renov-empresa-preview-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.renov-empresa-preview-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 90vw;
+}
+
+.renov-empresa-preview-bubble {
+  position: relative;
+  width: auto;
+  max-width: min(22rem, 92vw);
+  min-width: 12rem;
+  border-radius: 1.5rem;
+  background: #fff;
+  box-shadow: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.18);
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.15rem 1.25rem 1.35rem;
+}
+
+.renov-empresa-preview-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  z-index: 1;
+  transition: background 0.15s ease;
+}
+
+.renov-empresa-preview-close:hover {
+  background: rgba(15, 23, 42, 0.14);
+}
+
+.renov-empresa-preview-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 5rem;
+  max-height: min(60vh, 24rem);
+  max-width: 100%;
+  border-radius: 0.9rem;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  padding: 0.4rem;
+  box-sizing: border-box;
+}
+
+.renov-empresa-preview-inner:has(.renov-empresa-preview-img) {
+  padding: 0.5rem;
+}
+
+.renov-empresa-preview-inner:has(.renov-empresa-preview-initial) {
+  min-width: 7.5rem;
+  min-height: 7.5rem;
+  border-radius: 50%;
+  max-height: none;
+  padding: 0;
+}
+
+.renov-empresa-preview-img {
+  max-width: 100%;
+  max-height: min(55vh, 22rem);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border-radius: 0.35rem;
+}
+
+.renov-empresa-preview-initial {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #4b5563;
+  line-height: 1;
+  user-select: none;
+}
+
+.renov-empresa-preview-nombre {
+  text-align: center;
+  color: #f9fafb;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  max-width: 20rem;
+  word-break: break-word;
+}
+
+.renov-empresa-name {
+  font-weight: 500;
+  color: #111827;
+}
+
+/* ---- Barra tricolor del estado de tiempo ---- */
+.renov-time-wrap {
+  min-width: 12rem;
+  max-width: 18rem;
+}
+
+.renov-time-bar {
+  position: relative;
+  height: 0.5rem;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #16a34a 0%, #facc15 50%, #dc2626 100%);
+}
+
+.renov-time-bar__marker {
+  position: absolute;
+  top: 50%;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #111827;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.renov-time-label {
+  display: block;
+  margin-top: 0.35rem;
+  color: #6b7280;
+  font-size: 0.74rem;
+}
+
+.renov-time-label.is-danger {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.renov-time-label.is-ok {
+  color: #28a745;
+  font-weight: 600;
+}
+
+/* ---- Badges de estado (Activo / Revisión / Vencido) ---- */
+.renov-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.renov-badge--activo {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #15803d;
+}
+
+.renov-badge--revision {
+  background: #eab308;
+  color: #1f2937;
+  border-color: #ca8a04;
+}
+
+.renov-badge--vencido {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #b91c1c;
+}
+
+.renov-badge--neutro {
+  background: #e5e7eb;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+/* ---- Botonera de acciones por fila ---- */
+.renov-actions {
+  gap: 0.35rem !important;
+  min-width: 6.75rem;
+  max-width: 10rem;
+}
+
+.renov-actions__row-renovar {
+  min-width: 0;
+}
+
+.renov-actions .btn {
+  border-radius: 6px;
+  font-size: 0.75rem;
+  padding: 0.28rem 0.45rem;
+  white-space: nowrap;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: none;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+/* Ojo — mismo navy que botones primarios del módulo (#1e3a5f) */
+.renov-actions .renov-actions__eye {
+  flex-shrink: 0;
+  width: 2.05rem;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  background: #1e3a5f !important;
+  border: 1px solid #1e3a5f !important;
+  color: #ffffff !important;
+  font-size: 1rem;
+}
+
+.renov-actions .renov-actions__eye:hover {
+  background: #152a45 !important;
+  border-color: #152a45 !important;
+  color: #ffffff !important;
+}
+
+.renov-actions .renov-actions__eye:focus-visible {
+  box-shadow: 0 0 0 0.2rem rgba(30, 58, 95, 0.4);
+}
+
+/* Contorno negro fuerte sobre el glifo del ojo para que se lea bien */
+.renov-actions .renov-actions__eye i {
+  color: #ffffff;
+  -webkit-text-stroke: 1.15px #0a0a0a;
+  paint-order: stroke fill;
+  text-shadow:
+    0.35px 0 0 #000000,
+    -0.35px 0 0 #000000,
+    0 0.35px 0 #000000,
+    0 -0.35px 0 #000000;
+}
+
+.renov-actions .btn.btn-outline-secondary {
+  border-color: #ced4da;
+  color: #495057;
+  background: #ffffff;
+}
+
+.renov-actions .btn.btn-outline-secondary:hover {
+  background: #f8f9fa;
+  border-color: #adb5bd;
+  color: #212529;
+  box-shadow: none;
+}
+
+/* Botón "Renovar" — verde mockup #28a745 */
+.renov-actions .btn.btn-primary,
+.dashboard-main--contratos .renov-actions .btn.btn-primary {
+  background: #28a745 !important;
+  border-color: #28a745 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(40, 167, 69, 0.25) !important;
+}
+
+.renov-actions .btn.btn-primary:hover,
+.dashboard-main--contratos .renov-actions .btn.btn-primary:hover {
+  background: #218838 !important;
+  border-color: #1e7e34 !important;
+  box-shadow: 0 4px 10px rgba(40, 167, 69, 0.28) !important;
+}
+
+.renov-actions .btn.btn-primary:active {
+  background: #1c7430 !important;
+  border-color: #1c7430 !important;
+}
+
+/* ---- Gráfico de barras (Contratos por Mes) ---- */
+.renov-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.32rem;
+  height: 160px;
+  padding: 0.4rem 0.25rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.renov-bar-col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+}
+
+.renov-bar {
+  width: 72%;
+  background: #1e3a5f;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.4s ease;
+}
+
+.renov-chart-caption {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-bottom: 0.45rem;
+}
+
+.renov-bar-label {
+  margin-top: 0.35rem;
+  color: #6b7280;
+  font-size: 0.7rem;
+}
+
+/* ---- Donut SVG ---- */
+.renov-donut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.renov-donut__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem 0.8rem;
+  width: 100%;
+  max-width: 240px;
+}
+
+.renov-donut__legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #374151;
+}
+
+.renov-donut__chip {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.renov-donut__label {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.renov-donut__val {
+  font-weight: 700;
+  color: #111827;
+}
+
+.contrato-empresa-icon-preview {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #ced4da;
+}
+
+/* ---- Responsivo ---- */
+@media (max-width: 767.98px) {
+  .renov-step__label {
+    display: none;
+  }
+
+  .renov-step__bar {
+    min-width: 1rem;
+    margin: 0 0.3rem;
+  }
+
+  .renov-bar-chart {
+    height: 130px;
+  }
+
+  .renov-actions .btn {
+    font-size: 0.72rem;
+  }
+}
