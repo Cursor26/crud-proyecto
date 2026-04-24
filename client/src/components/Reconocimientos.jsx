@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
+import AppSelect from './AppSelect';
 
 const Reconocimientos = () => {
   const [registros, setRegistros] = useState([]);
@@ -148,12 +149,12 @@ const Reconocimientos = () => {
         <div className="minimal-form-stack">
           <div className="minimal-field">
             <label className="minimal-label">Empleado:</label>
-            <select className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
+            <AppSelect className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
               <option value="" disabled hidden>--- Seleccione ---</option>
               {empleados.map((emp) => (
                 <option key={emp.carnet_identidad} value={emp.carnet_identidad}>{emp.carnet_identidad} — {emp.nombre} {emp.apellidos}</option>
               ))}
-            </select>
+            </AppSelect>
           </div>
           <div className="minimal-field"><label className="minimal-label">Tipo:</label><input type="text" className="minimal-input" placeholder="------------------------" value={tipo} onChange={(e) => setTipo(e.target.value)} /></div>
           <div className="minimal-field"><label className="minimal-label">Fecha otorgamiento:</label><input type="date" className="minimal-input" value={fechaOtorgamiento} onChange={(e) => setFechaOtorgamiento(e.target.value)} /></div>

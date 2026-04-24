@@ -6,6 +6,7 @@ import { Modal, Button } from 'react-bootstrap';
 import { exportRowsToExcel } from '../utils/exportExcel';
 import { fmtFechaTabla, fmtFechaHoraTabla } from '../utils/formatDates';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const ProduccionHistorico = () => {
   const [items, setItems] = useState([]);
@@ -56,12 +57,12 @@ const ProduccionHistorico = () => {
         <div className="row g-3 align-items-end">
           <div className="col-md-3">
             <label className="form-label">Fuente</label>
-            <select className="form-select" value={fuente} onChange={(e) => setFuente(e.target.value)}>
+            <AppSelect className="form-select" value={fuente} onChange={(e) => setFuente(e.target.value)}>
               <option value="">Todas</option>
               <option value="sacrificio">Sacrificio vacuno</option>
               <option value="matadero">Matadero vivo</option>
               <option value="leche">Leche</option>
-            </select>
+            </AppSelect>
           </div>
           <div className="col-md-2">
             <label className="form-label">Desde (fecha dato)</label>

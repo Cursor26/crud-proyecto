@@ -6,6 +6,7 @@ import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { fmtFechaTabla } from '../utils/formatDates';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const CertificadosMedicos = () => {
   const [registros, setRegistros] = useState([]);
@@ -116,7 +117,7 @@ const CertificadosMedicos = () => {
           <div className="row g-3 mb-2 align-items-end">
             <div className="col-12 col-md-6 col-xl-3">
               <label className="form-label mb-1 fw-bold">Empleado *</label>
-              <select
+              <AppSelect
                 className="form-select form-select-lg"
                 value={carnet}
                 onChange={(e) => setCarnet(e.target.value)}
@@ -128,7 +129,7 @@ const CertificadosMedicos = () => {
                     {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
                   </option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
             <div className="col-6 col-md-3 col-xl-2">
               <label className="form-label mb-1">Fecha emisión</label>

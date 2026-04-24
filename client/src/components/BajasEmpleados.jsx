@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
+import AppSelect from './AppSelect';
 
 const esActivo = (e) => e.activo == null || e.activo === 1 || e.activo === '1';
 
@@ -114,14 +115,14 @@ const BajasEmpleados = () => {
         <div className="minimal-form-stack">
           <div className="minimal-field">
             <label className="minimal-label">Empleado (solo activos):</label>
-            <select className={`minimal-select ${carnetBaja ? 'is-selected' : ''}`} value={carnetBaja} onChange={(e) => setCarnetBaja(e.target.value)}>
+            <AppSelect className={`minimal-select ${carnetBaja ? 'is-selected' : ''}`} value={carnetBaja} onChange={(e) => setCarnetBaja(e.target.value)}>
               <option value="" disabled hidden>--- Seleccione ---</option>
               {empleadosParaBaja.map((emp) => (
                 <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
                   {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
                 </option>
               ))}
-            </select>
+            </AppSelect>
           </div>
           <div className="minimal-field">
             <label className="minimal-label">Fecha de baja:</label>

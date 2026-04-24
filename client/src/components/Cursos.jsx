@@ -6,6 +6,7 @@ import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
+import AppSelect from './AppSelect';
 
 const Cursos = () => {
     const [registros, setRegistros] = useState([]);
@@ -116,7 +117,7 @@ const Cursos = () => {
                     <div className="row">
                         <div className="col-md-5 mb-2">
                             <label>Empleado</label>
-                            <select
+                            <AppSelect
                                 className="form-select"
                                 value={idTabla}
                                 onChange={(e) => setIdTabla(e.target.value)}
@@ -129,7 +130,7 @@ const Cursos = () => {
                                         {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
                                     </option>
                                 ))}
-                            </select>
+                            </AppSelect>
                         </div>
                         <div className="col-md-3 mb-2">
                             <label>Curso</label>

@@ -8,10 +8,15 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 
-
-
 app.use(cors());
 app.use(express.json());
+/* Express 5: sin cuerpo, express.json puede dejar req.body en undefined; normalizamos para rutas que desestructuran el body. */
+app.use((req, res, next) => {
+  if (req.body === undefined || req.body === null) {
+    req.body = {};
+  }
+  next();
+});
 
 app.use(cookieParser());
 
@@ -305,24 +310,90 @@ app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacio
     (err, result) => {
       if (err) {
         console.log(err);
-        res.status(500).send(err);
-      } else res.send(result);
+        res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+      } else {
+        res.send(result);
+      }
     }
   );
 });
 
 app.put("/update-contrato", (req, res) => {
-  const { numero_contrato, proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido } = req.body;
-  db.query(
-    'UPDATE contratos_generales SET proveedor_cliente=?, empresa=?, suplementos=?, vigencia=?, tipo_contrato=?, fecha_inicio=?, fecha_fin=?, vencido=? WHERE numero_contrato=?',
-    [proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido, numero_contrato],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-        res.status(500).send(err);
-      } else res.send(result);
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const {
+    numero_contrato,
+    numero_contrato_original,
+    proveedor_cliente,
+    empresa,
+    suplementos,
+    vigencia,
+    tipo_contrato,
+    fecha_inicio,
+    fecha_fin,
+    vencido,
+  } = body;
+  const numeroNuevo = numero_contrato == null ? '' : String(numero_contrato).trim();
+  const hasNumeroOriginal = Object.prototype.hasOwnProperty.call(body, 'numero_contrato_original');
+  const numeroOriginalRaw = hasNumeroOriginal ? numero_contrato_original : numero_contrato;
+  let numeroContratoWhere = numeroOriginalRaw == null ? '' : String(numeroOriginalRaw).trim();
+  if (!numeroContratoWhere || numeroContratoWhere === 'null' || numeroContratoWhere === 'undefined') {
+    numeroContratoWhere = numeroNuevo;
+  }
+
+  if (!numeroNuevo) {
+    return res.status(400).json({ message: 'El número de contrato no puede estar vacío.' });
+  }
+
+  const sql =
+    'UPDATE contratos_generales SET numero_contrato=?, proveedor_cliente=?, empresa=?, suplementos=?, vigencia=?, tipo_contrato=?, fecha_inicio=?, fecha_fin=?, vencido=? WHERE numero_contrato=?';
+  const params = [
+    numeroNuevo,
+    proveedor_cliente,
+    empresa,
+    suplementos,
+    vigencia,
+    tipo_contrato,
+    fecha_inicio,
+    fecha_fin,
+    vencido,
+    numeroContratoWhere,
+  ];
+
+  db.query(sql, params, (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
     }
-  );
+    const nRows = Number(result.affectedRows) || 0;
+    if (nRows === 0) {
+      return db.query(
+        'SELECT 1 AS ok FROM contratos_generales WHERE numero_contrato = ? LIMIT 1',
+        [numeroContratoWhere],
+        (e2, rows) => {
+          if (e2) {
+            console.log(e2);
+            return res.status(500).json({ message: e2.sqlMessage || e2.message || String(e2) });
+          }
+          if (!rows || !rows.length) {
+            return res.status(404).json({
+              message: `No existe un contrato con número «${numeroContratoWhere}».`,
+            });
+          }
+          return res.json({
+            ok: true,
+            affectedRows: 0,
+            warning: 'No hubo cambios en MySQL (datos idénticos).',
+            numero_contrato: numeroNuevo,
+          });
+        }
+      );
+    }
+    return res.json({
+      ok: true,
+      affectedRows: nRows,
+      numero_contrato: numeroNuevo,
+    });
+  });
 });
 
 app.delete("/delete-contrato/:numero_contrato", (req, res) => {
@@ -332,7 +403,9 @@ app.delete("/delete-contrato/:numero_contrato", (req, res) => {
       if (err) {
         console.log(err);
         res.status(500).send(err);
-      } else res.send(result);
+      } else {
+        res.send(result);
+      }
     }
   );
 });
@@ -343,13 +416,13 @@ app.get("/contratos", (req, res) => {
       if (err) {
         console.log(err);
         res.status(500).send(err);
-      } else res.send(result);
+      } else {
+        const rows = Array.isArray(result) ? result : [];
+        res.json(JSON.parse(JSON.stringify(rows)));
+      }
     }
   );
 });
-
-
-
 
 //Empleados: 
 
@@ -2859,13 +2932,8 @@ app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autoriza
 
 
 
-
-
-
-
-
-app.listen(3001,()=>{
-    console.log("Corriendo en el puerto 3001")
-})
+app.listen(3001, () => {
+  console.log('Corriendo en el puerto 3001');
+});
 
 

@@ -31,3 +31,18 @@ export function DeleteTableActionButton({ onClick, className = '', title = 'Elim
     </button>
   );
 }
+
+export function RenewTableActionButton({ onClick, className = '', title = 'Renovar contrato', ...rest }) {
+  return (
+    <button
+      type="button"
+      className={joinClass('btn-table-icon-action', 'btn-table-icon-action--renew', className)}
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      {...rest}
+    >
+      <i className="bi bi-arrow-repeat" aria-hidden="true" />
+    </button>
+  );
+}

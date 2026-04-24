@@ -15,6 +15,7 @@
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.1",
     "react-scripts": "5.0.1",
+    "react-select": "^5.10.2",
     "sweetalert2": "^11.26.20",
     "web-vitals": "^2.1.4",
     "xlsx": "^0.18.5"

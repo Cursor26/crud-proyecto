@@ -6,6 +6,7 @@ import { Modal, Button } from 'react-bootstrap';
 import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
+import AppSelect from './AppSelect';
 
 const GruposTrabajo = () => {
   const [grupos, setGrupos] = useState([]);
@@ -334,14 +335,14 @@ const GruposTrabajo = () => {
           <div className="row g-3 align-items-end">
             <div className="col-12 col-md-6 col-xl-4">
               <label className="form-label">Grupo</label>
-              <select className="form-select" value={asGrupo} onChange={(e) => setAsGrupo(e.target.value)} required>
+              <AppSelect className="form-select" value={asGrupo} onChange={(e) => setAsGrupo(e.target.value)} required>
                 <option value="" disabled hidden>— Seleccione —</option>
                 {grupos.map((g) => (
                   <option key={g.id_grupo} value={g.id_grupo}>
                     {g.nombre} ({g.num_miembros ?? 0} integrantes)
                   </option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
             <div className="col-6 col-md-3 col-xl-2">
               <label className="form-label">Fecha</label>
@@ -443,7 +444,7 @@ const GruposTrabajo = () => {
         </Modal.Header>
         <Modal.Body>
           <div className="d-flex gap-2 mb-3">
-            <select
+            <AppSelect
               className="form-select"
               value={carnetAgregar}
               onChange={(e) => setCarnetAgregar(e.target.value)}
@@ -454,7 +455,7 @@ const GruposTrabajo = () => {
                   {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
                 </option>
               ))}
-            </select>
+            </AppSelect>
             <Button variant="primary" onClick={agregarMiembro} disabled={!carnetAgregar}>
               Añadir
             </Button>

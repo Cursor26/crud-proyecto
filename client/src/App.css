@@ -102,11 +102,14 @@ margin-top: 15px;
   --ui-primary-rgb: 0, 123, 255;
   --dashboard-primary: var(--ui-primary);
   --dashboard-primary-deep: var(--ui-primary-deep);
-  /* Acciones corporativas (hex solicitados) */
-  --accion-guardar: #28a745;
-  --accion-guardar-hover: #218838;
-  --accion-guardar-active: #1c7430;
-  --accion-guardar-rgb: 40, 167, 69;
+  /* Guardar: azul claro (como antes) */
+  --accion-guardar: #bfdbfe;
+  --accion-guardar-foreground: #1e3a8a;
+  --accion-guardar-border: #60a5fa;
+  --accion-guardar-hover: #1d4ed8;
+  --accion-guardar-hover-border: #1e3a8a;
+  --accion-guardar-active: #1e3a8a;
+  --accion-guardar-rgb: 30, 64, 175;
   --accion-aceptar: #218838;
   --accion-aceptar-hover: #1c7430;
   --accion-aceptar-active: #185c29;
@@ -117,14 +120,24 @@ margin-top: 15px;
   --accion-editar-text: #212529;
   --accion-buscar: #17a2b8;
   --accion-buscar-hover: #138496;
-  --accion-cancelar: #6c757d;
-  --accion-cancelar-hover: #5a6268;
-  --accion-cancelar-active: #4e555b;
-  --accion-cancelar-disabled: #adb5bd;
+  /* Cancelar: gris claro (mismo criterio que .btn-contratos-limpiar-filtros) */
+  --accion-cancelar: #e5e7eb;
+  --accion-cancelar-foreground: #4b5563;
+  --accion-cancelar-border: #9ca3af;
+  --accion-cancelar-hover: #4b5563;
+  --accion-cancelar-hover-foreground: #f9fafb;
+  --accion-cancelar-hover-border: #374151;
+  --accion-cancelar-active: #3f3f46;
+  --accion-cancelar-rgb: 75, 85, 99;
+  --accion-cancelar-disabled: #d1d5db;
   --accion-eliminar: #dc3545;
   --accion-eliminar-hover: #c82333;
   --accion-eliminar-active: #bd2130;
   --accion-eliminar-disabled: #ea868f;
+  /* Modales: acento estructural (filo, titular, focus) — alineado con tablas Contratos */
+  --modal-accent: #14532d;
+  --modal-accent-deep: #0f3d24;
+  --modal-accent-rgb: 20, 83, 45;
   /* Botones: esquinas rectas + sombras tipo Windows 11 (capas, sin “lift” fuerte) */
   --btn-win11-radius: 0;
   --btn-win11-shadow-neutral: 0 1px 2px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
@@ -148,6 +161,19 @@ margin-top: 15px;
 
 .dashboard-sidebar .dashboard-sidebar-divider {
   border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dashboard-sidebar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.dashboard-sidebar-brand-logo {
+  width: 1.95rem;
+  height: 1.95rem;
+  object-fit: contain;
+  border-radius: 50%;
 }
 
 .dashboard-sidebar .nav-link.dashboard-nav-link {
@@ -398,6 +424,16 @@ margin-top: 15px;
 /* Tablas de listados: celdas reutilizables */
 .dashboard-content-main .table-data-compact {
   table-layout: auto;
+}
+
+/* Bordes de tablas más finos y suaves en toda la app */
+.dashboard-content-main .table-data-compact.table-bordered > :not(caption) > * > * {
+  border-width: 0.5px;
+  border-color: #e5e7eb;
+}
+
+.dashboard-content-main .table-data-compact > :not(caption) > * > * {
+  border-color: #e5e7eb;
 }
 
 .dashboard-content-main .table-data-compact td.cell-empleado-max {
@@ -881,31 +917,32 @@ margin-top: 15px;
   box-shadow: none;
 }
 
-/* Success = Guardar / Registrar / Crear / Confirmar (#28a745) */
+/* Success = Guardar / Registrar / Crear — mismo azul que Editar (tabla contratos) */
 .dashboard-main .btn-success {
   background-color: var(--accion-guardar);
-  border-color: #1e7e34;
-  color: #ffffff;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(40, 167, 69, 0.22);
+  border-color: var(--accion-guardar-border);
+  color: var(--accion-guardar-foreground);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2);
 }
 
 .dashboard-main .btn-success:hover {
   background-color: var(--accion-guardar-hover);
-  border-color: #19692c;
+  border-color: var(--accion-guardar-hover-border);
   color: #ffffff;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(40, 167, 69, 0.26);
-  filter: brightness(1.02);
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28);
+  filter: none;
 }
 
 .dashboard-main .btn-success:active {
   background-color: var(--accion-guardar-active);
-  border-color: #155d28;
+  border-color: #172554;
+  color: #ffffff;
   box-shadow: var(--btn-win11-shadow-pressed);
-  filter: brightness(0.97);
+  filter: brightness(0.98);
 }
 
 .dashboard-main .btn-success:focus-visible {
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(40, 167, 69, 0.75);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-guardar-rgb), 0.45);
   outline: none;
 }
 
@@ -993,53 +1030,61 @@ margin-top: 15px;
   outline: none;
 }
 
-/* Cancelar (#6c757d) */
+/* Cancelar: gris claro (mismo criterio que “Limpiar” en contratos) */
 .dashboard-main .btn-secondary {
   background-color: var(--accion-cancelar);
-  border-color: #545b62;
-  color: #ffffff;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 3px 10px rgba(80, 88, 95, 0.22);
+  border: 1px solid var(--accion-cancelar-border);
+  color: var(--accion-cancelar-foreground);
+  font-weight: 600;
+  box-shadow: var(--btn-win11-shadow-neutral);
 }
 
 .dashboard-main .btn-secondary:hover {
   background-color: var(--accion-cancelar-hover);
-  border-color: #494f54;
-  color: #ffffff;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 16px rgba(80, 88, 95, 0.22);
-  filter: brightness(1.03);
+  border-color: var(--accion-cancelar-hover-border);
+  color: var(--accion-cancelar-hover-foreground);
+  box-shadow: var(--btn-win11-shadow-hover);
+  filter: none;
 }
 
 .dashboard-main .btn-secondary:active {
+  background-color: var(--accion-cancelar-active);
+  color: var(--accion-cancelar-hover-foreground);
+  border-color: #27272a;
   box-shadow: var(--btn-win11-shadow-pressed);
-  filter: brightness(0.96);
+  filter: none;
 }
 
 .dashboard-main .btn-secondary:focus-visible {
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(108, 117, 125, 0.65);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-cancelar-rgb), 0.35);
   outline: none;
 }
 
-/* Cancelar / volver: contorno neutro */
+/* Cancelar / volver: gris claro (mismo criterio que “Limpiar”) */
 .dashboard-main .btn-outline-secondary {
-  border-color: #c8cdd3;
-  color: var(--dashboard-text);
-  background: #ffffff;
+  border: 1px solid var(--accion-cancelar-border);
+  color: var(--accion-cancelar-foreground);
+  background: var(--accion-cancelar);
+  font-weight: 600;
   box-shadow: var(--btn-win11-shadow-neutral);
 }
 
 .dashboard-main .btn-outline-secondary:hover {
-  background: #f3f4f6;
-  border-color: #9ca3af;
-  color: var(--dashboard-text);
+  background: var(--accion-cancelar-hover);
+  border-color: var(--accion-cancelar-hover-border);
+  color: var(--accion-cancelar-hover-foreground);
   box-shadow: var(--btn-win11-shadow-hover);
 }
 
 .dashboard-main .btn-outline-secondary:active {
+  background: var(--accion-cancelar-active);
+  border-color: #27272a;
+  color: var(--accion-cancelar-hover-foreground);
   box-shadow: var(--btn-win11-shadow-pressed);
 }
 
 .dashboard-main .btn-outline-secondary:focus-visible {
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(108, 117, 125, 0.45);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-cancelar-rgb), 0.3);
   outline: none;
 }
 
@@ -1067,25 +1112,25 @@ margin-top: 15px;
   outline: none;
 }
 
-/* Outline = mismo verde que Guardar / Registrar / Crear (#28a745) */
+/* Outline = mismo azul que Guardar sólido */
 .dashboard-main .btn-outline-success {
   color: var(--accion-guardar-hover);
-  border-color: rgba(var(--accion-guardar-rgb), 0.5);
+  border-color: rgba(var(--accion-guardar-rgb), 0.45);
   background: #ffffff;
   box-shadow: var(--btn-win11-shadow-neutral);
 }
 
 .dashboard-main .btn-outline-success:hover {
   background: rgba(var(--accion-guardar-rgb), 0.12);
-  border-color: var(--accion-guardar);
-  color: var(--accion-guardar-active);
+  border-color: var(--accion-guardar-hover);
+  color: var(--accion-guardar-hover-border);
   box-shadow: var(--btn-win11-shadow-hover);
 }
 
 .dashboard-main .btn-outline-success:active {
-  background: rgba(var(--accion-guardar-rgb), 0.2);
+  background: rgba(var(--accion-guardar-rgb), 0.22);
   border-color: var(--accion-guardar-active);
-  color: var(--accion-guardar-active);
+  color: #172554;
   box-shadow: var(--btn-win11-shadow-pressed);
 }
 
@@ -1354,7 +1399,7 @@ margin-top: 15px;
   border-radius: 0 !important;
   overflow: hidden;
   box-shadow: none !important;
-  border-left: 6px solid var(--brand-red) !important;
+  border-left: 6px solid var(--modal-accent) !important;
   background: #fff !important;
 }
 
@@ -1371,7 +1416,7 @@ margin-top: 15px;
   display: inline-block;
   padding: 0.4rem 1rem;
   border-radius: 0;
-  background: var(--brand-red);
+  background: var(--modal-accent);
   color: #fff;
   font-weight: 700;
   font-size: 0.95rem;
@@ -1440,37 +1485,40 @@ margin-top: 15px;
 .modal-premium-dialog .form-control:focus,
 .modal-premium-dialog .form-select:focus,
 .modal-premium-dialog textarea.form-control:focus {
-  border-color: var(--brand-red-deep);
-  box-shadow: 0 0 0 0.2rem rgba(var(--brand-red-rgb), 0.14);
+  border-color: var(--modal-accent-deep);
+  box-shadow: 0 0 0 0.2rem rgba(var(--modal-accent-rgb), 0.14);
 }
 
-/* Modales: Guardar = verde corporativo; mismo criterio que .dashboard-main .btn-success */
+/* Modales: Guardar = mismo azul que Editar / .dashboard-main .btn-success */
 .modal-premium-footer .btn-success,
 .modal-minimal-footer .btn-success {
   background-color: var(--accion-guardar) !important;
-  border-color: #1e7e34 !important;
-  color: #ffffff !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(40, 167, 69, 0.22) !important;
+  border-color: var(--accion-guardar-border) !important;
+  color: var(--accion-guardar-foreground) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2) !important;
 }
 
 .modal-premium-footer .btn-success:hover,
 .modal-minimal-footer .btn-success:hover {
   background-color: var(--accion-guardar-hover) !important;
-  border-color: #19692c !important;
+  border-color: var(--accion-guardar-hover-border) !important;
   color: #ffffff !important;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(40, 167, 69, 0.26) !important;
-  filter: brightness(1.02);
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28) !important;
+  filter: none;
 }
 
 .modal-premium-footer .btn-success:active,
 .modal-minimal-footer .btn-success:active {
+  background-color: var(--accion-guardar-active) !important;
+  border-color: #172554 !important;
+  color: #ffffff !important;
   box-shadow: var(--btn-win11-shadow-pressed) !important;
-  filter: brightness(0.97);
+  filter: brightness(0.98);
 }
 
 .modal-premium-footer .btn-success:focus-visible,
 .modal-minimal-footer .btn-success:focus-visible {
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(40, 167, 69, 0.75) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-guardar-rgb), 0.45) !important;
   outline: none !important;
 }
 
@@ -1481,25 +1529,30 @@ margin-top: 15px;
 
 .modal-premium-footer .btn-outline-secondary,
 .modal-minimal-footer .btn-outline-secondary {
-  border-color: #545b62 !important;
-  color: #ffffff !important;
+  border: 1px solid var(--accion-cancelar-border) !important;
+  color: var(--accion-cancelar-foreground) !important;
   background: var(--accion-cancelar) !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 3px 10px rgba(80, 88, 95, 0.22) !important;
+  font-weight: 600 !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+  filter: none !important;
 }
 
 .modal-premium-footer .btn-outline-secondary:hover,
 .modal-minimal-footer .btn-outline-secondary:hover {
   background: var(--accion-cancelar-hover) !important;
-  border-color: #494f54 !important;
-  color: #ffffff !important;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 16px rgba(80, 88, 95, 0.22) !important;
-  filter: brightness(1.03);
+  border-color: var(--accion-cancelar-hover-border) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
+  filter: none !important;
 }
 
 .modal-premium-footer .btn-outline-secondary:active,
 .modal-minimal-footer .btn-outline-secondary:active {
+  background: var(--accion-cancelar-active) !important;
+  border-color: #27272a !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
   box-shadow: var(--btn-win11-shadow-pressed) !important;
-  filter: brightness(0.96);
+  filter: none !important;
 }
 
 /* Variante minimalista como referencia visual entregada */
@@ -1509,7 +1562,7 @@ margin-top: 15px;
 }
 
 .modal-minimal-content {
-  border-left: 8px solid var(--brand-red) !important;
+  border-left: 8px solid var(--modal-accent) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
@@ -1525,7 +1578,8 @@ margin-top: 15px;
 
 .modal-minimal-badge {
   border-radius: 0;
-  background: var(--brand-red);
+  background: var(--modal-accent);
+  color: #ffffff;
   font-size: 1.03rem;
   padding: 0.25rem 0.95rem;
 }
@@ -1551,41 +1605,144 @@ margin-top: 15px;
 
 .modal-minimal-btn.btn-success {
   background-color: var(--accion-guardar) !important;
-  color: #ffffff !important;
-  border-color: #1e7e34 !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(40, 167, 69, 0.22) !important;
+  color: var(--accion-guardar-foreground) !important;
+  border-color: var(--accion-guardar-border) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2) !important;
 }
 
 .modal-minimal-btn.btn-success:hover {
   background-color: var(--accion-guardar-hover) !important;
-  border-color: #19692c !important;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(40, 167, 69, 0.26) !important;
-  filter: brightness(1.02);
+  border-color: var(--accion-guardar-hover-border) !important;
+  color: #ffffff !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28) !important;
+  filter: none;
 }
 
 .modal-minimal-btn.btn-success:active {
+  background-color: var(--accion-guardar-active) !important;
+  border-color: #172554 !important;
+  color: #ffffff !important;
   box-shadow: var(--btn-win11-shadow-pressed) !important;
-  filter: brightness(0.97);
+  filter: brightness(0.98);
 }
 
 .modal-minimal-btn.btn-outline-secondary {
-  color: #ffffff !important;
-  border-color: #545b62 !important;
+  color: var(--accion-cancelar-foreground) !important;
+  border: 1px solid var(--accion-cancelar-border) !important;
   background: var(--accion-cancelar) !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 3px 10px rgba(80, 88, 95, 0.22) !important;
+  font-weight: 600 !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+  filter: none !important;
 }
 
 .modal-minimal-btn.btn-outline-secondary:hover {
   background: var(--accion-cancelar-hover) !important;
-  border-color: #494f54 !important;
-  color: #ffffff !important;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 16px rgba(80, 88, 95, 0.22) !important;
-  filter: brightness(1.03);
+  border-color: var(--accion-cancelar-hover-border) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
+  filter: none !important;
 }
 
 .modal-minimal-btn.btn-outline-secondary:active {
+  background: var(--accion-cancelar-active) !important;
+  border-color: #27272a !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
   box-shadow: var(--btn-win11-shadow-pressed) !important;
-  filter: brightness(0.96);
+  filter: none !important;
+}
+
+/* Modales con solo Bootstrap (p. ej. Cerrar con variant="secondary") — cancelar = gris claro */
+.modal .btn.btn-secondary:not(.btn-link) {
+  background-color: var(--accion-cancelar) !important;
+  color: var(--accion-cancelar-foreground) !important;
+  border: 1px solid var(--accion-cancelar-border) !important;
+  font-weight: 600;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+}
+.modal .btn.btn-secondary:not(.btn-link):hover {
+  background-color: var(--accion-cancelar-hover) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  border-color: var(--accion-cancelar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
+}
+.modal .btn.btn-secondary:not(.btn-link):active {
+  background-color: var(--accion-cancelar-active) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  border-color: #27272a !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+}
+
+/* Modales sin FormModal (estructura Bootstrap clásica): filo y cabecera con acento verde */
+.modal-dialog:not(.modal-premium-dialog) .modal-content {
+  border: none;
+  border-left: 5px solid var(--modal-accent) !important;
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .modal-header {
+  background: var(--modal-accent);
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.9rem 1rem;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .modal-title {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .btn-close {
+  filter: invert(1) grayscale(1);
+  opacity: 0.88;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .btn-close:hover,
+.modal-dialog:not(.modal-premium-dialog) .btn-close:focus {
+  opacity: 1;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .form-control:focus,
+.modal-dialog:not(.modal-premium-dialog) .form-select:focus,
+.modal-dialog:not(.modal-premium-dialog) textarea.form-control:focus {
+  border-color: var(--modal-accent-deep);
+  box-shadow: 0 0 0 0.2rem rgba(var(--modal-accent-rgb), 0.14);
+}
+
+/* AppSelect (react-select) en cualquier modal: anula azul #1e3a5f al acento modal */
+.modal .app-select__menu {
+  z-index: 2000 !important;
+}
+.modal .app-select__indicators-container {
+  background-color: var(--modal-accent) !important;
+}
+.modal .app-select__control--is-focused {
+  border-color: var(--modal-accent) !important;
+  box-shadow: 0 0 0 0.2rem rgba(var(--modal-accent-rgb), 0.2) !important;
+}
+.modal .app-select__control:hover {
+  border-color: var(--modal-accent) !important;
+}
+.modal .app-select__option--is-focused,
+.modal .app-select__option--is-focused:active {
+  background-color: var(--modal-accent) !important;
+  color: #ffffff !important;
+}
+.modal .app-select__option--is-selected {
+  background-color: #ecfdf5 !important;
+  color: var(--modal-accent) !important;
+}
+
+/* Ojito de contraseña en formularios minimal del modal: sin navy */
+.modal-premium-dialog .minimal-eye-btn:hover,
+.modal-minimal-dialog .minimal-eye-btn:hover {
+  color: var(--modal-accent) !important;
+}
+.modal-premium-dialog .minimal-eye-btn:focus-visible,
+.modal-minimal-dialog .minimal-eye-btn:focus-visible {
+  outline: 2px solid var(--modal-accent) !important;
+  outline-offset: 1px;
 }
 
 .minimal-form-stack {
@@ -1630,6 +1787,53 @@ margin-top: 15px;
 .minimal-input:focus,
 .minimal-select:focus {
   border-bottom-color: var(--brand-red);
+}
+
+/* Misma línea de acento de marca en formularios minimal dentro de modales (FormModal) */
+.modal-premium-dialog .minimal-input:focus,
+.modal-premium-dialog .minimal-select:focus {
+  border-bottom-color: var(--modal-accent);
+}
+
+/* Campo contraseña con ojito (Gestión de usuarios, etc.) */
+.minimal-password-wrap {
+  position: relative;
+  max-width: 335px;
+  width: 100%;
+}
+
+.minimal-password-wrap .minimal-input--with-eye {
+  padding-right: 2.25rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.minimal-eye-btn {
+  position: absolute;
+  right: 0;
+  bottom: 0.1rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 0.3rem;
+  padding: 0;
+  line-height: 1;
+}
+
+.minimal-eye-btn:hover {
+  color: #1e3a5f;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.minimal-eye-btn:focus-visible {
+  outline: 2px solid #1e3a5f;
+  outline-offset: 1px;
 }
 
 .minimal-select {
@@ -2034,40 +2238,42 @@ margin-top: 15px;
   transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease !important;
 }
 
-/* Secundario: Cancel / Cancelar / Cerrar / No — gris #6C757D en todos los diálogos con botón cancelar */
+/* Secundario: Cancel / Cancelar / Cerrar / No — gris claro (mismo criterio que “Limpiar”) */
 .swal2-popup .swal2-cancel {
   background-color: var(--accion-cancelar) !important;
-  color: #ffffff !important;
-  border: 1px solid #545b62 !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 3px 10px rgba(80, 88, 95, 0.22) !important;
+  color: var(--accion-cancelar-foreground) !important;
+  border: 1px solid var(--accion-cancelar-border) !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+  font-weight: 600 !important;
 }
 
 .swal2-popup .swal2-cancel:hover {
   background-color: var(--accion-cancelar-hover) !important;
-  color: #ffffff !important;
-  border-color: #494f54 !important;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 16px rgba(80, 88, 95, 0.22) !important;
-  filter: brightness(1.03);
+  color: var(--accion-cancelar-hover-foreground) !important;
+  border-color: var(--accion-cancelar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
+  filter: none !important;
 }
 
 .swal2-popup .swal2-cancel:active {
   background-color: var(--accion-cancelar-active) !important;
-  color: #ffffff !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
   box-shadow: var(--btn-win11-shadow-pressed) !important;
-  filter: brightness(0.96);
+  filter: none !important;
 }
 
 .swal2-popup .swal2-cancel:focus-visible {
   outline: none !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(108, 117, 125, 0.65) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-cancelar-rgb), 0.3) !important;
 }
 
 .swal2-popup .swal2-cancel:disabled {
   background-color: var(--accion-cancelar-disabled) !important;
-  color: #ffffff !important;
+  color: #6b7280 !important;
+  border-color: #d1d5db !important;
   opacity: 1 !important;
   cursor: not-allowed !important;
-  filter: saturate(0.92);
+  filter: none !important;
 }
 
 /* Confirmación por defecto (aceptar genérico) */
@@ -2164,26 +2370,31 @@ margin-top: 15px;
 
 .swal2-popup:has(.swal2-icon.swal2-success) .swal2-confirm {
   background-color: var(--accion-guardar) !important;
-  border: 1px solid #1e7e34 !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(40, 167, 69, 0.22) !important;
+  color: var(--accion-guardar-foreground) !important;
+  border: 1px solid var(--accion-guardar-border) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2) !important;
 }
 
 .swal2-popup:has(.swal2-icon.swal2-success) .swal2-confirm:hover {
   background-color: var(--accion-guardar-hover) !important;
-  border-color: #19692c !important;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(40, 167, 69, 0.26) !important;
+  color: #ffffff !important;
+  border-color: var(--accion-guardar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28) !important;
 }
 
 .swal2-popup:has(.swal2-icon.swal2-error) .swal2-confirm {
   background-color: var(--accion-cancelar) !important;
-  border: 1px solid #545b62 !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 3px 10px rgba(80, 88, 95, 0.22) !important;
+  color: var(--accion-cancelar-foreground) !important;
+  border: 1px solid var(--accion-cancelar-border) !important;
+  font-weight: 600 !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
 }
 
 .swal2-popup:has(.swal2-icon.swal2-error) .swal2-confirm:hover {
   background-color: var(--accion-cancelar-hover) !important;
-  border-color: #494f54 !important;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 16px rgba(80, 88, 95, 0.22) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  border-color: var(--accion-cancelar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
 }
 
 .swal2-popup:has(.swal2-icon.swal2-error) .swal2-confirm:active {
@@ -2193,14 +2404,16 @@ margin-top: 15px;
 
 .swal2-popup:has(.swal2-icon.swal2-question) .swal2-confirm {
   background-color: var(--accion-guardar) !important;
-  border: 1px solid #1e7e34 !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(40, 167, 69, 0.22) !important;
+  color: var(--accion-guardar-foreground) !important;
+  border: 1px solid var(--accion-guardar-border) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2) !important;
 }
 
 .swal2-popup:has(.swal2-icon.swal2-question) .swal2-confirm:hover {
   background-color: var(--accion-guardar-hover) !important;
-  border-color: #19692c !important;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(40, 167, 69, 0.26) !important;
+  color: #ffffff !important;
+  border-color: var(--accion-guardar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28) !important;
 }
 
 /* Portales / vistas sin .dashboard-main: mismo radio cuadrado */
@@ -2332,13 +2545,13 @@ body .btn:not(.btn-link) {
 .dashboard-main.dashboard-main--contratos .dashboard-side-info__card {
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-left: 4px solid #1e3a5f;
+  border-left: 4px solid var(--contratos-navy);
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
 }
 
 .dashboard-main.dashboard-main--contratos .dashboard-side-info__pill {
-  background: #1e3a5f;
+  background: var(--contratos-navy);
   border-radius: 4px;
 }
 
@@ -2382,12 +2595,15 @@ body .btn:not(.btn-link) {
 
 /* ============================================================
  * Vista Gestión de Contratos — panel gris claro (ligeramente más profundo que gray-100),
- * acentos navy #1e3a5f, verde acción #28a745 (mockup cliente).
+ * acentos de marca / encabezado de tabla #14532d, verde acción #28a745 (mockup cliente).
  * Activado con .dashboard-main--contratos en App.js
  * ============================================================ */
 
 .dashboard-main.dashboard-main--contratos {
-  --contratos-navy: #1e3a5f;
+  /* Mismo verde que el thead de la tabla .table-data-compact */
+  --contratos-navy: #14532d;
+  --contratos-navy-hover: #0f3d24;
+  --contratos-navy-rgb: 20, 83, 45;
   --contratos-bg: #eceef2;
   --contratos-green: #28a745;
   background: var(--contratos-bg) !important;
@@ -2447,12 +2663,6 @@ body .btn:not(.btn-link) {
   padding-top: 0.2rem;
   border-top: 1px solid #e5e7eb;
   background: var(--contratos-bg, #eceef2);
-}
-
-/* Outline neutros en esta vista */
-.dashboard-main.dashboard-main--contratos .btn-outline-secondary:hover {
-  background: #f9fafb !important;
-  border-color: #ced4da !important;
 }
 
 /* Rejilla global contratos: compacta; la de renovaciones usa clase propia */
@@ -2535,6 +2745,10 @@ body .btn:not(.btn-link) {
   line-height: 1.2;
 }
 
+.dashboard-main--contratos .contratos-page__title {
+  color: var(--contratos-navy, #14532d);
+}
+
 .contratos-page__actions {
   display: flex;
   flex-wrap: wrap;
@@ -2542,23 +2756,23 @@ body .btn:not(.btn-link) {
   gap: 0.75rem;
 }
 
-/* Botón primario navy (Agregar contrato) */
+/* Botón primario (Agregar contrato) — verde alineado con thead de tabla */
 .contratos-btn-primary.btn,
 .dashboard-main--contratos .btn.contratos-btn-primary {
-  background: #1e3a5f !important;
-  border-color: #1e3a5f !important;
+  background: var(--contratos-navy, #14532d) !important;
+  border-color: var(--contratos-navy, #14532d) !important;
   color: #ffffff !important;
   border-radius: 8px !important;
   font-weight: 600;
   padding: 0.4rem 0.9rem;
   font-size: 0.875rem;
-  box-shadow: 0 1px 2px rgba(30, 58, 95, 0.2) !important;
+  box-shadow: 0 1px 2px rgba(var(--contratos-navy-rgb), 0.22) !important;
 }
 
 .contratos-btn-primary.btn:hover,
 .dashboard-main--contratos .btn.contratos-btn-primary:hover {
-  background: #152a45 !important;
-  border-color: #152a45 !important;
+  background: var(--contratos-navy-hover, #0f3d24) !important;
+  border-color: var(--contratos-navy-hover, #0f3d24) !important;
 }
 
 /* Botón secundario (Renovación Masiva) */
@@ -2631,16 +2845,16 @@ body .btn:not(.btn-link) {
 }
 
 .contratos-masiva__step.is-active .contratos-masiva__dot {
-  background: #1e3a5f;
-  border-color: #1e3a5f;
+  background: var(--contratos-navy, #14532d);
+  border-color: var(--contratos-navy, #14532d);
   color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.2);
+  box-shadow: 0 0 0 3px rgba(var(--contratos-navy-rgb), 0.2);
 }
 
 .contratos-masiva__step.is-done .contratos-masiva__dot {
   background: #e9ecef;
   border-color: #ced4da;
-  color: #1e3a5f;
+  color: var(--contratos-navy, #14532d);
 }
 
 .contratos-masiva__label {
@@ -2651,7 +2865,7 @@ body .btn:not(.btn-link) {
 }
 
 .contratos-masiva__step.is-active .contratos-masiva__label {
-  color: #1e3a5f;
+  color: var(--contratos-navy, #14532d);
 }
 
 .contratos-masiva__step.is-done .contratos-masiva__label {
@@ -2684,11 +2898,21 @@ body .btn:not(.btn-link) {
 }
 
 .dashboard-main--contratos .contratos-tabs-card {
-  margin-top: 0.65rem !important;
+  margin-top: 0.4rem !important;
   margin-bottom: 0.75rem !important;
 }
 
 .contratos-tabs-row {
+  margin-bottom: 0.15rem;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+
+.contratos-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 0.15rem;
 }
 
@@ -2708,14 +2932,14 @@ body .btn:not(.btn-link) {
 }
 
 .contratos-tab--active {
-  background: #1e3a5f;
+  background: var(--contratos-navy, #14532d);
   color: #ffffff !important;
   border-radius: 999px;
   box-shadow: none;
 }
 
 .contratos-tab--active:hover {
-  background: #152a45;
+  background: var(--contratos-navy-hover, #0f3d24);
   color: #ffffff !important;
 }
 
@@ -2727,6 +2951,9 @@ body .btn:not(.btn-link) {
   .contratos-page__title-row {
     flex-direction: column;
     align-items: stretch;
+  }
+  .contratos-topbar {
+    flex-wrap: wrap;
   }
 }
 
@@ -2843,9 +3070,9 @@ body .btn:not(.btn-link) {
   border-color: #e5e7eb;
 }
 
-.renov-search-card .form-control:focus {
-  border-color: rgba(30, 58, 95, 0.45);
-  box-shadow: 0 0 0 0.12rem rgba(30, 58, 95, 0.12);
+.dashboard-main--contratos .renov-search-card .form-control:focus {
+  border-color: rgba(20, 83, 45, 0.45);
+  box-shadow: 0 0 0 0.12rem rgba(20, 83, 45, 0.12);
 }
 
 .dashboard-main--contratos .renov-search-card {
@@ -2993,7 +3220,7 @@ body .btn:not(.btn-link) {
 }
 
 .renov-progress__bar--navy {
-  background: #1e3a5f;
+  background: #14532d;
 }
 
 .renov-progress__bar--burgundy {
@@ -3067,14 +3294,327 @@ body .btn:not(.btn-link) {
   border-radius: 0 !important;
 }
 
-.dashboard-main--contratos .table.table-data-compact thead th {
+/* Reduce el "marco blanco" alrededor de las tablas */
+.dashboard-main--contratos .contratos-table-card {
+  padding: 0.5rem !important;
+}
+
+.dashboard-main--contratos .contratos-filter-card {
+  padding: 0.5rem 0.9rem 0.5rem 0.5rem !important;
+}
+
+/* Tipografia compacta en buscadores/filtros (igual a pestaña "Resumen") */
+.dashboard-main--contratos .contratos-filter-card .form-control,
+.dashboard-main--contratos .contratos-filter-card .btn,
+.dashboard-main--contratos .contratos-filter-card .app-select__single-value,
+.dashboard-main--contratos .contratos-filter-card .app-select__option,
+.dashboard-main--contratos .contratos-filter-card .app-select__placeholder,
+.dashboard-main--contratos .contratos-filter-card .app-select__input-container,
+.dashboard-main--contratos .contratos-filter-card .app-select__control {
+  font-size: 0.8125rem !important;
+}
+
+/* Mismo verde que thead; anula estilos inline de react-select (AppSelect) */
+.dashboard-main--contratos .contratos-filter-card .app-select__indicators-container {
+  background-color: var(--contratos-navy, #14532d) !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__control {
+  min-height: 36px;
+  border-color: #cfd5dd !important;
+  box-shadow: none !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__control:hover {
+  border-color: var(--contratos-navy, #14532d) !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__control--is-focused {
+  border-color: var(--contratos-navy, #14532d) !important;
+  box-shadow: 0 0 0 0.2rem rgba(var(--contratos-navy-rgb), 0.2) !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__option--is-focused,
+.dashboard-main--contratos .contratos-filter-card .app-select__option--is-focused:active {
+  background-color: var(--contratos-navy, #14532d) !important;
+  color: #ffffff !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__option--is-selected {
+  background-color: #ecfdf5 !important;
+  color: #14532d !important;
+}
+
+.dashboard-main--contratos .btn-contratos-limpiar-filtros {
+  color: var(--accion-cancelar-foreground);
+  border: 1px solid var(--accion-cancelar-border);
+  background-color: var(--accion-cancelar);
+  font-weight: 600;
+}
+
+.dashboard-main--contratos .btn-contratos-limpiar-filtros:hover {
+  color: var(--accion-cancelar-hover-foreground);
+  border-color: var(--accion-cancelar-hover-border);
+  background-color: var(--accion-cancelar-hover);
+}
+
+.dashboard-main--contratos .table.table-data-compact thead th,
+.dashboard-main--contratos .table.table-data-compact thead.table-light th {
   padding: 0.72rem 0.85rem;
   white-space: nowrap;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.02em !important;
+  /* Encabezado: verde oscuro (un tono más claro que #0d2818) */
+  background-color: #14532d !important;
+  background-image: none !important;
+  color: #ecfdf5 !important;
 }
 
 .dashboard-main--contratos .table.table-data-compact tbody td {
   padding: 0.68rem 0.85rem;
   white-space: nowrap;
+  font-size: 0.8125rem;
+}
+
+.dashboard-main--contratos .contratos-numero-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  min-width: 3.4rem;
+  width: 100%;
+  padding-left: 0.9rem;
+}
+
+.dashboard-main--contratos .contratos-numero-wrap__num {
+  display: inline-block;
+  min-width: 1.6rem;
+  text-align: left;
+}
+
+.dashboard-main--contratos .contratos-pdf-inline {
+  font-size: 1.5rem;
+  color: #b4232a;
+  text-decoration: none;
+  border: none;
+  border-radius: 0.3rem;
+  padding: 0.02rem 0.24rem;
+  line-height: 1.1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.2rem;
+}
+
+.dashboard-main--contratos .contratos-pdf-inline:hover {
+  color: #8f1b22;
+  background: transparent;
+  text-decoration: none;
+}
+
+.dashboard-main--contratos .contratos-pdf-inline.contratos-pdf-inline--active,
+.dashboard-main--contratos .contratos-pdf-inline.contratos-pdf-inline--active:hover {
+  color: #0d6efd;
+}
+
+/* Contratos: acciones de tabla — editar azul, renovar verde, eliminar rojo (tono base un poco más oscuro) */
+.dashboard-main--contratos .btn-table-icon-action--edit {
+  color: #1e3a8a;
+  border-color: #60a5fa;
+  background-color: #bfdbfe;
+  filter: none;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--edit:hover {
+  color: #ffffff;
+  background-color: #1d4ed8;
+  border-color: #1e3a8a;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--edit:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(30, 64, 175, 0.45);
+}
+
+.dashboard-main--contratos .btn-table-icon-action--renew {
+  color: #14532d;
+  border-color: #4ade80;
+  background-color: #bbf7d0;
+  filter: none;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--renew:hover {
+  color: #ffffff;
+  background-color: #15803d;
+  border-color: #14532d;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--renew:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(22, 101, 52, 0.45);
+}
+
+.dashboard-main--contratos .btn-contrato-renovar-text {
+  color: #14532d;
+  border-color: #4ade80;
+  background-color: #bbf7d0;
+  font-weight: 600;
+}
+
+.dashboard-main--contratos .btn-contrato-renovar-text:hover {
+  color: #ffffff;
+  background-color: #15803d;
+  border-color: #14532d;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--delete {
+  color: #991b1b;
+  border-color: rgba(220, 38, 38, 0.45);
+  background-color: rgba(254, 202, 202, 0.75);
+}
+
+.dashboard-main--contratos .btn-table-icon-action--delete:hover {
+  color: #ffffff;
+  background-color: #b91c1c;
+  border-color: #991b1b;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--delete:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(185, 28, 28, 0.45);
+  outline: none;
+}
+
+.contrato-pdf-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.contrato-pdf-preview-modal {
+  width: min(35vw, 37rem);
+  min-width: 20rem;
+  height: 50vh;
+  background: #ffffff;
+  border-left: 1px solid #d1d5db;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  z-index: 10001;
+}
+
+.contrato-pdf-preview-modal.is-maximized {
+  width: min(90vw, 92rem);
+  height: min(92vh, 60rem);
+}
+
+.contrato-pdf-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.9rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+  cursor: move;
+  user-select: none;
+}
+
+.contrato-pdf-preview-title-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.contrato-pdf-preview-title {
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.contrato-pdf-preview-name {
+  font-size: 0.8rem;
+  color: #4b5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contrato-pdf-preview-close {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #1f2937;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 0.35rem;
+}
+
+.contrato-pdf-preview-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.contrato-pdf-preview-maximize {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #93c5fd;
+  background: #dbeafe;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 0.35rem;
+}
+
+.contrato-pdf-preview-maximize:hover {
+  border-color: #3b82f6;
+  background: #60a5fa;
+  color: #ffffff;
+}
+
+.contrato-pdf-preview-modal.is-dragging {
+  transition: none;
+}
+
+.contrato-pdf-preview-actions .contrato-pdf-preview-maximize,
+.contrato-pdf-preview-actions .contrato-pdf-preview-close {
+  cursor: pointer;
+}
+
+.contrato-pdf-preview-close {
+  border-color: #fca5a5;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.contrato-pdf-preview-close:hover {
+  border-color: #ef4444;
+  background: #f87171;
+  color: #ffffff;
+}
+
+.contrato-pdf-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #e5e7eb;
+}
+
+.contrato-pdf-preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+  background: #ffffff;
+}
+
+/* Bordes finos visibles (evita separadores blancos gruesos) */
+.dashboard-main .table.table-data-compact.table-bordered > :not(caption) > * > * {
+  border: 0.5px solid #d9dee5 !important;
 }
 
 
@@ -3405,7 +3945,7 @@ button.renov-empresa-avatar:focus-visible {
   transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
-/* Ojo — mismo navy que botones primarios del módulo (#1e3a5f) */
+/* Mismo verde que botones primarios del módulo Contratos */
 .renov-actions .renov-actions__eye {
   flex-shrink: 0;
   width: 2.05rem;
@@ -3414,20 +3954,20 @@ button.renov-empresa-avatar:focus-visible {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  background: #1e3a5f !important;
-  border: 1px solid #1e3a5f !important;
+  background: #14532d !important;
+  border: 1px solid #14532d !important;
   color: #ffffff !important;
   font-size: 1rem;
 }
 
 .renov-actions .renov-actions__eye:hover {
-  background: #152a45 !important;
-  border-color: #152a45 !important;
+  background: #0f3d24 !important;
+  border-color: #0f3d24 !important;
   color: #ffffff !important;
 }
 
 .renov-actions .renov-actions__eye:focus-visible {
-  box-shadow: 0 0 0 0.2rem rgba(30, 58, 95, 0.4);
+  box-shadow: 0 0 0 0.2rem rgba(20, 83, 45, 0.4);
 }
 
 /* Contorno negro fuerte sobre el glifo del ojo para que se lea bien */
@@ -3498,7 +4038,7 @@ button.renov-empresa-avatar:focus-visible {
 
 .renov-bar {
   width: 72%;
-  background: #1e3a5f;
+  background: #14532d;
   border-radius: 3px 3px 0 0;
   transition: height 0.4s ease;
 }

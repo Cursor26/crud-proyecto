@@ -4,6 +4,7 @@ import '../App.css';
 import Swal from 'sweetalert2';
 import { fmtFechaTabla } from '../utils/formatDates';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const EvaluacionesMedicas = () => {
   const [registros, setRegistros] = useState([]);
@@ -134,14 +135,14 @@ const EvaluacionesMedicas = () => {
           <div className="row g-3">
             <div className="col-md-4">
               <label className="form-label">Empleado</label>
-              <select className="form-select" value={carnet} onChange={(e) => setCarnet(e.target.value)} required>
+              <AppSelect className="form-select" value={carnet} onChange={(e) => setCarnet(e.target.value)} required>
                 <option value="" disabled hidden>— Seleccione —</option>
                 {empleados.map((emp) => (
                   <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
                     {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
                   </option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
             <div className="col-md-2">
               <label className="form-label">Fecha del chequeo</label>

@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const SegSeguridad = () => {
     const [registros, setRegistros] = useState([]);
@@ -135,7 +136,7 @@ const SegSeguridad = () => {
                     <div className="d-flex flex-column flex-lg-row align-items-stretch align-items-lg-end mb-3 gap-3">
                         <div className="flex-grow-1">
                             <label className="form-label mb-1">Empleado</label>
-                            <select
+                            <AppSelect
                                 className="form-select form-select-sm"
                                 value={idTabla}
                                 onChange={(e) => setIdTabla(e.target.value)}
@@ -148,7 +149,7 @@ const SegSeguridad = () => {
                                         {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
                                     </option>
                                 ))}
-                            </select>
+                            </AppSelect>
                         </div>
                     </div>
 

@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const Evaluaciones = () => {
     const [registros, setRegistros] = useState([]);
@@ -103,7 +104,7 @@ const Evaluaciones = () => {
                     <div className="row">
                         <div className="col-md-4 mb-2">
                             <label>Empleado</label>
-                            <select
+                            <AppSelect
                                 className="form-select"
                                 value={idTabla}
                                 onChange={(e) => setIdTabla(e.target.value)}
@@ -116,7 +117,7 @@ const Evaluaciones = () => {
                                         {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
                                     </option>
                                 ))}
-                            </select>
+                            </AppSelect>
                         </div>
                         <div className="col-md-4 mb-2">
                             <label>Evaluación</label>

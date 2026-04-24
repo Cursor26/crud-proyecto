@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 function GestionUsuarios() {
   const [usuariosList, setUsuarios] = useState([]);
@@ -14,6 +15,7 @@ function GestionUsuarios() {
   const [editandoUsuario, setEditandoUsuario] = useState(false);
   const [userEmailOriginal, setUserEmailOriginal] = useState('');
   const [showUsuarioModal, setShowUsuarioModal] = useState(false);
+  const [verPassword, setVerPassword] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   const getUsuarios = () => {
@@ -42,6 +44,7 @@ function GestionUsuarios() {
     setUserPassword('');
     setUserRol('');
     setUserEmailOriginal('');
+    setVerPassword(false);
   };
 
   const cerrarModalUsuario = () => {
@@ -167,23 +170,35 @@ function GestionUsuarios() {
           </div>
           <div className="minimal-field">
             <label className="minimal-label">Contraseña:</label>
-            <input
-              type="password"
-              className="minimal-input"
-              placeholder="------------------------"
-              value={userPassword}
-              onChange={(e) => setUserPassword(e.target.value)}
-            />
+            <div className="minimal-password-wrap">
+              <input
+                type={verPassword ? 'text' : 'password'}
+                className="minimal-input minimal-input--with-eye"
+                placeholder="------------------------"
+                value={userPassword}
+                onChange={(e) => setUserPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                className="minimal-eye-btn"
+                onClick={() => setVerPassword((v) => !v)}
+                title={verPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                aria-label={verPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+              >
+                <i className={verPassword ? 'bi bi-eye-slash' : 'bi bi-eye'} aria-hidden="true" />
+              </button>
+            </div>
           </div>
           <div className="minimal-field">
             <label className="minimal-label">Rol:</label>
-            <select className={`minimal-select ${userRol ? 'is-selected' : ''}`} value={userRol} onChange={(e) => setUserRol(e.target.value)}>
+            <AppSelect className={`minimal-select ${userRol ? 'is-selected' : ''}`} value={userRol} onChange={(e) => setUserRol(e.target.value)}>
               <option value="" disabled hidden>--- Seleccione ---</option>
               <option value="rrhh">Rec. humanos</option>
               <option value="contratacion">Contratación</option>
               <option value="admin">Administrador</option>
               <option value="produccion">Producción</option>
-            </select>
+            </AppSelect>
           </div>
         </div>
       </FormModal>

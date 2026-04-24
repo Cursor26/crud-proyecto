@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const Departamentos = () => {
   const [departamentos, setDepartamentos] = useState([]);
@@ -197,14 +198,14 @@ const Departamentos = () => {
             </div>
             <div className="col-md-4">
               <label className="form-label">Departamento superior (opcional)</label>
-              <select className="form-select" value={idPadre} onChange={(e) => setIdPadre(e.target.value)}>
+              <AppSelect className="form-select" value={idPadre} onChange={(e) => setIdPadre(e.target.value)}>
                 <option value="">— Ninguno (raíz) —</option>
                 {opcionesPadre.map((d) => (
                   <option key={d.id_departamento} value={d.id_departamento}>
                     {d.nombre}
                   </option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
             <div className="col-md-2 d-flex align-items-end">
               <div className="form-check">
@@ -299,25 +300,25 @@ const Departamentos = () => {
         <div className="row g-3 mb-4 align-items-end">
           <div className="col-12 col-md-5">
             <label className="form-label">Departamento destino</label>
-            <select className="form-select" value={deptoAsignar} onChange={(e) => setDeptoAsignar(e.target.value)}>
+            <AppSelect className="form-select" value={deptoAsignar} onChange={(e) => setDeptoAsignar(e.target.value)}>
               <option value="" disabled hidden>— Seleccione departamento —</option>
               {departamentos.map((d) => (
                 <option key={d.id_departamento} value={d.id_departamento}>
                   {d.nombre}
                 </option>
               ))}
-            </select>
+            </AppSelect>
           </div>
           <div className="col-12 col-md-4">
             <label className="form-label">Empleado a asignar</label>
-            <select className="form-select" value={carnetAsignar} onChange={(e) => setCarnetAsignar(e.target.value)}>
+            <AppSelect className="form-select" value={carnetAsignar} onChange={(e) => setCarnetAsignar(e.target.value)}>
               <option value="" disabled hidden>— Seleccione empleado —</option>
               {empleados.map((emp) => (
                 <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
                   {emp.carnet_identidad} — {emp.nombre} {emp.apellidos} ({etiquetaDeptoActual(emp)})
                 </option>
               ))}
-            </select>
+            </AppSelect>
           </div>
           <div className="col-12 col-md-3 d-grid d-md-flex justify-content-md-end">
             <button type="button" className="btn btn-success btn-form-nowrap" onClick={asignarEmpleado}>

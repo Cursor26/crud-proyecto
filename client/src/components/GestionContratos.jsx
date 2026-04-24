@@ -1,21 +1,22 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
-import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { EditTableActionButton, DeleteTableActionButton, RenewTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
+import AppSelect from './AppSelect';
 
 function GestionContratos({ vistaInicial = 'contratos' }) {
   const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
+  const CONTRATOS_PDF_STORAGE_KEY = 'contratos_pdf_archivos_v1';
   const [contratoNumero, setContratoNumero] = useState('');
+  const [contratoNumeroOriginal, setContratoNumeroOriginal] = useState('');
   const [contratoProveedorCliente, setContratoProveedorCliente] = useState(false);
   const [contratoEmpresa, setContratoEmpresa] = useState('');
   const [contratoSuplementos, setContratoSuplementos] = useState('');
   const [contratoVigencia, setContratoVigencia] = useState('');
   const [contratoTipo, setContratoTipo] = useState('');
   const [contratoFechaInicio, setContratoFechaInicio] = useState('');
-  const [contratoDia, setContratoDia] = useState('');
-  const [contratoMes, setContratoMes] = useState('');
-  const [contratoAnio, setContratoAnio] = useState('');
   const [contratoFechaFin, setContratoFechaFin] = useState('');
   const [contratoVencido, setContratoVencido] = useState(false);
   const [editarContrato, setEditarContrato] = useState(false);
@@ -29,9 +30,22 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   const [activeSection, setActiveSection] = useState(vistaInicial);
   const [renovFechaDesde, setRenovFechaDesde] = useState('');
   const [renovFechaHasta, setRenovFechaHasta] = useState('');
-  const [pasoRenovacion, setPasoRenovacion] = useState(1);
   const [empresaIconos, setEmpresaIconos] = useState({});
+  const [contratoPdfs, setContratoPdfs] = useState({});
   const [empresaVistaPrevia, setEmpresaVistaPrevia] = useState(null);
+  const [pdfVistaPrevia, setPdfVistaPrevia] = useState(null);
+  const [pdfVistaMaximizada, setPdfVistaMaximizada] = useState(false);
+  const [pdfRenderNonce, setPdfRenderNonce] = useState(0);
+  const [pdfHasCustomPos, setPdfHasCustomPos] = useState(false);
+  const [pdfDragPos, setPdfDragPos] = useState({ x: 0, y: 0 });
+  const [pdfDragging, setPdfDragging] = useState(false);
+  const [pdfDragOffset, setPdfDragOffset] = useState({ x: 0, y: 0 });
+  const [nombreArchivoIcono, setNombreArchivoIcono] = useState('');
+  const inputIconoEmpresaRef = useRef(null);
+  const [nombreArchivoPdf, setNombreArchivoPdf] = useState('');
+  const inputPdfContratoRef = useRef(null);
+  const pdfModalRef = useRef(null);
+  const hasDocument = typeof document !== 'undefined';
 
   const getContratos = () => {
     Axios.get('http://localhost:3001/contratos')
@@ -42,14 +56,6 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   useEffect(() => {
     getContratos();
   }, []);
-
-  useEffect(() => {
-    if (contratoDia && contratoMes && contratoAnio) {
-      setContratoFechaInicio(`${contratoAnio}-${String(contratoMes).padStart(2, '0')}-${String(contratoDia).padStart(2, '0')}`);
-    } else {
-      setContratoFechaInicio('');
-    }
-  }, [contratoDia, contratoMes, contratoAnio]);
 
   useEffect(() => {
     setActiveSection(vistaInicial || 'contratos');
@@ -65,6 +71,19 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       }
     } catch (error) {
       console.warn('No se pudieron cargar iconos de empresas:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CONTRATOS_PDF_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setContratoPdfs(parsed);
+      }
+    } catch (error) {
+      console.warn('No se pudieron cargar PDFs de contratos:', error);
     }
   }, []);
 
@@ -90,17 +109,164 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     persistirIconosEmpresa({ ...empresaIconos, [key]: dataUrl });
   };
 
+  const normalizarNumeroContratoKey = (numero) => String(numero || '').trim();
+
+  const persistirPdfsContrato = (nextPdfs) => {
+    setContratoPdfs(nextPdfs);
+    try {
+      localStorage.setItem(CONTRATOS_PDF_STORAGE_KEY, JSON.stringify(nextPdfs));
+    } catch (error) {
+      console.warn('No se pudo guardar PDF del contrato:', error);
+    }
+  };
+
+  const getPdfContrato = (numeroContrato) => {
+    const key = normalizarNumeroContratoKey(numeroContrato);
+    if (!key) return null;
+    const entry = contratoPdfs[key];
+    if (!entry) return null;
+    if (typeof entry === 'string') return { dataUrl: entry, nombre: 'Contrato.pdf' };
+    return {
+      dataUrl: String(entry.dataUrl || ''),
+      nombre: String(entry.nombre || 'Contrato.pdf'),
+    };
+  };
+
+  const guardarPdfContrato = (numeroContrato, dataUrl, nombre) => {
+    const key = normalizarNumeroContratoKey(numeroContrato);
+    if (!key || !dataUrl) return;
+    persistirPdfsContrato({
+      ...contratoPdfs,
+      [key]: { dataUrl, nombre: nombre || 'Contrato.pdf' },
+    });
+  };
+
+  const eliminarPdfContrato = (numeroContrato) => {
+    const key = normalizarNumeroContratoKey(numeroContrato);
+    if (!key || !contratoPdfs[key]) return;
+    const nextPdfs = { ...contratoPdfs };
+    delete nextPdfs[key];
+    persistirPdfsContrato(nextPdfs);
+    setNombreArchivoPdf('');
+  };
+
+  const dataUrlToObjectUrl = (dataUrl) => {
+    const raw = String(dataUrl || '').trim();
+    const [meta, base64] = raw.split(',');
+    if (!meta || !base64) return null;
+    const mimeMatch = meta.match(/data:(.*?);base64/);
+    const mimeType = mimeMatch?.[1] || 'application/pdf';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mimeType });
+    return URL.createObjectURL(blob);
+  };
+
+  const abrirPdfContrato = (numeroContrato) => {
+    const pdf = getPdfContrato(numeroContrato);
+    if (!pdf?.dataUrl) {
+      Swal.fire('Sin PDF', 'Este contrato no tiene PDF asociado.', 'info');
+      return;
+    }
+    let objectUrl = null;
+    try {
+      objectUrl = dataUrlToObjectUrl(pdf.dataUrl);
+    } catch (error) {
+      console.error('No se pudo preparar el PDF para el visor:', error);
+    }
+    setPdfVistaPrevia({
+      numero: String(numeroContrato || '').trim() || '—',
+      nombre: pdf.nombre || 'Contrato.pdf',
+      dataUrl: String(pdf.dataUrl),
+      objectUrl,
+    });
+    setPdfVistaMaximizada(false);
+    setPdfHasCustomPos(false);
+    setPdfDragPos({ x: 0, y: 0 });
+    setPdfRenderNonce((n) => n + 1);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pdfVistaPrevia?.objectUrl) URL.revokeObjectURL(pdfVistaPrevia.objectUrl);
+    };
+  }, [pdfVistaPrevia]);
+
+  useEffect(() => {
+    if (!pdfDragging || pdfVistaMaximizada) return undefined;
+    const onMove = (e) => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const modalW = pdfModalRef.current?.offsetWidth || 420;
+      const modalH = pdfModalRef.current?.offsetHeight || 260;
+      const nextX = e.clientX - pdfDragOffset.x;
+      const nextY = e.clientY - pdfDragOffset.y;
+      const boundedX = Math.max(0, Math.min(vw - modalW, nextX));
+      const boundedY = Math.max(0, Math.min(vh - modalH, nextY));
+      setPdfDragPos({ x: boundedX, y: boundedY });
+    };
+    const onUp = () => setPdfDragging(false);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+  }, [pdfDragging, pdfDragOffset, pdfVistaMaximizada]);
+
+  const buildPdfViewerSrc = (pdfPreview, maximizado, nonce) => {
+    const raw = String(pdfPreview?.objectUrl || pdfPreview?.dataUrl || '').trim();
+    if (!raw) return '';
+    const base = raw.split('#')[0];
+    /* Edge/Chrome: forzamos page-width en ambos modos y nonce para evitar cache de zoom previo. */
+    const mode = maximizado ? 'max' : 'min';
+    return `${base}#page=1&zoom=page-width&view=FitH&toolbar=1&navpanes=0&mode=${mode}&v=${nonce}`;
+  };
+
+  const renderNumeroContrato = (numeroContrato) => (
+    <span className="contratos-numero-wrap">
+      <span className="contratos-numero-wrap__num">{numeroContrato}</span>
+    </span>
+  );
+
+  const renderCeldaDocumentoPdf = (numeroContrato) => {
+    const pdf = getPdfContrato(numeroContrato);
+    const numeroNorm = String(numeroContrato || '').trim();
+    const isPdfAbierto = pdfVistaPrevia != null && String(pdfVistaPrevia.numero || '').trim() === numeroNorm;
+    if (!pdf?.dataUrl) {
+      return <span className="text-muted">—</span>;
+    }
+    return (
+      <div className="d-flex align-items-center justify-content-center">
+        <button
+          type="button"
+          className={`btn btn-link p-0 contratos-pdf-inline${isPdfAbierto ? ' contratos-pdf-inline--active' : ''}`}
+          title={pdf.nombre || `Ver PDF del contrato ${numeroContrato}`}
+          aria-label={`Ver PDF del contrato ${numeroContrato}`}
+          onClick={() => abrirPdfContrato(numeroContrato)}
+        >
+          <i className="bi bi-file-earmark-pdf-fill" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  };
+
   const eliminarIconoEmpresa = (empresa) => {
     const key = normalizarEmpresaKey(empresa);
     if (!key || !empresaIconos[key]) return;
     const nextIconos = { ...empresaIconos };
     delete nextIconos[key];
     persistirIconosEmpresa(nextIconos);
+    setNombreArchivoIcono('');
   };
 
   const manejarIconoEmpresaChange = (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
+    setNombreArchivoIcono(file?.name || '');
     if (!file) return;
 
     const empresaNombre = String(contratoEmpresa || '').trim();
@@ -121,6 +287,36 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     reader.onload = () => {
       const dataUrl = String(reader.result || '');
       if (dataUrl) guardarIconoEmpresa(empresaNombre, dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const manejarPdfContratoChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const numero = String(contratoNumero || '').trim();
+    if (!numero) {
+      Swal.fire('Número requerido', 'Primero escribe el número de contrato para asociar el PDF.', 'info');
+      return;
+    }
+    const esPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!esPdf) {
+      Swal.fire('Archivo inválido', 'Selecciona un archivo PDF válido.', 'warning');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      Swal.fire('Archivo muy pesado', 'Usa un PDF de hasta 5 MB.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      if (!dataUrl) return;
+      guardarPdfContrato(numero, dataUrl, file.name);
+      setNombreArchivoPdf(file.name);
     };
     reader.readAsDataURL(file);
   };
@@ -224,28 +420,35 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   };
 
   useEffect(() => {
-    if (empresaVistaPrevia == null) return;
+    if (empresaVistaPrevia == null && pdfVistaPrevia == null) return;
     const onKey = (e) => {
-      if (e.key === 'Escape') setEmpresaVistaPrevia(null);
+      if (e.key !== 'Escape') return;
+      if (pdfVistaPrevia != null) setPdfVistaPrevia(null);
+      if (empresaVistaPrevia != null) setEmpresaVistaPrevia(null);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [empresaVistaPrevia]);
+  }, [empresaVistaPrevia, pdfVistaPrevia]);
+
+  useEffect(() => {
+    const actual = getPdfContrato(contratoNumero);
+    setNombreArchivoPdf(actual?.nombre || '');
+  }, [contratoNumero, contratoPdfs]);
 
   const limpiarContrato = () => {
     setContratoNumero('');
+    setContratoNumeroOriginal('');
     setContratoProveedorCliente(false);
     setContratoEmpresa('');
     setContratoSuplementos('');
     setContratoVigencia('');
     setContratoTipo('');
     setContratoFechaInicio('');
-    setContratoDia('');
-    setContratoMes('');
-    setContratoAnio('');
     setContratoFechaFin('');
     setContratoVencido(false);
     setEditarContrato(false);
+    setNombreArchivoIcono('');
+    setNombreArchivoPdf('');
   };
 
   const cerrarModalContrato = () => {
@@ -255,6 +458,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
 
   const abrirModalNuevoContrato = () => {
     limpiarContrato();
+    setContratoNumeroOriginal('');
     setShowContratoModal(true);
   };
 
@@ -267,7 +471,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     const nuevaFechaFin = sumarTiempo(contratoFechaInicio);
     const vencidoCalc = diasParaVencer(nuevaFechaFin) != null && diasParaVencer(nuevaFechaFin) < 0 ? 1 : 0;
 
-    Axios.post('http://localhost:3001/create-contrato', {
+    const bodyCreate = {
       numero_contrato: contratoNumero,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
       empresa: contratoEmpresa,
@@ -277,23 +481,38 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       fecha_inicio: contratoFechaInicio,
       fecha_fin: nuevaFechaFin,
       vencido: vencidoCalc,
-    })
+    };
+    Axios.post('http://localhost:3001/create-contrato', bodyCreate)
       .then(() => {
         getContratos();
         cerrarModalContrato();
         Swal.fire('Registro exitoso', 'Contrato agregado', 'success');
       })
       .catch((error) => {
-        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+        const msg =
+          error.response?.data?.message ||
+          (typeof error.response?.data === 'string' ? error.response.data : null) ||
+          error.message;
+        Swal.fire('Error', msg, 'error');
       });
   };
 
   const updateContrato = () => {
     const nuevaFechaFin = sumarTiempo(contratoFechaInicio);
     const vencidoCalc = diasParaVencer(nuevaFechaFin) != null && diasParaVencer(nuevaFechaFin) < 0 ? 1 : 0;
+    const numeroNuevo = String(contratoNumero || '').trim();
+    const numeroOriginalRaw = contratoNumeroOriginal ?? '';
+    const numeroOriginal = String(numeroOriginalRaw).trim();
 
-    Axios.put('http://localhost:3001/update-contrato', {
-      numero_contrato: contratoNumero,
+    if (!numeroNuevo) {
+      Swal.fire('Número requerido', 'El N° de contrato no puede quedar vacío.', 'warning');
+      return;
+    }
+
+    const numOriginalSeguro = String(contratoNumeroOriginal ?? numeroNuevo ?? '').trim() || numeroNuevo;
+    const bodyUpdate = {
+      numero_contrato: numeroNuevo,
+      numero_contrato_original: numOriginalSeguro,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
       empresa: contratoEmpresa,
       suplementos: contratoSuplementos,
@@ -302,14 +521,39 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       fecha_inicio: contratoFechaInicio,
       fecha_fin: nuevaFechaFin,
       vencido: vencidoCalc,
-    })
-      .then(() => {
-        getContratos();
+    };
+    Axios.put('http://localhost:3001/update-contrato', bodyUpdate)
+      .then(() => Axios.get('http://localhost:3001/contratos'))
+      .then((getRes) => {
+        const contratos = Array.isArray(getRes.data) ? getRes.data : [];
+        setContratos(contratos);
+        if (numeroNuevo !== numeroOriginal) {
+          const existeNumeroNuevo = contratos.some((c) => String(c.numero_contrato) === numeroNuevo);
+          if (!existeNumeroNuevo) {
+            Swal.fire(
+              'Actualización parcial',
+              'Se guardaron cambios, pero el N° de contrato no se actualizó. Reinicia el servidor para aplicar la nueva lógica.',
+              'warning'
+            );
+            return;
+          }
+        }
+
+        if (numeroOriginal !== numeroNuevo && contratoPdfs[String(numeroOriginalRaw)]) {
+          const nextPdfs = { ...contratoPdfs };
+          nextPdfs[numeroNuevo] = nextPdfs[String(numeroOriginalRaw)];
+          delete nextPdfs[String(numeroOriginalRaw)];
+          persistirPdfsContrato(nextPdfs);
+        }
         cerrarModalContrato();
         Swal.fire('Actualización exitosa', 'Contrato actualizado', 'success');
       })
       .catch((error) => {
-        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+        const msg =
+          error.response?.data?.message ||
+          (typeof error.response?.data === 'string' ? error.response.data : null) ||
+          error.message;
+        Swal.fire('Error', msg, 'error');
       });
   };
 
@@ -337,6 +581,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   const editarContratoTabla = (val) => {
     setEditarContrato(true);
     setContratoNumero(val.numero_contrato);
+    setContratoNumeroOriginal(val.numero_contrato);
     setContratoProveedorCliente(val.proveedor_cliente === 1);
     setContratoEmpresa(val.empresa);
     setContratoSuplementos(val.suplementos || '');
@@ -344,12 +589,6 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     setContratoTipo(val.tipo_contrato);
     const fechaInicio = val.fecha_inicio ? val.fecha_inicio.substring(0, 10) : '';
     setContratoFechaInicio(fechaInicio);
-    if (fechaInicio) {
-      const [anio, mes, dia] = fechaInicio.split('-');
-      setContratoDia(dia || '');
-      setContratoMes(mes || '');
-      setContratoAnio(anio || '');
-    }
     setContratoFechaFin(val.fecha_fin ? val.fecha_fin.substring(0, 10) : '');
     setContratoVencido(val.vencido === 1);
     setShowContratoModal(true);
@@ -571,31 +810,6 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     });
   };
 
-  /* Avanza un paso en el stepper de Renovación Masiva (Selección -> Revisión -> Confirmación -> Ejecución) */
-  const avanzarPasoRenovacion = () => {
-    setPasoRenovacion((p) => {
-      if (p >= 4) {
-        renovarMasivos();
-        return 1;
-      }
-      if (p === 3) {
-        renovarMasivos();
-        return 4;
-      }
-      return p + 1;
-    });
-  };
-
-  const reiniciarStepper = () => setPasoRenovacion(1);
-
-  const enviarRecordatorio = (contrato) => {
-    Swal.fire(
-      'Recordatorio enviado',
-      `Se envió un correo de recordatorio para el contrato ${contrato.numero_contrato} (${contrato.empresa || 'sin empresa'}).`,
-      'success'
-    );
-  };
-
   const verDetalleContrato = (contrato) => {
     Swal.fire({
       title: `Contrato ${contrato.numero_contrato}`,
@@ -615,19 +829,22 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   };
 
   const exportarReporteCSV = () => {
-    const headers = ['numero_contrato', 'parte', 'empresa', 'tipo_contrato', 'vigencia', 'fecha_inicio', 'fecha_fin', 'estado', 'dias_restantes', 'alerta'];
-    const rows = contratosEnriquecidos.map((c) => [
-      c.numero_contrato,
-      c.proveedor_cliente ? 'Proveedor' : 'Cliente',
-      c.empresa || '',
-      c.tipo_contrato || '',
-      c.vigencia || '',
-      toISODate(c.fecha_inicio),
-      toISODate(c.fecha_fin),
-      c.estado,
-      c.diasRestantes ?? '',
-      c.alerta,
-    ]);
+    const headers = ['numero_contrato', 'parte', 'empresa', 'tipo_contrato', 'vigencia', 'fecha_inicio', 'fecha_fin', 'estado', 'dias_restantes', 'documento'];
+    const rows = contratosEnriquecidos.map((c) => {
+      const p = getPdfContrato(c.numero_contrato);
+      return [
+        c.numero_contrato,
+        c.proveedor_cliente ? 'Proveedor' : 'Cliente',
+        c.empresa || '',
+        c.tipo_contrato || '',
+        c.vigencia || '',
+        toISODate(c.fecha_inicio),
+        toISODate(c.fecha_fin),
+        c.estado,
+        c.diasRestantes ?? '',
+        p?.nombre || (p?.dataUrl ? 'PDF' : ''),
+      ];
+    });
     const csv = [headers, ...rows]
       .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
       .join('\n');
@@ -647,13 +864,6 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     renovaciones: 'Renovaciones',
     reportes: 'Reportes',
   };
-
-  const pasosRenovacion = [
-    { id: 1, label: 'Selección' },
-    { id: 2, label: 'Revisión' },
-    { id: 3, label: 'Confirmación' },
-    { id: 4, label: 'Ejecución' },
-  ];
 
   const AvatarEmpresaClic = ({ empresa }) => {
     const src = getIconoEmpresa(empresa);
@@ -676,14 +886,10 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
 
   return (
     <div className="contratos-page">
-      {/* Encabezado: título + acciones (sin breadcrumbs) */}
-      <header className="contratos-page__header">
-        <div className="contratos-page__title-row">
-          <div>
-            <h1 className="contratos-page__title">Gestión de Contratos</h1>
-          </div>
-
-          <div className="contratos-page__actions">
+      <div className="contratos-topbar">
+        <h2 className="contratos-page__title mb-0">Contratos</h2>
+        <div className="d-flex align-items-center gap-2">
+          {activeSection === 'contratos' && (
             <button
               type="button"
               className="btn btn-primary contratos-btn-primary d-inline-flex align-items-center"
@@ -692,58 +898,19 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
               <i className="bi bi-plus-lg me-2" aria-hidden="true" />
               Agregar contrato
             </button>
-
-            <div className="contratos-masiva">
-              <button
-                type="button"
-                className="btn contratos-btn-secondary d-inline-flex align-items-center"
-                onClick={() => { setActiveSection('renovaciones'); avanzarPasoRenovacion(); }}
-                title="Avanza un paso del flujo de renovación masiva"
-              >
-                <i className="bi bi-lightning-charge me-2" aria-hidden="true" />
-                Renovación Masiva
-              </button>
-
-              <ol className="contratos-masiva__stepper" aria-label="Progreso de renovación masiva">
-                {pasosRenovacion.map((paso, idx) => {
-                  const completed = paso.id < pasoRenovacion;
-                  const active = paso.id === pasoRenovacion;
-                  return (
-                    <li
-                      key={paso.id}
-                      className={`contratos-masiva__step ${active ? 'is-active' : ''} ${completed ? 'is-done' : ''}`}
-                    >
-                      <button
-                        type="button"
-                        className="contratos-masiva__dot"
-                        onClick={() => { setActiveSection('renovaciones'); setPasoRenovacion(paso.id); }}
-                        aria-label={`Ir al paso ${paso.label}`}
-                      >
-                        {completed ? <i className="bi bi-check-lg" aria-hidden="true" /> : paso.id}
-                      </button>
-                      <span className="contratos-masiva__label">{paso.label}</span>
-                      {idx < pasosRenovacion.length - 1 && (
-                        <span className="contratos-masiva__link" aria-hidden="true" />
-                      )}
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
-
-            {activeSection === 'reportes' && (
-              <button type="button" className="btn btn-outline-primary d-inline-flex align-items-center" onClick={exportarReporteCSV}>
-                <i className="bi bi-filetype-csv me-2" aria-hidden="true" />
-                Exportar CSV
-              </button>
-            )}
-          </div>
+          )}
+          {activeSection === 'reportes' && (
+            <button type="button" className="btn btn-outline-primary d-inline-flex align-items-center" onClick={exportarReporteCSV}>
+              <i className="bi bi-filetype-csv me-2" aria-hidden="true" />
+              Exportar CSV
+            </button>
+          )}
         </div>
-      </header>
+      </div>
 
       {/* Tabs de secciones */}
       <div className="contratos-tabs-card mb-3">
-        <div className="d-flex flex-wrap align-items-end gap-2 contratos-tabs-row">
+        <div className="contratos-tabs-row d-flex flex-wrap align-items-end gap-2">
           {Object.entries(seccionLabel).map(([id, label]) => (
             <button
               key={id}
@@ -774,7 +941,6 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                 placeholder="------------------------"
                 value={contratoNumero}
                 onChange={(e) => setContratoNumero(e.target.value)}
-                disabled={editarContrato}
               />
             </div>
 
@@ -813,13 +979,26 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
             <div className="minimal-field">
               <label className="minimal-label">Icono empresa:</label>
               <input
+                ref={inputIconoEmpresaRef}
                 type="file"
                 accept="image/*"
-                className="minimal-input"
+                className="d-none"
                 onChange={manejarIconoEmpresaChange}
               />
+              <div className="d-flex align-items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => inputIconoEmpresaRef.current?.click()}
+                >
+                  Elegir archivo
+                </button>
+                {!getIconoEmpresa(contratoEmpresa) && nombreArchivoIcono && (
+                  <small className="text-muted text-truncate">{nombreArchivoIcono}</small>
+                )}
+              </div>
               <small className="text-muted d-block mt-1">
-                Selecciona una imagen (max 1 MB) para mostrarla como icono en la cola de renovación.
+                Selecciona una imagen (max 1 MB).
               </small>
               {getIconoEmpresa(contratoEmpresa) && (
                 <div className="d-flex align-items-center gap-2 mt-2">
@@ -831,6 +1010,51 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                   >
                     Quitar icono
                   </button>
+                </div>
+              )}
+            </div>
+
+            <div className="minimal-field">
+              <label className="minimal-label">Archivo PDF del contrato:</label>
+              <input
+                ref={inputPdfContratoRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="d-none"
+                onChange={manejarPdfContratoChange}
+              />
+              <div className="d-flex align-items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => inputPdfContratoRef.current?.click()}
+                >
+                  {getPdfContrato(contratoNumero) ? 'Cambiar PDF' : 'Agregar PDF'}
+                </button>
+                {!getPdfContrato(contratoNumero) && nombreArchivoPdf && (
+                  <small className="text-muted text-truncate">{nombreArchivoPdf}</small>
+                )}
+              </div>
+              <small className="text-muted d-block mt-1">
+                Selecciona un PDF (max 5 MB).
+              </small>
+              {getPdfContrato(contratoNumero) && (
+                <div className="d-flex align-items-center gap-2 mt-2 flex-wrap">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-primary"
+                    onClick={() => abrirPdfContrato(contratoNumero)}
+                  >
+                    Ver PDF
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={() => eliminarPdfContrato(contratoNumero)}
+                  >
+                    Quitar PDF
+                  </button>
+                  <small className="text-muted text-truncate">{getPdfContrato(contratoNumero)?.nombre}</small>
                 </div>
               )}
             </div>
@@ -860,7 +1084,8 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
 
             <div className="minimal-field">
               <label className="minimal-label">Tipo de contrato:</label>
-              <select
+              <AppSelect
+                variant="modal"
                 className={`minimal-select ${contratoTipo ? 'is-selected' : ''}`}
                 value={contratoTipo}
                 onChange={(e) => setContratoTipo(e.target.value)}
@@ -870,60 +1095,17 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                 <option value="Servicio">Servicio</option>
                 <option value="Compra">Compra</option>
                 <option value="Otro">Otro</option>
-              </select>
+              </AppSelect>
             </div>
 
-            <div className="minimal-date-row">
-              <div className="minimal-field">
-                <label className="minimal-label">Día:</label>
-                <select
-                  className={`minimal-select ${contratoDia ? 'is-selected' : ''}`}
-                  value={contratoDia}
-                  onChange={(e) => setContratoDia(e.target.value)}
-                >
-                  <option value="" disabled hidden>--- Seleccione ---</option>
-                  {Array.from({ length: 31 }, (_, i) => (
-                    <option key={i + 1} value={String(i + 1).padStart(2, '0')}>
-                      {String(i + 1).padStart(2, '0')}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="minimal-field">
-                <label className="minimal-label">Mes:</label>
-                <select
-                  className={`minimal-select ${contratoMes ? 'is-selected' : ''}`}
-                  value={contratoMes}
-                  onChange={(e) => setContratoMes(e.target.value)}
-                >
-                  <option value="" disabled hidden>--- Seleccione ---</option>
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <option key={i + 1} value={String(i + 1).padStart(2, '0')}>
-                      {String(i + 1).padStart(2, '0')}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="minimal-field">
-                <label className="minimal-label">Año:</label>
-                <select
-                  className={`minimal-select ${contratoAnio ? 'is-selected' : ''}`}
-                  value={contratoAnio}
-                  onChange={(e) => setContratoAnio(e.target.value)}
-                >
-                  <option value="" disabled hidden>--- Seleccione ---</option>
-                  {Array.from({ length: 50 }, (_, i) => {
-                    const anio = String(new Date().getFullYear() - 35 + i);
-                    return (
-                      <option key={anio} value={anio}>
-                        {anio}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
+            <div className="minimal-field">
+              <label className="minimal-label">Fecha de inicio:</label>
+              <input
+                type="date"
+                className="minimal-input"
+                value={contratoFechaInicio}
+                onChange={(e) => setContratoFechaInicio(e.target.value)}
+              />
             </div>
           </div>
         </FormModal>
@@ -958,6 +1140,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                     <thead>
                       <tr>
                         <th>N° Contrato</th>
+                        <th>Documento</th>
                         <th>Empresa</th>
                         <th>Estado</th>
                         <th>Días</th>
@@ -967,7 +1150,8 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                     <tbody>
                       {contratosCriticos.slice(0, 8).map((c) => (
                         <tr key={c.numero_contrato}>
-                          <td>{c.numero_contrato}</td>
+                          <td>{renderNumeroContrato(c.numero_contrato)}</td>
+                          <td className="text-center">{renderCeldaDocumentoPdf(c.numero_contrato)}</td>
                           <td>
                             <div className="d-inline-flex align-items-center gap-2">
                               <AvatarEmpresaClic empresa={c.empresa} />
@@ -976,11 +1160,19 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                           </td>
                           <td><span className={`badge ${getBadgeClass(c.estado)}`}>{c.estado}</span></td>
                           <td>{c.diasRestantes}</td>
-                          <td><button type="button" className="btn btn-sm btn-outline-success" onClick={() => renovarContrato(c)}>Renovar</button></td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-contrato-renovar-text"
+                              onClick={() => renovarContrato(c)}
+                            >
+                              Renovar
+                            </button>
+                          </td>
                         </tr>
                       ))}
                       {contratosCriticos.length === 0 && (
-                        <tr><td colSpan={5} className="text-center text-muted">Sin alertas críticas.</td></tr>
+                        <tr><td colSpan={6} className="text-center text-muted">Sin alertas críticas.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1013,61 +1205,69 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
 
         {activeSection === 'contratos' && (
           <>
-            <div className="card p-3 mb-3">
+            <div className="card p-3 mb-3 contratos-filter-card">
               <div className="row g-2">
                 <div className="col-12 col-md-3">
                   <input type="text" className="form-control" placeholder="Buscar por número, empresa, tipo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 <div className="col-6 col-md-2">
-                  <select className="form-select" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+                  <AppSelect variant="contratos" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value || 'todos')}>
                     <option value="todos">Tipo: todos</option>
-                    {tiposDisponibles.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}
-                  </select>
+                    {tiposDisponibles.map((tipo) => (
+                      <option key={tipo} value={tipo}>
+                        {tipo}
+                      </option>
+                    ))}
+                  </AppSelect>
                 </div>
                 <div className="col-6 col-md-2">
-                  <select className="form-select" value={filtroParte} onChange={(e) => setFiltroParte(e.target.value)}>
+                  <AppSelect variant="contratos" value={filtroParte} onChange={(e) => setFiltroParte(e.target.value || 'todos')}>
                     <option value="todos">Parte: todos</option>
                     <option value="proveedor">Proveedor</option>
                     <option value="cliente">Cliente</option>
-                  </select>
+                  </AppSelect>
                 </div>
                 <div className="col-6 col-md-2">
-                  <select className="form-select" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
+                  <AppSelect variant="contratos" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value || 'todos')}>
                     <option value="todos">Estado: todos</option>
                     <option value="Activo">Activo</option>
                     <option value="En seguimiento">En seguimiento</option>
                     <option value="Por vencer">Por vencer</option>
                     <option value="Vencido">Vencido</option>
-                  </select>
+                  </AppSelect>
                 </div>
                 <div className="col-6 col-md-2">
-                  <select className="form-select" value={filtroVencimiento} onChange={(e) => setFiltroVencimiento(e.target.value)}>
+                  <AppSelect variant="contratos" value={filtroVencimiento} onChange={(e) => setFiltroVencimiento(e.target.value || 'todos')}>
                     <option value="todos">Ventana</option>
                     <option value="7">Hasta 7 días</option>
                     <option value="30">Hasta 30 días</option>
                     <option value="90">Hasta 90 días</option>
-                  </select>
+                  </AppSelect>
                 </div>
                 <div className="col-12 col-md-1 d-grid">
-                  <button type="button" className="btn btn-outline-secondary" onClick={() => { setSearchTerm(''); setFiltroTipo('todos'); setFiltroParte('todos'); setFiltroEstado('todos'); setFiltroVencimiento('todos'); }}>
+                  <button
+                    type="button"
+                    className="btn btn-contratos-limpiar-filtros"
+                    onClick={() => { setSearchTerm(''); setFiltroTipo('todos'); setFiltroParte('todos'); setFiltroEstado('todos'); setFiltroVencimiento('todos'); }}
+                  >
                     Limpiar
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="card p-3">
+            <div className="card p-3 contratos-table-card">
               <div className="table-responsive">
                 <table className="table table-data-compact table-bordered table-striped">
                   <thead>
                     <tr>
-                      <th>N° Contrato</th><th>Tipo</th><th>Empresa</th><th>Vigencia</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Estado</th><th>Días</th><th>Alerta</th><th>Acciones</th>
+                      <th>N° Contrato</th><th>Tipo</th><th>Empresa</th><th>Vigencia</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Estado</th><th>Días</th><th>Documento</th><th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {contratosFiltrados.map((con) => (
                       <tr key={con.numero_contrato}>
-                        <td>{con.numero_contrato}</td>
+                        <td>{renderNumeroContrato(con.numero_contrato)}</td>
                         <td>{con.proveedor_cliente ? 'Proveedor' : 'Cliente'}</td>
                         <td>
                           <div className="d-inline-flex align-items-center gap-2">
@@ -1080,12 +1280,10 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                         <td>{toISODate(con.fecha_fin)}</td>
                         <td><span className={`badge ${getBadgeClass(con.estado)}`}>{con.estado}</span></td>
                         <td>{con.diasRestantes == null ? '-' : con.diasRestantes < 0 ? `-${Math.abs(con.diasRestantes)}` : con.diasRestantes}</td>
-                        <td>{con.alerta}</td>
+                        <td className="text-center">{renderCeldaDocumentoPdf(con.numero_contrato)}</td>
                         <td>
                           <EditTableActionButton onClick={() => editarContratoTabla(con)} className="me-2" />
-                          <button type="button" className="btn btn-sm btn-outline-success me-2" title="Renovar contrato" onClick={() => renovarContrato(con)}>
-                            <i className="bi bi-arrow-repeat" />
-                          </button>
+                          <RenewTableActionButton onClick={() => renovarContrato(con)} className="me-2" />
                           <DeleteTableActionButton onClick={() => deleteContrato(con)} />
                         </td>
                       </tr>
@@ -1101,19 +1299,19 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         )}
 
         {activeSection === 'vencimientos' && (
-          <div className="card p-3">
+          <div className="card p-3 contratos-table-card">
             <h6 className="mb-3">Bandeja de vencimientos y seguimiento (&lt;= 90 días)</h6>
             <div className="table-responsive">
               <table className="table table-data-compact table-bordered">
                 <thead>
                   <tr>
-                    <th>N° Contrato</th><th>Empresa</th><th>Tipo</th><th>Fecha Fin</th><th>Días</th><th>Estado</th><th>Alerta</th><th>Acción</th>
+                    <th>N° Contrato</th><th>Empresa</th><th>Tipo</th><th>Fecha Fin</th><th>Días</th><th>Estado</th><th>Documento</th><th>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
                   {contratosPrioritarios.map((c) => (
                     <tr key={c.numero_contrato}>
-                      <td>{c.numero_contrato}</td>
+                      <td>{renderNumeroContrato(c.numero_contrato)}</td>
                       <td>
                         <div className="d-inline-flex align-items-center gap-2">
                           <AvatarEmpresaClic empresa={c.empresa} />
@@ -1124,8 +1322,16 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                       <td>{toISODate(c.fecha_fin)}</td>
                       <td>{c.diasRestantes}</td>
                       <td><span className={`badge ${getBadgeClass(c.estado)}`}>{c.estado}</span></td>
-                      <td>{c.alerta}</td>
-                      <td><button type="button" className="btn btn-sm btn-outline-success" onClick={() => renovarContrato(c)}>Renovar</button></td>
+                      <td className="text-center">{renderCeldaDocumentoPdf(c.numero_contrato)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-contrato-renovar-text"
+                          onClick={() => renovarContrato(c)}
+                        >
+                          Renovar
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {contratosPrioritarios.length === 0 && (
@@ -1236,6 +1442,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                         <thead>
                           <tr>
                             <th className="renov-cola-th-num">N°</th>
+                            <th className="text-center">Documento</th>
                             <th>Empresa</th>
                             <th>Estado de Tiempo</th>
                             <th className="renov-cola-th-estado">Estado</th>
@@ -1249,7 +1456,8 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                             const vencido = c.diasRestantes != null && c.diasRestantes < 0;
                             return (
                               <tr key={c.numero_contrato}>
-                                <td className="fw-semibold text-nowrap renov-cola-td-num">{c.numero_contrato}</td>
+                                <td className="fw-semibold text-nowrap renov-cola-td-num">{renderNumeroContrato(c.numero_contrato)}</td>
+                                <td className="text-center align-middle">{renderCeldaDocumentoPdf(c.numero_contrato)}</td>
                                 <td>
                                   <div className="d-inline-flex align-items-center gap-2">
                                     <AvatarEmpresaClic empresa={c.empresa} />
@@ -1289,15 +1497,6 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                                         <i className="bi bi-eye-fill" aria-hidden="true" />
                                       </button>
                                     </div>
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-1 text-truncate"
-                                      title="Enviar recordatorio"
-                                      onClick={() => enviarRecordatorio(c)}
-                                    >
-                                      <i className="bi bi-envelope-fill" aria-hidden="true" />
-                                      Enviar Rec…
-                                    </button>
                                   </div>
                                 </td>
                               </tr>
@@ -1305,7 +1504,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                           })}
                           {colaRenovacion.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="text-center text-muted py-3">Sin contratos en cola de renovación.</td>
+                              <td colSpan={6} className="text-center text-muted py-3">Sin contratos en cola de renovación.</td>
                             </tr>
                           )}
                         </tbody>
@@ -1358,7 +1557,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                         <span className="renov-chart-caption">Total de Contratos por Estado</span>
                         <RenovDonut
                           segments={[
-                            { value: resumen.activos, color: '#1e3a5f', label: 'Activos' },
+                            { value: resumen.activos, color: '#14532d', label: 'Activos' },
                             { value: resumen.porVencer + resumen.seguimiento, color: '#ffc107', label: 'Seguimiento / próx.' },
                             { value: resumen.vencidos, color: '#dc3545', label: 'Vencidos' },
                           ]}
@@ -1405,6 +1604,97 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
             </div>
           </div>
         )}
+
+      {hasDocument && pdfVistaPrevia != null && createPortal(
+        <div
+          className="contrato-pdf-preview-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Vista previa del PDF del contrato ${pdfVistaPrevia.numero}`}
+          onClick={() => {
+            setPdfVistaPrevia(null);
+            setPdfVistaMaximizada(false);
+            setPdfHasCustomPos(false);
+            setPdfDragging(false);
+          }}
+        >
+          <div
+            ref={pdfModalRef}
+            className={`contrato-pdf-preview-modal${pdfVistaMaximizada ? ' is-maximized' : ''}${pdfDragging ? ' is-dragging' : ''}`}
+            style={
+              pdfVistaMaximizada || !pdfHasCustomPos
+                ? undefined
+                : {
+                    position: 'fixed',
+                    left: 0,
+                    top: 0,
+                    transform: `translate(${pdfDragPos.x}px, ${pdfDragPos.y}px)`,
+                  }
+            }
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="contrato-pdf-preview-header"
+              onMouseDown={(e) => {
+                if (pdfVistaMaximizada) return;
+                const modal = pdfModalRef.current || e.currentTarget.parentElement;
+                if (!modal) return;
+                const rect = modal.getBoundingClientRect();
+                setPdfHasCustomPos(true);
+                setPdfDragPos({ x: rect.left, y: rect.top });
+                setPdfDragOffset({
+                  x: e.clientX - rect.left,
+                  y: e.clientY - rect.top,
+                });
+                setPdfDragging(true);
+              }}
+            >
+              <div className="contrato-pdf-preview-title-wrap">
+                <strong className="contrato-pdf-preview-title">Contrato {pdfVistaPrevia.numero}</strong>
+                <small className="contrato-pdf-preview-name">{pdfVistaPrevia.nombre}</small>
+              </div>
+              <div className="contrato-pdf-preview-actions">
+                <button
+                  type="button"
+                  className="contrato-pdf-preview-maximize"
+                  onClick={() => {
+                    setPdfVistaMaximizada((v) => !v);
+                    setPdfDragging(false);
+                    if (pdfVistaMaximizada) setPdfHasCustomPos(false);
+                    setPdfRenderNonce((n) => n + 1);
+                  }}
+                  aria-label={pdfVistaMaximizada ? 'Restaurar tamaño visor PDF' : 'Maximizar visor PDF'}
+                  title={pdfVistaMaximizada ? 'Restaurar' : 'Maximizar'}
+                >
+                  <i className={`bi ${pdfVistaMaximizada ? 'bi-fullscreen-exit' : 'bi-fullscreen'}`} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="contrato-pdf-preview-close"
+                  onClick={() => {
+                    setPdfVistaPrevia(null);
+                    setPdfVistaMaximizada(false);
+                    setPdfHasCustomPos(false);
+                    setPdfDragging(false);
+                  }}
+                  aria-label="Cerrar visor PDF"
+                >
+                  <i className="bi bi-x-lg" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+            <div className="contrato-pdf-preview-body">
+              <iframe
+                key={`${pdfVistaPrevia.numero}-${pdfVistaMaximizada ? 'max' : 'min'}-${pdfRenderNonce}`}
+                src={buildPdfViewerSrc(pdfVistaPrevia, pdfVistaMaximizada, pdfRenderNonce)}
+                title={`PDF del contrato ${pdfVistaPrevia.numero}`}
+                className="contrato-pdf-preview-iframe"
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {empresaVistaPrevia != null && (
         <div

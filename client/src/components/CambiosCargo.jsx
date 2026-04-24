@@ -3,6 +3,7 @@ import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const esActivo = (e) => e.activo == null || e.activo === 1 || e.activo === '1';
 
@@ -82,14 +83,14 @@ const CambiosCargo = () => {
           <div className="row g-3">
             <div className="col-md-4">
               <label className="form-label">Empleado (activos)</label>
-              <select className="form-select" value={carnet} onChange={(e) => setCarnet(e.target.value)} required>
+              <AppSelect className="form-select" value={carnet} onChange={(e) => setCarnet(e.target.value)} required>
                 <option value="" disabled hidden>— Seleccione —</option>
                 {activos.map((emp) => (
                   <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
                     {emp.carnet_identidad} — {emp.nombre} {emp.apellidos} ({emp.puesto || 'sin puesto'})
                   </option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
             <div className="col-md-4">
               <label className="form-label">Nuevo puesto / cargo</label>

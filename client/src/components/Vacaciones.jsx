@@ -7,6 +7,7 @@ import { EditTableActionButton, DeleteTableActionButton } from './TableActionIco
 import { FormModal } from './FormModal';
 import { fmtFechaTabla } from '../utils/formatDates';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const Vacaciones = () => {
     const [registros, setRegistros] = useState([]);
@@ -174,7 +175,7 @@ const eliminarRegistro = (id) => {
                 <div className="minimal-form-stack">
                     <div className="minimal-field">
                         <label className="minimal-label">Empleado:</label>
-                        <select
+                        <AppSelect
                             className={`minimal-select ${idTabla ? 'is-selected' : ''}`}
                             value={idTabla}
                             onChange={(e) => setIdTabla(e.target.value)}
@@ -186,7 +187,7 @@ const eliminarRegistro = (id) => {
                                     {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
                                 </option>
                             ))}
-                        </select>
+                        </AppSelect>
                     </div>
                     <div className="minimal-field"><label className="minimal-label">Fecha inicio:</label><input type="date" className="minimal-input" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} /></div>
                     <div className="minimal-field"><label className="minimal-label">Fecha fin:</label><input type="date" className="minimal-input" value={fechaFin} onChange={e => setFechaFin(e.target.value)} /></div>

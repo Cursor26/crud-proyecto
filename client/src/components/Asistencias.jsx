@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const Asistencias = () => {
 
@@ -126,7 +127,7 @@ const Asistencias = () => {
 
 
                             <label className="form-label mb-1">Empleado</label>
-                            <select
+                            <AppSelect
                                 className="form-select form-select-sm"
                                 value={idTabla}
                                 onChange={(e) => setIdTabla(e.target.value)}
@@ -139,7 +140,7 @@ const Asistencias = () => {
                                         {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
                                     </option>
                                 ))}
-                            </select>
+                            </AppSelect>
                         </div>
                         <div style={{ minWidth: 180 }}>
                             <label className="form-label mb-1">Código Asistencia</label>

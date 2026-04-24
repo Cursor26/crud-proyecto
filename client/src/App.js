@@ -35,6 +35,7 @@ import CambiosCargo from './components/CambiosCargo';
 import ReporteConsolidado from './components/ReporteConsolidado';
 import ProduccionHistorico from './components/ProduccionHistorico';
 import GestionUsuarios from './components/GestionUsuarios';
+import logoAepg from './images/logo-aepg.png';
 
 const TOKEN_KEY = 'token';
 
@@ -257,7 +258,10 @@ function App() {
     <div className="dashboard-shell d-flex vh-100" style={{ overflow: 'hidden' }}>
       <div className="dashboard-sidebar vh-100 p-4 d-flex flex-column shadow-lg" style={{ width: '280px', minWidth: '280px' }}>
         <div className="text-white mb-2 pb-4 border-bottom dashboard-sidebar-divider">
-          <h3 className="fw-bold mb-2">AEPG</h3>
+          <div className="dashboard-sidebar-brand mb-2">
+            <img src={logoAepg} alt="Logo AEPG" className="dashboard-sidebar-brand-logo" />
+            <h3 className="fw-bold mb-0">AEPG</h3>
+          </div>
           <p className="mb-0 opacity-75">Bienvenido, {user.nombre} </p>
         </div>
 

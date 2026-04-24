@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
+import AppSelect from './AppSelect';
 
 const Usuarios = () => {
   const [usuarios, setUsuarios] = useState([]);
@@ -96,11 +97,11 @@ const Usuarios = () => {
             <input type="password" className="form-control" placeholder={editando ? 'Nueva contraseña' : 'Contraseña'} value={password} onChange={e => setPassword(e.target.value)} required={!editando} />
           </div>
           <div className="col-md-2">
-            <select className="form-control" value={rol} onChange={e => setRol(e.target.value)}>
+            <AppSelect className="form-control" value={rol} onChange={e => setRol(e.target.value)}>
               <option value="rrhh">RRHH</option>
               <option value="contratacion">Contratación</option>
               <option value="admin">Administrador</option>
-            </select>
+            </AppSelect>
           </div>
           <div className="col-md-2 d-flex flex-wrap align-items-center gap-2">
             <button type="submit" className="btn btn-success btn-form-nowrap">{editando ? 'Actualizar' : 'Crear'}</button>

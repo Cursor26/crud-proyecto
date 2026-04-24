@@ -4,6 +4,7 @@ import '../App.css';
 import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
+import AppSelect from './AppSelect';
 
 const TurnosTrabajo = () => {
   const [registros, setRegistros] = useState([]);
@@ -159,12 +160,12 @@ const TurnosTrabajo = () => {
         <div className="minimal-form-stack">
           <div className="minimal-field">
             <label className="minimal-label">Empleado:</label>
-            <select className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
+            <AppSelect className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
               <option value="" disabled hidden>--- Seleccione ---</option>
               {empleados.map((emp) => (
                 <option key={emp.carnet_identidad} value={emp.carnet_identidad}>{emp.carnet_identidad} — {emp.nombre} {emp.apellidos}</option>
               ))}
-            </select>
+            </AppSelect>
           </div>
           <div className="minimal-field"><label className="minimal-label">Nombre del turno:</label><input type="text" className="minimal-input" placeholder="------------------------" value={nombreTurno} onChange={(e) => setNombreTurno(e.target.value)} /></div>
           <div className="minimal-field"><label className="minimal-label">Hora entrada:</label><input type="time" className="minimal-input" value={horaEntrada} onChange={(e) => setHoraEntrada(e.target.value)} /></div>
