@@ -27,6 +27,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   const [filtroParte, setFiltroParte] = useState('todos');
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroVencimiento, setFiltroVencimiento] = useState('todos');
+  const [contratoSeleccionado, setContratoSeleccionado] = useState(null);
   const [activeSection, setActiveSection] = useState(vistaInicial);
   const [renovFechaDesde, setRenovFechaDesde] = useState('');
   const [renovFechaHasta, setRenovFechaHasta] = useState('');
@@ -232,6 +233,17 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     </span>
   );
 
+  const buildContratoRowId = (contrato, index) => {
+    const numero = String(contrato?.numero_contrato ?? '').trim();
+    const empresa = String(contrato?.empresa ?? '').trim();
+    const fechaInicio = String(contrato?.fecha_inicio ?? '').trim();
+    return `${numero}__${empresa}__${fechaInicio}__${index}`;
+  };
+
+  const toggleContratoSeleccionado = (rowId) => {
+    setContratoSeleccionado((prev) => (prev === rowId ? null : rowId));
+  };
+
   const renderCeldaDocumentoPdf = (numeroContrato) => {
     const pdf = getPdfContrato(numeroContrato);
     const numeroNorm = String(numeroContrato || '').trim();
@@ -250,6 +262,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         >
           <i className="bi bi-file-earmark-pdf-fill" aria-hidden="true" />
         </button>
+        <span className="ms-1">Pdf</span>
       </div>
     );
   };
@@ -1208,7 +1221,16 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
             <div className="card p-3 mb-3 contratos-filter-card">
               <div className="row g-2">
                 <div className="col-12 col-md-3">
-                  <input type="text" className="form-control" placeholder="Buscar por número, empresa, tipo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <div className="contratos-search-input-wrap">
+                    <i className="bi bi-search contratos-search-input-icon" aria-hidden="true" />
+                    <input
+                      type="text"
+                      className="form-control contratos-search-input"
+                      placeholder="Buscar por número, empresa, tipo..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
                 </div>
                 <div className="col-6 col-md-2">
                   <AppSelect variant="contratos" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value || 'todos')}>
@@ -1261,13 +1283,29 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                 <table className="table table-data-compact table-bordered table-striped">
                   <thead>
                     <tr>
-                      <th>N° Contrato</th><th>Tipo</th><th>Empresa</th><th>Vigencia</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Estado</th><th>Días</th><th>Documento</th><th>Acciones</th>
+                      <th>N° Contrato</th><th>Tipo</th><th>Empresa</th><th>Vigencia</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Estado</th><th>Días</th><th>Documento</th><th className="contratos-th-actions">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {contratosFiltrados.map((con) => (
-                      <tr key={con.numero_contrato}>
-                        <td>{renderNumeroContrato(con.numero_contrato)}</td>
+                    {contratosFiltrados.map((con, index) => {
+                      const rowId = buildContratoRowId(con, index);
+                      const isSelected = contratoSeleccionado === rowId;
+                      return (
+                      <tr key={rowId} className={isSelected ? 'contratos-row-selected' : ''}>
+                        <td>
+                          <span className="contratos-numero-wrap">
+                            <button
+                              type="button"
+                              className={`contratos-row-check${isSelected ? ' is-selected' : ''}`}
+                              onClick={() => toggleContratoSeleccionado(rowId)}
+                              aria-label={`Seleccionar contrato ${con.numero_contrato}`}
+                              title={`Seleccionar contrato ${con.numero_contrato}`}
+                            >
+                              <i className="bi bi-check-lg" aria-hidden="true" />
+                            </button>
+                            <span className="contratos-numero-wrap__num">{con.numero_contrato}</span>
+                          </span>
+                        </td>
                         <td>{con.proveedor_cliente ? 'Proveedor' : 'Cliente'}</td>
                         <td>
                           <div className="d-inline-flex align-items-center gap-2">
@@ -1275,19 +1313,21 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                             <span>{con.empresa || 'Sin empresa'}</span>
                           </div>
                         </td>
-                        <td>{con.vigencia}</td>
+                        <td>{con.vigencia != null && String(con.vigencia).trim() !== '' ? `${con.vigencia} años` : '—'}</td>
                         <td>{toISODate(con.fecha_inicio)}</td>
                         <td>{toISODate(con.fecha_fin)}</td>
                         <td><span className={`badge ${getBadgeClass(con.estado)}`}>{con.estado}</span></td>
                         <td>{con.diasRestantes == null ? '-' : con.diasRestantes < 0 ? `-${Math.abs(con.diasRestantes)}` : con.diasRestantes}</td>
                         <td className="text-center">{renderCeldaDocumentoPdf(con.numero_contrato)}</td>
-                        <td>
-                          <EditTableActionButton onClick={() => editarContratoTabla(con)} className="me-2" />
-                          <RenewTableActionButton onClick={() => renovarContrato(con)} className="me-2" />
-                          <DeleteTableActionButton onClick={() => deleteContrato(con)} />
+                        <td className="contratos-td-actions">
+                          <div className="d-inline-flex align-items-center gap-1 flex-nowrap">
+                            <EditTableActionButton onClick={() => editarContratoTabla(con)} />
+                            <RenewTableActionButton onClick={() => renovarContrato(con)} />
+                            <DeleteTableActionButton onClick={() => deleteContrato(con)} />
+                          </div>
                         </td>
                       </tr>
-                    ))}
+                    );})}
                     {contratosFiltrados.length === 0 && (
                       <tr><td colSpan={10} className="text-center text-muted py-3">No se encontraron contratos con los filtros aplicados.</td></tr>
                     )}

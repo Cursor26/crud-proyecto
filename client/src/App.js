@@ -36,6 +36,7 @@ import ReporteConsolidado from './components/ReporteConsolidado';
 import ProduccionHistorico from './components/ProduccionHistorico';
 import GestionUsuarios from './components/GestionUsuarios';
 import logoAepg from './images/logo-aepg.png';
+import DnaThreeWidget from './components/DnaThreeWidget';
 
 const TOKEN_KEY = 'token';
 
@@ -552,6 +553,9 @@ function App() {
               <p className="dashboard-side-info__time">
                 {now.toLocaleTimeString('es-ES')}
               </p>
+            </div>
+            <div className="dashboard-side-info__dna" aria-hidden="true">
+              <DnaThreeWidget />
             </div>
             <div className="dashboard-side-info__logo-wrap">
               <img
