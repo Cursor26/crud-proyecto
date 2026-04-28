@@ -155,7 +155,7 @@ function Login({ onLogin }) {
 
       await Swal.fire('Solicitud enviada', message || 'Revisa tu correo para continuar.', 'success');
     } catch (error) {
-      await Swal.fire('Error', error.response?.data?.message || 'No se pudo enviar el correo de recuperaciùn.', 'error');
+      await Swal.fire('Error', error.response?.data?.message || 'No se pudo enviar el correo de recuperaciÔøΩn.', 'error');
     }
   };
 
