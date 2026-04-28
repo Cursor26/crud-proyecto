@@ -177,6 +177,19 @@ function App() {
     }
   };
 
+  const handleContratosSectionChange = (sectionId) => {
+    const sectionToKey = {
+      resumen: 'contratos-resumen',
+      contratos: 'contratos-lista',
+      vencimientos: 'contratos-vencimientos',
+      renovaciones: 'contratos-renovaciones',
+      reportes: 'contratos-reportes',
+    };
+    const nextKey = sectionToKey[sectionId];
+    if (!nextKey || nextKey === key) return;
+    handleNavSelect(nextKey);
+  };
+
   useEffect(() => {
     if (token) {
       const userData = localStorage.getItem('user');
@@ -503,11 +516,11 @@ function App() {
         <div className="dashboard-main-scroll">
           <div className="dashboard-content-layout">
           <div className="dashboard-content-main">
-            {(key === 'contratos' || key === 'contratos-lista') && <GestionContratos vistaInicial="contratos" />}
-            {key === 'contratos-resumen' && <GestionContratos vistaInicial="resumen" />}
-            {key === 'contratos-vencimientos' && <GestionContratos vistaInicial="vencimientos" />}
-            {key === 'contratos-renovaciones' && <GestionContratos vistaInicial="renovaciones" />}
-            {key === 'contratos-reportes' && <GestionContratos vistaInicial="reportes" />}
+            {(key === 'contratos' || key === 'contratos-lista') && <GestionContratos vistaInicial="contratos" onSectionChange={handleContratosSectionChange} />}
+            {key === 'contratos-resumen' && <GestionContratos vistaInicial="resumen" onSectionChange={handleContratosSectionChange} />}
+            {key === 'contratos-vencimientos' && <GestionContratos vistaInicial="vencimientos" onSectionChange={handleContratosSectionChange} />}
+            {key === 'contratos-renovaciones' && <GestionContratos vistaInicial="renovaciones" onSectionChange={handleContratosSectionChange} />}
+            {key === 'contratos-reportes' && <GestionContratos vistaInicial="reportes" onSectionChange={handleContratosSectionChange} />}
             {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios />}
             {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
             {key === 'matadero' && mostrarMatadero && <MataderoVivo />}

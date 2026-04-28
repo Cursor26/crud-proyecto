@@ -6,7 +6,7 @@ import { EditTableActionButton, DeleteTableActionButton, RenewTableActionButton 
 import { FormModal } from './FormModal';
 import AppSelect from './AppSelect';
 
-function GestionContratos({ vistaInicial = 'contratos' }) {
+function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
   const CONTRATOS_PDF_STORAGE_KEY = 'contratos_pdf_archivos_v1';
   const [contratoNumero, setContratoNumero] = useState('');
@@ -30,6 +30,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   const [filtroVencimiento, setFiltroVencimiento] = useState('todos');
   const [contratoSeleccionado, setContratoSeleccionado] = useState(null);
   const [activeSection, setActiveSection] = useState(vistaInicial);
+  const [bandejaVencimientosModo, setBandejaVencimientosModo] = useState('todos');
   const [renovFechaDesde, setRenovFechaDesde] = useState('');
   const [renovFechaHasta, setRenovFechaHasta] = useState('');
   const [empresaIconos, setEmpresaIconos] = useState({});
@@ -62,6 +63,11 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   useEffect(() => {
     setActiveSection(vistaInicial || 'contratos');
   }, [vistaInicial]);
+
+  const irASeccion = (seccion) => {
+    setActiveSection(seccion);
+    if (typeof onSectionChange === 'function') onSectionChange(seccion);
+  };
 
   useEffect(() => {
     try {
@@ -768,8 +774,27 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       .sort((a, b) => (a.diasRestantes ?? 9999) - (b.diasRestantes ?? 9999));
   }, [contratosEnriquecidos]);
 
-  const contratosCriticos = useMemo(() => contratosPrioritarios.filter((c) => c.diasRestantes <= 30), [contratosPrioritarios]);
+  const contratosCriticos = useMemo(() => contratosEnriquecidos.filter((c) => c.estado === 'Por vencer'), [contratosEnriquecidos]);
   const contratosVencidos = useMemo(() => contratosEnriquecidos.filter((c) => c.estado === 'Vencido'), [contratosEnriquecidos]);
+  const contratosBandejaVencimientos = useMemo(() => {
+    if (bandejaVencimientosModo === 'por-vencer') return contratosCriticos;
+    if (bandejaVencimientosModo === 'vencidos') return contratosVencidos;
+    return contratosPrioritarios;
+  }, [bandejaVencimientosModo, contratosCriticos, contratosVencidos, contratosPrioritarios]);
+
+  const tituloBandejaVencimientos =
+    bandejaVencimientosModo === 'por-vencer'
+      ? 'Bandeja de contratos por vencer (< 30 días)'
+      : bandejaVencimientosModo === 'vencidos'
+        ? 'Bandeja de contratos vencidos'
+        : 'Bandeja de vencimientos y seguimiento (<= 90 días)';
+
+  const mensajeVacioBandejaVencimientos =
+    bandejaVencimientosModo === 'por-vencer'
+      ? 'No hay contratos por vencer (< 30 días).'
+      : bandejaVencimientosModo === 'vencidos'
+        ? 'No hay contratos vencidos.'
+        : 'No hay contratos próximos a vencer.';
 
   /* Cola priorizada filtrada por búsqueda y rango de fechas (vista renovaciones) */
   const colaRenovacion = useMemo(() => {
@@ -866,6 +891,24 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         Swal.fire('Error', error.response?.data?.message || error.message, 'error');
       }
     });
+  };
+
+  const verTodosPorVencer = () => {
+    if (contratosCriticos.length === 0) {
+      Swal.fire('Sin contratos por vencer', 'No hay contratos menores de 30 días para mostrar.', 'info');
+      return;
+    }
+    setBandejaVencimientosModo('por-vencer');
+    irASeccion('vencimientos');
+  };
+
+  const verTodosVencidos = () => {
+    if (contratosVencidos.length === 0) {
+      Swal.fire('Sin contratos vencidos', 'No hay contratos vencidos para mostrar.', 'info');
+      return;
+    }
+    setBandejaVencimientosModo('vencidos');
+    irASeccion('vencimientos');
   };
 
   const verDetalleContrato = (contrato) => {
@@ -975,7 +1018,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
               key={id}
               type="button"
               className={`btn btn-sm contratos-tab ${activeSection === id ? 'contratos-tab--active' : ''}`}
-              onClick={() => setActiveSection(id)}
+              onClick={() => irASeccion(id)}
             >
               {label}
             </button>
@@ -1400,7 +1443,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
 
         {activeSection === 'vencimientos' && (
           <div className="card p-3 contratos-table-card">
-            <h6 className="mb-3">Bandeja de vencimientos y seguimiento (&lt;= 90 días)</h6>
+            <h6 className="mb-3">{tituloBandejaVencimientos}</h6>
             <div className="table-responsive">
               <table className="table table-data-compact table-bordered">
                 <thead>
@@ -1409,7 +1452,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {contratosPrioritarios.map((c) => (
+                  {contratosBandejaVencimientos.map((c) => (
                     <tr key={c.numero_contrato}>
                       <td>{renderNumeroContrato(c.numero_contrato)}</td>
                       <td>
@@ -1434,8 +1477,8 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                       </td>
                     </tr>
                   ))}
-                  {contratosPrioritarios.length === 0 && (
-                    <tr><td colSpan={8} className="text-center text-muted py-3">No hay contratos próximos a vencer.</td></tr>
+                  {contratosBandejaVencimientos.length === 0 && (
+                    <tr><td colSpan={8} className="text-center text-muted py-3">{mensajeVacioBandejaVencimientos}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1499,7 +1542,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                         <button
                           type="button"
                           className="btn btn-sm renov-kpi-btn-todos flex-shrink-0"
-                          onClick={() => { setSearchTerm(''); setRenovFechaDesde(''); setRenovFechaHasta(''); }}
+                          onClick={verTodosPorVencer}
                         >
                           Ver todos
                         </button>
@@ -1523,7 +1566,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                         <button
                           type="button"
                           className="btn btn-sm renov-kpi-btn-todos flex-shrink-0"
-                          onClick={() => setActiveSection('vencimientos')}
+                          onClick={verTodosVencidos}
                         >
                           Ver todos
                         </button>
