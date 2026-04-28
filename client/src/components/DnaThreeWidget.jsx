@@ -44,7 +44,7 @@ export default function DnaThreeWidget() {
     const ambient = new THREE.AmbientLight(0xffffff, 0.48);
     scene.add(ambient);
 
-    const hemi = new THREE.HemisphereLight(0xd8fce9, 0x13281d, 0.62);
+    const hemi = new THREE.HemisphereLight(0xd8fce9, 0x1a1412, 0.62);
     scene.add(hemi);
 
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -55,39 +55,44 @@ export default function DnaThreeWidget() {
     rimLight.position.set(-8, -3, -9);
     scene.add(rimLight);
 
-    const accentLight = new THREE.PointLight(0xd64f73, 0.45, 26);
+    /* Luz de acento cálida (oro rosa) en lugar de magenta frío */
+    const accentLight = new THREE.PointLight(0xf0c4a8, 0.42, 26);
     accentLight.position.set(3.6, 1.8, 6.8);
     scene.add(accentLight);
 
-    const blueMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x1f75d8,
-      roughness: 0.16,
-      metalness: 0.72,
+    /* Esmeralda metálica — alineada con #14532d, un poco más clara para lectura PBR */
+    const emeraldStrandMat = new THREE.MeshPhysicalMaterial({
+      color: 0x176a41,
+      roughness: 0.18,
+      metalness: 0.82,
       clearcoat: 1,
-      clearcoatRoughness: 0.12,
-      envMapIntensity: 1.3,
+      clearcoatRoughness: 0.1,
+      envMapIntensity: 1.35,
     });
-    const redMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xc9263a,
-      roughness: 0.16,
-      metalness: 0.72,
+    /* Oro rosa / cobre satinado (sustituye rojo anterior) */
+    const roseStrandMat = new THREE.MeshPhysicalMaterial({
+      color: 0xc9a088,
+      roughness: 0.17,
+      metalness: 0.84,
       clearcoat: 1,
-      clearcoatRoughness: 0.12,
-      envMapIntensity: 1.3,
+      clearcoatRoughness: 0.11,
+      envMapIntensity: 1.32,
     });
-    const linkerBlue = new THREE.MeshPhysicalMaterial({
-      color: 0x2c86ea,
+    const linkerEmerald = new THREE.MeshPhysicalMaterial({
+      color: 0x248a52,
       roughness: 0.2,
-      metalness: 0.62,
-      clearcoat: 0.7,
-      clearcoatRoughness: 0.2,
+      metalness: 0.7,
+      clearcoat: 0.75,
+      clearcoatRoughness: 0.18,
+      envMapIntensity: 1.2,
     });
-    const linkerRed = new THREE.MeshPhysicalMaterial({
-      color: 0xe03c4e,
+    const linkerRose = new THREE.MeshPhysicalMaterial({
+      color: 0xd8b09a,
       roughness: 0.2,
-      metalness: 0.62,
-      clearcoat: 0.7,
-      clearcoatRoughness: 0.2,
+      metalness: 0.72,
+      clearcoat: 0.75,
+      clearcoatRoughness: 0.18,
+      envMapIntensity: 1.2,
     });
     const rungCoreMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xeff4fa,
@@ -103,24 +108,26 @@ export default function DnaThreeWidget() {
     const helixCurveA = new THREE.CatmullRomCurve3(helixPointsA);
     const helixCurveB = new THREE.CatmullRomCurve3(helixPointsB);
 
-    const strandLineBlueGeo = new THREE.TubeGeometry(helixCurveA, 320, 0.055, 16, false);
-    const strandLineRedGeo = new THREE.TubeGeometry(helixCurveB, 320, 0.055, 16, false);
-    const strandLineBlueMat = new THREE.MeshPhysicalMaterial({
-      color: 0x1f75d8,
-      roughness: 0.24,
-      metalness: 0.58,
-      clearcoat: 0.65,
-      clearcoatRoughness: 0.2,
+    const strandLineEmeraldGeo = new THREE.TubeGeometry(helixCurveA, 320, 0.055, 16, false);
+    const strandLineRoseGeo = new THREE.TubeGeometry(helixCurveB, 320, 0.055, 16, false);
+    const strandLineEmeraldMat = new THREE.MeshPhysicalMaterial({
+      color: 0x1a5c38,
+      roughness: 0.22,
+      metalness: 0.72,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.16,
+      envMapIntensity: 1.25,
     });
-    const strandLineRedMat = new THREE.MeshPhysicalMaterial({
-      color: 0xc9263a,
-      roughness: 0.24,
-      metalness: 0.58,
-      clearcoat: 0.65,
-      clearcoatRoughness: 0.2,
+    const strandLineRoseMat = new THREE.MeshPhysicalMaterial({
+      color: 0xb8876a,
+      roughness: 0.22,
+      metalness: 0.74,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.16,
+      envMapIntensity: 1.22,
     });
-    root.add(new THREE.Mesh(strandLineBlueGeo, strandLineBlueMat));
-    root.add(new THREE.Mesh(strandLineRedGeo, strandLineRedMat));
+    root.add(new THREE.Mesh(strandLineEmeraldGeo, strandLineEmeraldMat));
+    root.add(new THREE.Mesh(strandLineRoseGeo, strandLineRoseMat));
 
     const rungCount = 24;
     const beadGeo = new THREE.SphereGeometry(0.205, 24, 18);
@@ -138,20 +145,20 @@ export default function DnaThreeWidget() {
       const dirNorm = direction.clone().normalize();
       const sideOffset = dirNorm.clone().multiplyScalar(length * 0.19);
 
-      const leftBead = new THREE.Mesh(beadGeo, blueMaterial);
+      const leftBead = new THREE.Mesh(beadGeo, emeraldStrandMat);
       leftBead.position.copy(pA);
       root.add(leftBead);
 
-      const rightBead = new THREE.Mesh(beadGeo, redMaterial);
+      const rightBead = new THREE.Mesh(beadGeo, roseStrandMat);
       rightBead.position.copy(pB);
       root.add(rightBead);
 
-      const leftLink = new THREE.Mesh(sideCylinderGeo, linkerBlue);
+      const leftLink = new THREE.Mesh(sideCylinderGeo, linkerEmerald);
       leftLink.position.copy(pA).add(sideOffset);
       leftLink.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirNorm);
       root.add(leftLink);
 
-      const rightLink = new THREE.Mesh(sideCylinderGeo, linkerRed);
+      const rightLink = new THREE.Mesh(sideCylinderGeo, linkerRose);
       rightLink.position.copy(pB).sub(sideOffset);
       rightLink.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirNorm);
       root.add(rightLink);
@@ -162,9 +169,9 @@ export default function DnaThreeWidget() {
       rungCore.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirNorm);
       root.add(rungCore);
 
-      const rungA = new THREE.Mesh(rungEndGeo, linkerBlue);
+      const rungA = new THREE.Mesh(rungEndGeo, linkerEmerald);
       rungA.position.copy(center).sub(dirNorm.clone().multiplyScalar((length * 0.31) - 0.05));
-      const rungB = new THREE.Mesh(rungEndGeo, linkerRed);
+      const rungB = new THREE.Mesh(rungEndGeo, linkerRose);
       rungB.position.copy(center).add(dirNorm.clone().multiplyScalar((length * 0.31) - 0.05));
       root.add(rungA);
       root.add(rungB);
@@ -207,15 +214,15 @@ export default function DnaThreeWidget() {
       sideCylinderGeo.dispose();
       rungCoreGeo.dispose();
       rungEndGeo.dispose();
-      strandLineBlueGeo.dispose();
-      strandLineRedGeo.dispose();
-      blueMaterial.dispose();
-      redMaterial.dispose();
-      linkerBlue.dispose();
-      linkerRed.dispose();
+      strandLineEmeraldGeo.dispose();
+      strandLineRoseGeo.dispose();
+      emeraldStrandMat.dispose();
+      roseStrandMat.dispose();
+      linkerEmerald.dispose();
+      linkerRose.dispose();
       rungCoreMaterial.dispose();
-      strandLineBlueMat.dispose();
-      strandLineRedMat.dispose();
+      strandLineEmeraldMat.dispose();
+      strandLineRoseMat.dispose();
       mount.removeChild(renderer.domElement);
     };
   }, []);

@@ -13,6 +13,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   const [contratoNumeroOriginal, setContratoNumeroOriginal] = useState('');
   const [contratoProveedorCliente, setContratoProveedorCliente] = useState(false);
   const [contratoEmpresa, setContratoEmpresa] = useState('');
+  const [contratoCorreoNotificacion, setContratoCorreoNotificacion] = useState('');
   const [contratoSuplementos, setContratoSuplementos] = useState('');
   const [contratoVigencia, setContratoVigencia] = useState('');
   const [contratoTipo, setContratoTipo] = useState('');
@@ -453,6 +454,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     setContratoNumeroOriginal('');
     setContratoProveedorCliente(false);
     setContratoEmpresa('');
+    setContratoCorreoNotificacion('');
     setContratoSuplementos('');
     setContratoVigencia('');
     setContratoTipo('');
@@ -488,6 +490,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       numero_contrato: contratoNumero,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
       empresa: contratoEmpresa,
+      correo_notificacion: contratoCorreoNotificacion ? String(contratoCorreoNotificacion).trim() : null,
       suplementos: contratoSuplementos,
       vigencia: contratoVigencia,
       tipo_contrato: contratoTipo,
@@ -528,6 +531,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       numero_contrato_original: numOriginalSeguro,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
       empresa: contratoEmpresa,
+      correo_notificacion: contratoCorreoNotificacion ? String(contratoCorreoNotificacion).trim() : null,
       suplementos: contratoSuplementos,
       vigencia: contratoVigencia,
       tipo_contrato: contratoTipo,
@@ -597,6 +601,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     setContratoNumeroOriginal(val.numero_contrato);
     setContratoProveedorCliente(val.proveedor_cliente === 1);
     setContratoEmpresa(val.empresa);
+    setContratoCorreoNotificacion(val.correo_notificacion || '');
     setContratoSuplementos(val.suplementos || '');
     setContratoVigencia(val.vigencia);
     setContratoTipo(val.tipo_contrato);
@@ -654,6 +659,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         numero_contrato: contrato.numero_contrato,
         proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
         empresa: contrato.empresa,
+        correo_notificacion: contrato.correo_notificacion || null,
         suplementos: contrato.suplementos || '',
         vigencia: contrato.vigencia,
         tipo_contrato: contrato.tipo_contrato,
@@ -664,6 +670,44 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         .then(() => {
           getContratos();
           Swal.fire('Renovado', 'El contrato se renovó correctamente.', 'success');
+        })
+        .catch((error) => {
+          Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+        });
+    });
+  };
+
+  const enviarRecordatorioContrato = (contrato) => {
+    if (!contrato?.numero_contrato) return;
+    const correoDestino = String(contrato.correo_notificacion || '').trim();
+    if (!correoDestino) {
+      Swal.fire(
+        'Correo requerido',
+        'Este contrato no tiene correo de notificación. Agrégalo en Editar contrato para poder enviar recordatorios.',
+        'info'
+      );
+      return;
+    }
+
+    Swal.fire({
+      title: '¿Enviar recordatorio?',
+      html: `
+        <div style="text-align:left">
+          <p style="margin:0 0 0.35rem;"><strong>Contrato:</strong> ${contrato.numero_contrato}</p>
+          <p style="margin:0;"><strong>Destino:</strong> ${correoDestino}</p>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, enviar',
+      cancelButtonText: 'Cancelar',
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      Axios.post('http://localhost:3001/send-contrato-reminder', {
+        numero_contrato: contrato.numero_contrato,
+      })
+        .then((res) => {
+          Swal.fire('Enviado', res.data?.message || 'Recordatorio enviado correctamente.', 'success');
         })
         .catch((error) => {
           Swal.fire('Error', error.response?.data?.message || error.message, 'error');
@@ -806,6 +850,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
               numero_contrato: contrato.numero_contrato,
               proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
               empresa: contrato.empresa,
+              correo_notificacion: contrato.correo_notificacion || null,
               suplementos: contrato.suplementos || '',
               vigencia: contrato.vigencia,
               tipo_contrato: contrato.tipo_contrato,
@@ -829,6 +874,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       html: `
         <div style="text-align:left">
           <p><strong>Empresa:</strong> ${contrato.empresa || '-'}</p>
+          <p><strong>Correo notificación:</strong> ${contrato.correo_notificacion || '-'}</p>
           <p><strong>Tipo:</strong> ${contrato.tipo_contrato || '-'}</p>
           <p><strong>Vigencia:</strong> ${contrato.vigencia || '-'} año(s)</p>
           <p><strong>Inicio:</strong> ${toISODate(contrato.fecha_inicio) || '-'}</p>
@@ -987,6 +1033,20 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                 value={contratoEmpresa}
                 onChange={(e) => setContratoEmpresa(e.target.value)}
               />
+            </div>
+
+            <div className="minimal-field">
+              <label className="minimal-label">Correo de notificación:</label>
+              <input
+                type="email"
+                className="minimal-input"
+                placeholder="empresa@dominio.com"
+                value={contratoCorreoNotificacion}
+                onChange={(e) => setContratoCorreoNotificacion(e.target.value)}
+              />
+              <small className="text-muted d-block mt-1">
+                A este correo se enviará el recordatorio de vencimiento del contrato.
+              </small>
             </div>
 
             <div className="minimal-field">
@@ -1537,6 +1597,15 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                                         <i className="bi bi-eye-fill" aria-hidden="true" />
                                       </button>
                                     </div>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary renov-actions__row-reminder"
+                                      onClick={() => enviarRecordatorioContrato(c)}
+                                      title="Enviar recordatorio por correo"
+                                    >
+                                      <i className="bi bi-envelope-fill me-1" aria-hidden="true" />
+                                      Enviar Recordatorio
+                                    </button>
                                   </div>
                                 </td>
                               </tr>

@@ -113,8 +113,10 @@ margin-top: 15px;
   --accion-aceptar: #218838;
   --accion-aceptar-hover: #1c7430;
   --accion-aceptar-active: #185c29;
-  --accion-anadir: #007bff;
-  --accion-anadir-hover: #0069d9;
+  --accion-anadir: #14532d;
+  --accion-anadir-hover: #0f3d24;
+  --accion-anadir-border: #0f3d24;
+  --accion-anadir-rgb: 20, 83, 45;
   --accion-editar: #ffc107;
   --accion-editar-hover: #e0a800;
   --accion-editar-text: #212529;
@@ -836,7 +838,7 @@ margin-top: 15px;
 .dashboard-main .card > h6 {
   margin: 0 0 0.72rem;
   color: #ffffff !important;
-  background: #0b9b43 !important;
+  background: #14532d !important;
   border: none !important;
   border-radius: 0 !important;
   font-size: 0.95rem;
@@ -883,31 +885,31 @@ margin-top: 15px;
   transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease;
 }
 
-/* Primario Bootstrap = Adicionar / acciones principales azules (#007bff) */
+/* Primario = acciones principales (verde marca, alineado con Contratos) */
 .dashboard-main .btn-primary {
   background-color: var(--accion-anadir);
-  border-color: #0062cc;
+  border-color: var(--accion-anadir-border, #0f3d24);
   color: #ffffff;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 14px rgba(var(--ui-primary-rgb), 0.22);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 14px rgba(var(--accion-anadir-rgb, 20, 83, 45), 0.22);
 }
 
 .dashboard-main .btn-primary:hover {
   background-color: var(--accion-anadir-hover);
-  border-color: #0056b3;
+  border-color: var(--accion-anadir-border, #0f3d24);
   color: #ffffff;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 20px rgba(var(--ui-primary-rgb), 0.28);
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 20px rgba(var(--accion-anadir-rgb, 20, 83, 45), 0.28);
   filter: brightness(1.02);
 }
 
 .dashboard-main .btn-primary:active {
-  background-color: #005cbf;
-  border-color: #004a9e;
+  background-color: #0c301c;
+  border-color: #082414;
   box-shadow: var(--btn-win11-shadow-pressed);
   filter: brightness(0.97);
 }
 
 .dashboard-main .btn-primary:focus-visible {
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--ui-primary-rgb), 0.85);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-anadir-rgb, 20, 83, 45), 0.45);
   outline: none;
 }
 
@@ -1945,20 +1947,49 @@ margin-top: 15px;
   justify-content: center;
   padding: 72px 16px 48px;
   box-sizing: border-box;
-  background: var(--dashboard-bg, #f5f5f5);
+  background-color: #0f0f0f;
+  background-image: url('./images/login-bg-cows.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page::before,
+.login-page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.login-page::before {
+  background: inherit;
+  filter: blur(5px) saturate(1.05);
+  transform: scale(1.06);
+  z-index: 0;
+}
+
+.login-page::after {
+  background: radial-gradient(circle at center, rgba(13, 18, 26, 0.18) 0%, rgba(8, 12, 19, 0.42) 100%);
+  z-index: 0;
 }
 
 .login-card {
   width: 100%;
   max-width: 380px;
   margin: 0 auto;
-  background: #ffffff;
+  background: rgba(21, 31, 42, 0.46);
   border-radius: 15px;
-  border: 1px solid var(--login-border);
-  box-shadow: 0 10px 32px rgba(17, 17, 17, 0.07), 0 2px 8px rgba(17, 17, 17, 0.04);
+  border: 1px solid rgba(226, 232, 240, 0.28);
+  box-shadow: 0 18px 45px rgba(5, 9, 16, 0.44), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   padding: 52px 32px 28px;
   position: relative;
   text-align: center;
+  z-index: 1;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .login-logo-wrap {
@@ -1966,8 +1997,8 @@ margin-top: 15px;
   top: 0;
   left: 50%;
   transform: translate(-50%, -52%);
-  width: 118px;
-  height: 118px;
+  width: 132px;
+  height: 132px;
   border-radius: 50%;
   background: #ffffff;
   display: flex;
@@ -1978,19 +2009,20 @@ margin-top: 15px;
 }
 
 .login-logo-img {
-  width: 102px;
-  height: 102px;
+  width: 122px;
+  height: 122px;
   object-fit: contain;
   border-radius: 50%;
 }
 
 .login-title {
   margin: 8px 0 24px;
-  color: var(--login-brand);
+  color: #f3f4f6;
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .login-form {
@@ -2011,33 +2043,39 @@ margin-top: 15px;
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--login-muted);
-  font-size: 1.05rem;
+  color: rgba(203, 213, 225, 0.72);
+  font-size: 1.25rem;
   pointer-events: none;
   z-index: 1;
+}
+
+.login-form > .login-field-row:nth-of-type(1) .login-field-icon,
+.login-form > .login-field-row:nth-of-type(2) .login-field-icon {
+  color: rgba(30, 41, 59, 0.9);
 }
 
 .login-input {
   width: 100%;
   height: 48px;
   padding: 0 16px 0 42px;
-  border: 1px solid var(--login-border);
+  border: 1px solid rgba(148, 163, 184, 0.38);
   border-radius: 8px;
   font-size: 0.95rem;
-  color: #222222;
-  background: #fff;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.42);
   box-sizing: border-box;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .login-input::placeholder {
-  color: var(--login-muted);
+  color: rgba(203, 213, 225, 0.55);
 }
 
 .login-input:focus {
   outline: none;
-  border-color: var(--login-primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  border-color: rgba(248, 250, 252, 0.62);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  background: rgba(15, 23, 42, 0.56);
 }
 
 .login-input--has-trailing {
@@ -2053,7 +2091,7 @@ margin-top: 15px;
   height: 40px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--login-muted);
+  color: rgba(226, 232, 240, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2063,9 +2101,9 @@ margin-top: 15px;
 }
 
 .login-eye-btn:hover {
-  color: #374151;
-  background: rgba(0, 0, 0, 0.05);
-  border-color: #e5e7eb;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.42);
+  border-color: rgba(148, 163, 184, 0.32);
   box-shadow: var(--btn-win11-shadow-neutral);
 }
 
@@ -2085,18 +2123,78 @@ margin-top: 15px;
   min-width: 0;
   height: 52px;
   border-radius: 8px;
-  border: 1px solid var(--login-border);
-  background: #fafafa;
-  color: var(--login-primary);
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background:
+    repeating-linear-gradient(
+      12deg,
+      rgba(148, 163, 184, 0.16) 0px,
+      rgba(148, 163, 184, 0.16) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    radial-gradient(circle at 12% 22%, rgba(148, 163, 184, 0.24) 0 1.1px, transparent 1.1px),
+    radial-gradient(circle at 78% 64%, rgba(226, 232, 240, 0.2) 0 1px, transparent 1px),
+    rgba(17, 24, 39, 0.44);
+  color: #f8fafc;
   font-weight: 700;
   font-size: 1.35rem;
-  letter-spacing: 0.35em;
+  letter-spacing: 0.18em;
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
   justify-content: center;
   padding-left: 0.35em;
   font-family: ui-monospace, 'Cascadia Code', 'Segoe UI', system-ui, sans-serif;
+  position: relative;
+  overflow: hidden;
+  text-shadow:
+    0.4px 0 rgba(239, 68, 68, 0.28),
+    -0.4px 0 rgba(34, 197, 94, 0.25);
+  isolation: isolate;
+}
+
+.login-captcha-code::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.62;
+  background:
+    repeating-linear-gradient(
+      -18deg,
+      transparent 0 8px,
+      rgba(148, 163, 184, 0.16) 8px 9px
+    ),
+    repeating-linear-gradient(
+      78deg,
+      transparent 0 10px,
+      rgba(248, 250, 252, 0.12) 10px 11px
+    ),
+    radial-gradient(circle at 22% 75%, rgba(248, 250, 252, 0.22) 0 1px, transparent 1px),
+    radial-gradient(circle at 54% 36%, rgba(148, 163, 184, 0.24) 0 1px, transparent 1px),
+    radial-gradient(circle at 84% 44%, rgba(248, 250, 252, 0.2) 0 1px, transparent 1px);
+}
+
+.login-captcha-code::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.55;
+  background:
+    linear-gradient(16deg, transparent 0 46%, rgba(239, 68, 68, 0.28) 47% 49%, transparent 50% 100%),
+    linear-gradient(-12deg, transparent 0 28%, rgba(34, 197, 94, 0.24) 29% 31%, transparent 32% 100%);
+}
+
+.login-captcha-code__glyph {
+  display: inline-block;
+  position: relative;
+  z-index: 3;
+  min-width: 0.62em;
+  text-align: center;
+  font-weight: 800;
+  filter: drop-shadow(0 1px 0 rgba(15, 23, 42, 0.5));
 }
 
 .login-captcha-side {
@@ -2107,20 +2205,33 @@ margin-top: 15px;
 }
 
 .login-timer {
-  width: 48px;
-  height: 48px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
-  background: conic-gradient(var(--login-primary) var(--timer-deg, 360deg), #e5e5e5 0deg);
+  background: conic-gradient(#16a34a var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  transition: background 0.28s ease;
+}
+
+.login-timer.login-timer--safe {
+  background: conic-gradient(#22c55e var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+}
+
+.login-timer.login-timer--warn {
+  background: conic-gradient(#f59e0b var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+}
+
+.login-timer.login-timer--danger {
+  background: conic-gradient(#ef4444 var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
 }
 
 .login-timer-inner {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #f5f5f5;
+  background: rgba(15, 23, 42, 0.92);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2129,17 +2240,45 @@ margin-top: 15px;
 .login-timer-text {
   font-size: 10px;
   font-weight: 700;
-  color: #444;
+  color: #f8fafc;
   line-height: 1;
+  transition: color 0.28s ease, text-shadow 0.28s ease;
+}
+
+.login-timer-text.login-timer-text--safe {
+  color: #86efac;
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.45);
+}
+
+.login-timer-text.login-timer-text--warn {
+  color: #fcd34d;
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.42);
+}
+
+.login-timer-text.login-timer-text--danger {
+  color: #ef4444 !important;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+}
+
+.login-timer.login-timer--safe .login-timer-text {
+  color: #86efac !important;
+}
+
+.login-timer.login-timer--warn .login-timer-text {
+  color: #f59e0b !important;
+}
+
+.login-timer.login-timer--danger .login-timer-text {
+  color: #ef4444 !important;
 }
 
 .login-refresh {
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  border: 1px solid var(--login-border);
-  background: #ffffff;
-  color: var(--login-muted);
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background: rgba(15, 23, 42, 0.46);
+  color: rgba(226, 232, 240, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2149,30 +2288,30 @@ margin-top: 15px;
 }
 
 .login-refresh:hover {
-  background: #f8f9fa;
-  color: var(--login-accent-green);
+  background: rgba(15, 23, 42, 0.62);
+  color: #93c5fd;
 }
 
 .login-submit {
   width: 100%;
   height: 50px;
   margin-top: 4px;
-  border: 1px solid #1d4ed8;
+  border: 1px solid #0f3d24;
   border-radius: var(--btn-win11-radius);
-  background: linear-gradient(180deg, #3b82f6 0%, var(--login-primary-deep) 100%);
+  background: linear-gradient(180deg, #1b6a3a 0%, #14532d 100%);
   color: #ffffff;
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
   font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 14px rgba(37, 99, 235, 0.28);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 6px 18px rgba(20, 83, 45, 0.38);
   transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease;
 }
 
 .login-submit:hover {
-  background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
-  border-color: #1e40af;
-  box-shadow: var(--btn-win11-shadow-hover), 0 8px 22px rgba(37, 99, 235, 0.32);
+  background: linear-gradient(180deg, #23884b 0%, #166534 100%);
+  border-color: #14532d;
+  box-shadow: var(--btn-win11-shadow-hover), 0 10px 24px rgba(20, 83, 45, 0.44);
   filter: brightness(1.02);
 }
 
@@ -2183,7 +2322,7 @@ margin-top: 15px;
 
 .login-submit:focus-visible {
   outline: none;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(37, 99, 235, 0.55);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(20, 83, 45, 0.42);
 }
 
 .login-forgot {
@@ -2193,13 +2332,23 @@ margin-top: 15px;
 
 .login-forgot-link {
   font-size: 0.8125rem;
-  color: var(--login-forgot);
+  color: rgba(226, 232, 240, 0.82);
   text-decoration: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
 }
 
 .login-forgot-link:hover {
-  color: var(--login-accent-green);
+  color: #ffffff;
   text-decoration: underline;
+}
+
+.login-forgot-link--btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* SweetAlert2 — diálogos corporativos (sin cambiar textos en JS) */
@@ -2511,8 +2660,8 @@ body .btn:not(.btn-link) {
 .dashboard-side-info__dna {
   position: fixed;
   right: 0.6rem;
-  top: 18rem;
-  bottom: 7.3rem;
+  top: 13rem;
+  bottom: 12.3rem;
   width: 190px;
   height: auto;
   z-index: 3;
@@ -2535,7 +2684,7 @@ body .btn:not(.btn-link) {
 .dashboard-side-info__card {
   position: fixed;
   right: 1.2rem;
-  top: 8.05rem;
+  top: 5.35rem;
   width: 190px;
   z-index: 4;
 }
@@ -2612,9 +2761,8 @@ body .btn:not(.btn-link) {
 }
 
 /* ============================================================
- * Vista Gestión de Contratos — panel gris claro (ligeramente más profundo que gray-100),
- * acentos de marca / encabezado de tabla #14532d, verde acción #28a745 (mockup cliente).
- * Activado con .dashboard-main--contratos en App.js
+ * Tema de superficie del panel (antes solo Contratos): fondo #eceef2, tablas verde #14532d,
+ * tarjetas blancas. La clase .dashboard-main--contratos va siempre en el main del dashboard.
  * ============================================================ */
 
 .dashboard-main.dashboard-main--contratos {
@@ -2632,6 +2780,52 @@ body .btn:not(.btn-link) {
   letter-spacing: -0.01em;
 }
 
+/* Misma piel en todos los módulos: quita el gris/azul inline de .content-wrapper y alinea títulos/focus al verde */
+.dashboard-main.dashboard-main--contratos .content-wrapper {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+.dashboard-main.dashboard-main--contratos h4 {
+  background: var(--contratos-navy, #14532d) !important;
+  color: #ffffff !important;
+}
+
+.dashboard-main.dashboard-main--contratos .content-wrapper > .mb-4 > h4,
+.dashboard-main.dashboard-main--contratos .content-wrapper > .d-flex > div:first-child > h4,
+.dashboard-main.dashboard-main--contratos .content-wrapper > .container-fluid > h4:first-child {
+  box-shadow: -2.5rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .container > h4:first-child,
+.dashboard-main.dashboard-main--contratos .container-fluid > h4:first-child,
+.dashboard-main.dashboard-main--contratos .container > div:first-child > h4:first-child {
+  box-shadow: -2.25rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-content-main > .row > .col-12 > .d-flex > div:first-child > h4 {
+  box-shadow: -3rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-module-red-title-anchor:not(.dashboard-module-red-title-anchor--overlay) > h4 {
+  box-shadow: -3rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-content-main > div:not(.content-wrapper) > .d-flex > div:first-child > h4 {
+  box-shadow: -1.5rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .form-control:focus,
+.dashboard-main.dashboard-main--contratos .form-select:focus,
+.dashboard-main.dashboard-main--contratos textarea.form-control:focus {
+  border-color: var(--contratos-navy, #14532d);
+  box-shadow: 0 0 0 0.2rem rgba(var(--contratos-navy-rgb, 20, 83, 45), 0.2);
+}
+
+.dashboard-main.dashboard-main--contratos .content-wrapper > .mb-4 small.text-muted {
+  border-bottom-color: var(--contratos-navy, #14532d);
+}
+
 .dashboard-main.dashboard-main--contratos .card,
 .dashboard-main.dashboard-main--contratos .table-responsive {
   background: #ffffff !important;
@@ -2644,7 +2838,7 @@ body .btn:not(.btn-link) {
   box-shadow: 0 4px 12px rgba(17, 24, 39, 0.07);
 }
 
-/* ---- Oculta el listón negro (ola) SOLO en la vista Contratos ---- */
+/* ---- Listón superior: blanco en todo el panel (misma línea que Contratos) ---- */
 .dashboard-main--contratos .dashboard-topbar-wave {
   background-image: none !important;
   background: #ffffff !important;
@@ -3288,14 +3482,14 @@ body .btn:not(.btn-link) {
   border: 1px solid #edf2f7;
 }
 
-/* Tablas de Contratos: columna "N° Contrato" centrada y compacta */
-.dashboard-main--contratos .table.table-data-compact thead th:first-child,
-.dashboard-main--contratos .table.table-data-compact tbody td:first-child {
+/* Solo listado Contratos: columna "N° Contrato" centrada (no afectar otras tablas del panel) */
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact thead th:first-child,
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact tbody td:first-child {
   text-align: center;
   white-space: nowrap;
 }
 
-.dashboard-main--contratos .table.table-data-compact thead th:first-child {
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact thead th:first-child {
   width: 1%;
 }
 
@@ -4077,6 +4271,11 @@ button.renov-empresa-avatar:focus-visible {
 
 .renov-actions__row-renovar {
   min-width: 0;
+}
+
+.renov-actions .renov-actions__row-reminder {
+  width: 100%;
+  justify-content: center;
 }
 
 .renov-actions .btn {

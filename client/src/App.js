@@ -480,7 +480,7 @@ function App() {
         </Nav>
       </div>
 
-      <div className={`dashboard-main flex-grow-1 ps-4 pb-4 pe-0 ${key && (key === 'contratos' || key.startsWith('contratos-')) ? 'dashboard-main--contratos' : ''}`}>
+      <div className="dashboard-main dashboard-main--contratos flex-grow-1 ps-4 pb-4 pe-0">
         <div className="dashboard-topbar-wave" aria-hidden="true" />
         <Navbar expand="lg" className="dashboard-topbar shadow-none mb-2 py-2 px-4">
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
