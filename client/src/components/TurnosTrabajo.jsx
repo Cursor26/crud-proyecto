@@ -1,12 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
 import AppSelect from './AppSelect';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
+import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
 const TurnosTrabajo = () => {
+  const puedeEscribir = usePuedeEscribir();
   const [registros, setRegistros] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [carnet, setCarnet] = useState('');
@@ -22,7 +27,7 @@ const TurnosTrabajo = () => {
   const [showTurnoModal, setShowTurnoModal] = useState(false);
 
   const getRegistros = () => {
-    Axios.get('http://localhost:3001/turnos-trabajo')
+    Axios.get('/turnos-trabajo')
       .then((res) => setRegistros(res.data))
       .catch((err) => {
         console.error('Error al cargar turnos:', err);
@@ -31,7 +36,7 @@ const TurnosTrabajo = () => {
   };
 
   const getEmpleados = () => {
-    Axios.get('http://localhost:3001/empleados?solo_activos=1')
+    Axios.get('/empleados?solo_activos=1')
       .then((res) => {
         const ordenados = [...res.data].sort((a, b) =>
           `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es')
@@ -78,7 +83,7 @@ const TurnosTrabajo = () => {
     };
 
     if (editando) {
-      Axios.put(`http://localhost:3001/update-turno/${idOriginal}`, data)
+      Axios.put(`/update-turno/${idOriginal}`, data)
         .then(() => {
           Swal.fire('Actualizado', 'Turno actualizado correctamente', 'success');
           getRegistros();
@@ -89,7 +94,7 @@ const TurnosTrabajo = () => {
           Swal.fire('Error', err.response?.data?.message || err.message, 'error')
         );
     } else {
-      Axios.post('http://localhost:3001/create-turno', data)
+      Axios.post('/create-turno', data)
         .then(() => {
           Swal.fire('Creado', 'Turno asignado correctamente', 'success');
           getRegistros();
@@ -125,7 +130,7 @@ const TurnosTrabajo = () => {
       confirmButtonText: 'Sí, eliminar',
     }).then((result) => {
       if (result.isConfirmed) {
-        Axios.delete(`http://localhost:3001/delete-turno/${id}`)
+        Axios.delete(`/delete-turno/${id}`)
           .then(() => {
             Swal.fire('Eliminado', 'Turno eliminado', 'success');
             getRegistros();
@@ -137,15 +142,53 @@ const TurnosTrabajo = () => {
     });
   };
 
+  const turnosExportAepg = useMemo(() => {
+    const headers = [
+      'Empleado',
+      'Carnet',
+      'Turno',
+      'Hora entrada',
+      'Hora salida',
+      'Días aplicación',
+      'Horas diarias',
+      'Observaciones',
+      'Activo',
+    ];
+    const dataRows = registros.map((r) => [
+      `${r.nombre || ''} ${r.apellidos || ''}`.trim() || '—',
+      r.carnet_identidad != null ? String(r.carnet_identidad) : '—',
+      r.nombre_turno != null ? String(r.nombre_turno) : '—',
+      r.hora_entrada != null ? String(r.hora_entrada) : '—',
+      r.hora_salida != null ? String(r.hora_salida) : '—',
+      r.dias_aplicacion != null ? String(r.dias_aplicacion) : '—',
+      r.horas_diarias != null && r.horas_diarias !== '' ? String(r.horas_diarias) : '—',
+      r.observaciones != null && r.observaciones !== '' ? String(r.observaciones) : '—',
+      r.activo == 1 ? 'Sí' : 'No',
+    ]);
+    return { headers, dataRows };
+  }, [registros]);
+
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <ModuleTitleBar
         title="Turnos de trabajo"
         actions={
-          <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowTurnoModal(true); }}>
+          <>
+            <ExportacionAepgGrupo
+              tituloSistema={AEPG_TITULO_RRHH}
+              subtitulo="Reporte: turnos de trabajo asignados."
+              descripcion="Todas las asignaciones de turno con horas, días, observaciones y estado (sin acciones en pantalla)."
+              nombreBaseArchivo={`AEPG_turnos_trabajo_${new Date().toISOString().slice(0, 10)}`}
+              sheetName="Turnos"
+              headers={turnosExportAepg.headers}
+              dataRows={turnosExportAepg.dataRows}
+              disabled={!registros.length}
+            />
+          <button type="button" className="btn btn-primary btn-form-nowrap" disabled={!puedeEscribir} onClick={() => { limpiarForm(); setShowTurnoModal(true); }}>
             <i className="bi bi-calendar2-week me-2" aria-hidden="true" />
             Asignar turno
           </button>
+          </>
         }
       />
 
@@ -156,11 +199,12 @@ const TurnosTrabajo = () => {
         subtitle=""
         onPrimary={() => handleSubmit({ preventDefault: () => {} })}
         primaryLabel={editando ? 'Actualizar' : 'Guardar'}
+        primaryDisabled={!puedeEscribir}
       >
         <div className="minimal-form-stack">
           <div className="minimal-field">
             <label className="minimal-label">Empleado:</label>
-            <AppSelect className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
+            <AppSelect className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)} disabled={editando}>
               <option value="" disabled hidden>--- Seleccione ---</option>
               {empleados.map((emp) => (
                 <option key={emp.carnet_identidad} value={emp.carnet_identidad}>{emp.carnet_identidad} — {emp.nombre} {emp.apellidos}</option>
@@ -215,13 +259,9 @@ const TurnosTrabajo = () => {
                     <td>{r.dias_aplicacion}</td>
                     <td>{r.horas_diarias != null ? r.horas_diarias : '—'}</td>
                     <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
-                    <td>
-                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarRegistro(r)}>
-                        Editar
-                      </button>
-                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarRegistro(r.id_turno)}>
-                        Eliminar
-                      </button>
+                    <td className="text-center">
+                      <EditTableActionButton onClick={() => editarRegistro(r)} className="me-1" />
+                      <DeleteTableActionButton onClick={() => eliminarRegistro(r.id_turno)} />
                     </td>
                   </tr>
                 ))

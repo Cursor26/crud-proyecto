@@ -5,15 +5,47 @@ import Swal from 'sweetalert2';
 import { EditTableActionButton, DeleteTableActionButton, RenewTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
 import AppSelect from './AppSelect';
+import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import {
+  EMPRESA_ORGANIZACION,
+  getParametrosAepgTablaContratos,
+} from '../utils/exportReporteContratos';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
+import {
+  razonesSugerirRevisarTextoEmpresaOsuplemento,
+  normalizarMientrasEscribeSoloLetras,
+  normalizarTextoEmpresaOSuplemento,
+  esSoloBlancosOVacio,
+  MSJ_OBLIGATORIO_NO_SOLO_BLANCOS,
+} from '../utils/validation';
 
-function GestionContratos({ vistaInicial = 'contratos' }) {
+/** Fecha calendario local (YYYY-MM-DD) para inicio de contrato si el usuario no elige. */
+function hoyCivilYMD() {
+  const d = new Date();
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+}
+
+function escapeForSwalHtml(s) {
+  if (s == null || s === '') return '—';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function GestionContratos({ vistaInicial = 'contratos', user: usuarioAuth }) {
+  const puedeEscribir = usePuedeEscribir();
+  const nombreEmpresaReporte = process.env.REACT_APP_EMPRESA_NOMBRE || EMPRESA_ORGANIZACION;
   const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
   const CONTRATOS_PDF_STORAGE_KEY = 'contratos_pdf_archivos_v1';
   const [contratoNumero, setContratoNumero] = useState('');
   const [contratoNumeroOriginal, setContratoNumeroOriginal] = useState('');
   const [contratoProveedorCliente, setContratoProveedorCliente] = useState(false);
   const [contratoEmpresa, setContratoEmpresa] = useState('');
+  const [contratoEmpresaCombo, setContratoEmpresaCombo] = useState('');
   const [contratoSuplementos, setContratoSuplementos] = useState('');
+  const [contratoSuplementosCombo, setContratoSuplementosCombo] = useState('');
   const [contratoVigencia, setContratoVigencia] = useState('');
   const [contratoTipo, setContratoTipo] = useState('');
   const [contratoFechaInicio, setContratoFechaInicio] = useState('');
@@ -48,7 +80,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   const hasDocument = typeof document !== 'undefined';
 
   const getContratos = () => {
-    Axios.get('http://localhost:3001/contratos')
+    Axios.get('/contratos')
       .then((response) => setContratos(response.data))
       .catch((error) => console.error('Error al cargar contratos:', error));
   };
@@ -269,7 +301,9 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     setNombreArchivoIcono(file?.name || '');
     if (!file) return;
 
-    const empresaNombre = String(contratoEmpresa || '').trim();
+    const empresaNombre = normalizarTextoEmpresaOSuplemento(
+      String(contratoEmpresa || '').trim() || String(contratoEmpresaCombo || '').trim()
+    );
     if (!empresaNombre) {
       Swal.fire('Empresa requerida', 'Primero escribe la empresa para asociar su icono.', 'info');
       return;
@@ -296,11 +330,11 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     event.target.value = '';
     if (!file) return;
 
-    const numero = String(contratoNumero || '').trim();
-    if (!numero) {
-      Swal.fire('Número requerido', 'Primero escribe el número de contrato para asociar el PDF.', 'info');
+    if (esSoloBlancosOVacio(contratoNumero) || !String(contratoNumero || '').trim()) {
+      Swal.fire('N° de contrato', `${MSJ_OBLIGATORIO_NO_SOLO_BLANCOS} Indique un número de contrato para asociar el PDF.`, 'info');
       return;
     }
+    const numero = String(contratoNumero || '').trim();
     const esPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     if (!esPdf) {
       Swal.fire('Archivo inválido', 'Selecciona un archivo PDF válido.', 'warning');
@@ -321,12 +355,32 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     reader.readAsDataURL(file);
   };
 
+  /** null si la vigencia es aceptable; string con mensaje si no. Debe ser un número mayor que cero. */
+  const getMensajeErrorVigencia = (raw) => {
+    const s = String(raw ?? '').trim();
+    if (s === '') {
+      return 'Indique la vigencia en años (debe ser mayor que cero). No basta con dejar en blanco o con solo espacios o tabulaciones.';
+    }
+    const n = parseFloat(s.replace(',', '.'));
+    if (Number.isNaN(n)) {
+      return 'Indique un número válido para la vigencia (años; se permiten decimales).';
+    }
+    if (n <= 0) {
+      return 'La vigencia debe ser mayor que cero (años; p. ej. 0,1 o 1).';
+    }
+    return null;
+  };
+
   const sumarTiempoConVigencia = (fechaStr, vigenciaValor) => {
     if (!fechaStr) return fechaStr;
-    const fecha = new Date(fechaStr + 'T00:00:00');
+    const s = String(fechaStr);
+    const p = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const fecha = p
+      ? new Date(parseInt(p[1], 10), parseInt(p[2], 10) - 1, parseInt(p[3], 10))
+      : new Date(s.includes('T') ? s : `${s}T00:00:00`);
 
-    let vigencia = parseFloat(vigenciaValor);
-    if (Number.isNaN(vigencia)) return '';
+    let vigencia = parseFloat(String(vigenciaValor ?? '').replace(',', '.'));
+    if (Number.isNaN(vigencia) || vigencia <= 0) return '';
     let entero = Math.trunc(vigencia);
     let decimal = vigencia - Math.trunc(vigencia);
 
@@ -334,7 +388,6 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
 
     let diasDecimal = decimal * 365.25;
     let ParteEnteraDe_diasDecimal = Math.trunc(diasDecimal);
-    console.log('cantidad de dias' + diasDecimal);
 
     fecha.setDate(fecha.getDate() + ParteEnteraDe_diasDecimal);
 
@@ -344,16 +397,78 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     return `${año}-${mes}-${dia}`;
   };
 
-  const sumarTiempo = (fechaStr) => sumarTiempoConVigencia(fechaStr, contratoVigencia);
-
+  /** Fecha de contrato como calendario (YYYY-MM-DD), sin perder un día por UTC. */
   const toISODate = (value) => {
-    if (!value) return '';
-    return String(value).slice(0, 10);
+    if (value == null || value === '') return '';
+    const s = String(value).trim();
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return '';
+    return [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0'),
+    ].join('-');
+  };
+
+  const parseFechaCivilYMDaDate = (value) => {
+    const ymd = toISODate(value);
+    if (!ymd) return null;
+    const p = ymd.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!p) return null;
+    return new Date(parseInt(p[1], 10), parseInt(p[2], 10) - 1, parseInt(p[3], 10));
+  };
+
+  /**
+   * Inversa de sumarTiempoConVigencia: vigencia en años (1 = un año) según inicio y fin.
+   * Usar al renovar para que el valor guardado coincida con el periodo inicio–fin.
+   */
+  const calcularVigenciaDesdeFechas = (fechaInicio, fechaFin) => {
+    const iniE = toISODate(fechaInicio);
+    const finE = toISODate(fechaFin);
+    if (!iniE || !finE || finE <= iniE) return 0.01;
+    const finSumada = (v) => {
+      const s = sumarTiempoConVigencia(iniE, v);
+      return s || '';
+    };
+    if (finSumada(0.01) === finE) {
+      return 0.01;
+    }
+    const antesQueFinE = (r) => (r && r < finE) || !r;
+    let lo = 0.01;
+    let hi = 0.1;
+    let guard = 0;
+    while (antesQueFinE(finSumada(hi))) {
+      hi *= 2;
+      guard += 1;
+      if (guard > 50 || hi > 1e6) {
+        const d0 = parseFechaCivilYMDaDate(iniE);
+        const d1 = parseFechaCivilYMDaDate(finE);
+        if (!d0 || !d1) return 1;
+        const dias = (d1 - d0) / 864e5;
+        return Math.max(0.01, Math.round((dias / 365.25) * 10000) / 10000);
+      }
+    }
+    for (let i = 0; i < 100; i += 1) {
+      const m = (lo + hi) / 2;
+      const r = finSumada(m);
+      if (r === finE) {
+        return Math.max(0.01, Math.round(m * 10000) / 10000);
+      }
+      if (antesQueFinE(r)) {
+        lo = m;
+      } else {
+        hi = m;
+      }
+    }
+    return Math.max(0.01, Math.round(((lo + hi) / 2) * 10000) / 10000);
   };
 
   const diasParaVencer = (fechaFin) => {
     if (!fechaFin) return null;
-    const fin = new Date(`${toISODate(fechaFin)}T00:00:00`);
+    const fin = parseFechaCivilYMDaDate(fechaFin);
+    if (!fin || Number.isNaN(fin.getTime())) return null;
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const ms = fin.getTime() - hoy.getTime();
@@ -440,7 +555,9 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     setContratoNumeroOriginal('');
     setContratoProveedorCliente(false);
     setContratoEmpresa('');
+    setContratoEmpresaCombo('');
     setContratoSuplementos('');
+    setContratoSuplementosCombo('');
     setContratoVigencia('');
     setContratoTipo('');
     setContratoFechaInicio('');
@@ -460,29 +577,76 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     limpiarContrato();
     setContratoNumeroOriginal('');
     setShowContratoModal(true);
+    setContratoFechaInicio(hoyCivilYMD());
+  };
+
+  const confirmarNombresIrregulares = async (empresaGuardar, suplementosGuardar) => {
+    const reEmp = razonesSugerirRevisarTextoEmpresaOsuplemento(empresaGuardar);
+    const reSup = razonesSugerirRevisarTextoEmpresaOsuplemento(suplementosGuardar);
+    if (reEmp.length === 0 && reSup.length === 0) return true;
+    const bloques = [];
+    if (reEmp.length) {
+      bloques.push(`— Empresa: ${reEmp.join(' · ')}.`);
+    }
+    if (reSup.length) {
+      bloques.push(`— Suplementos: ${reSup.join(' · ')}.`);
+    }
+    const { isConfirmed } = await Swal.fire({
+      title: 'Revisar antes de guardar',
+      html: `<p class="text-start mb-2">Esto no es un error: el sistema nota pautas poco habituales en un nombre (cifras, cualquier punto, signos raros, etc.). Conviene comprobar que el texto quede como en el documento original.</p><p class="text-start small mb-0">${bloques.join(
+        '<br>',
+      )}</p><p class="mt-3 mb-0">¿Deseas guardar de todos modos?</p>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, guardar',
+      cancelButtonText: 'Volver a revisar',
+    });
+    return isConfirmed;
   };
 
   const guardarContratoModal = () => {
-    if (editarContrato) updateContrato();
-    else addContrato();
+    if (editarContrato) void updateContrato();
+    else void addContrato();
   };
 
-  const addContrato = () => {
-    const nuevaFechaFin = sumarTiempo(contratoFechaInicio);
+  const addContrato = async () => {
+    const numeroNuevo = String(contratoNumero || '').trim();
+    if (esSoloBlancosOVacio(contratoNumero) || !numeroNuevo) {
+      Swal.fire('N° de contrato', MSJ_OBLIGATORIO_NO_SOLO_BLANCOS, 'warning');
+      return;
+    }
+    const errV = getMensajeErrorVigencia(contratoVigencia);
+    if (errV) {
+      Swal.fire('Vigencia no válida', errV, 'error');
+      return;
+    }
+    const empresaRaw =
+      String(contratoEmpresa || '').trim() || String(contratoEmpresaCombo || '').trim();
+    const suplementosRaw =
+      String(contratoSuplementos || '').trim() || String(contratoSuplementosCombo || '').trim();
+    const empresaGuardar = normalizarTextoEmpresaOSuplemento(empresaRaw);
+    if (!empresaGuardar) {
+      Swal.fire('Empresa requerida', `Empresa: ${MSJ_OBLIGATORIO_NO_SOLO_BLANCOS}`, 'warning');
+      return;
+    }
+    const suplementosGuardar = normalizarTextoEmpresaOSuplemento(suplementosRaw);
+    const fechaInicioEfectiva = toISODate(contratoFechaInicio) || hoyCivilYMD();
+    const nuevaFechaFin = sumarTiempoConVigencia(fechaInicioEfectiva, contratoVigencia);
     const vencidoCalc = diasParaVencer(nuevaFechaFin) != null && diasParaVencer(nuevaFechaFin) < 0 ? 1 : 0;
-
+    const okNombres = await confirmarNombresIrregulares(empresaGuardar, suplementosGuardar);
+    if (!okNombres) return;
     const bodyCreate = {
-      numero_contrato: contratoNumero,
+      numero_contrato: numeroNuevo,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
-      empresa: contratoEmpresa,
-      suplementos: contratoSuplementos,
+      empresa: empresaGuardar,
+      suplementos: suplementosGuardar,
       vigencia: contratoVigencia,
       tipo_contrato: contratoTipo,
-      fecha_inicio: contratoFechaInicio,
+      fecha_inicio: fechaInicioEfectiva,
       fecha_fin: nuevaFechaFin,
       vencido: vencidoCalc,
     };
-    Axios.post('http://localhost:3001/create-contrato', bodyCreate)
+    Axios.post('/create-contrato', bodyCreate)
       .then(() => {
         getContratos();
         cerrarModalContrato();
@@ -497,33 +661,51 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       });
   };
 
-  const updateContrato = () => {
-    const nuevaFechaFin = sumarTiempo(contratoFechaInicio);
-    const vencidoCalc = diasParaVencer(nuevaFechaFin) != null && diasParaVencer(nuevaFechaFin) < 0 ? 1 : 0;
+  const updateContrato = async () => {
+    const errV = getMensajeErrorVigencia(contratoVigencia);
+    if (errV) {
+      Swal.fire('Vigencia no válida', errV, 'error');
+      return;
+    }
     const numeroNuevo = String(contratoNumero || '').trim();
     const numeroOriginalRaw = contratoNumeroOriginal ?? '';
     const numeroOriginal = String(numeroOriginalRaw).trim();
 
-    if (!numeroNuevo) {
-      Swal.fire('Número requerido', 'El N° de contrato no puede quedar vacío.', 'warning');
+    if (esSoloBlancosOVacio(contratoNumero) || !numeroNuevo) {
+      Swal.fire('N° de contrato', MSJ_OBLIGATORIO_NO_SOLO_BLANCOS, 'warning');
       return;
     }
 
     const numOriginalSeguro = String(contratoNumeroOriginal ?? numeroNuevo ?? '').trim() || numeroNuevo;
+    const empresaRawU =
+      String(contratoEmpresa || '').trim() || String(contratoEmpresaCombo || '').trim();
+    const suplementosRawU =
+      String(contratoSuplementos || '').trim() || String(contratoSuplementosCombo || '').trim();
+    const empresaGuardar = normalizarTextoEmpresaOSuplemento(empresaRawU);
+    if (!empresaGuardar) {
+      Swal.fire('Empresa requerida', `Empresa: ${MSJ_OBLIGATORIO_NO_SOLO_BLANCOS}`, 'warning');
+      return;
+    }
+    const suplementosGuardar = normalizarTextoEmpresaOSuplemento(suplementosRawU);
+    const fechaInicioEfectiva = toISODate(contratoFechaInicio) || hoyCivilYMD();
+    const nuevaFechaFin = sumarTiempoConVigencia(fechaInicioEfectiva, contratoVigencia);
+    const vencidoCalc = diasParaVencer(nuevaFechaFin) != null && diasParaVencer(nuevaFechaFin) < 0 ? 1 : 0;
+    const okNombres = await confirmarNombresIrregulares(empresaGuardar, suplementosGuardar);
+    if (!okNombres) return;
     const bodyUpdate = {
       numero_contrato: numeroNuevo,
       numero_contrato_original: numOriginalSeguro,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
-      empresa: contratoEmpresa,
-      suplementos: contratoSuplementos,
+      empresa: empresaGuardar,
+      suplementos: suplementosGuardar,
       vigencia: contratoVigencia,
       tipo_contrato: contratoTipo,
-      fecha_inicio: contratoFechaInicio,
+      fecha_inicio: fechaInicioEfectiva,
       fecha_fin: nuevaFechaFin,
       vencido: vencidoCalc,
     };
-    Axios.put('http://localhost:3001/update-contrato', bodyUpdate)
-      .then(() => Axios.get('http://localhost:3001/contratos'))
+    Axios.put('/update-contrato', bodyUpdate)
+      .then(() => Axios.get('/contratos'))
       .then((getRes) => {
         const contratos = Array.isArray(getRes.data) ? getRes.data : [];
         setContratos(contratos);
@@ -566,7 +748,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       confirmButtonText: 'Sí, eliminar',
     }).then((result) => {
       if (result.isConfirmed) {
-        Axios.delete(`http://localhost:3001/delete-contrato/${val.numero_contrato}`)
+        Axios.delete(`/delete-contrato/${val.numero_contrato}`)
           .then(() => {
             getContratos();
             Swal.fire('Eliminado', 'Contrato eliminado', 'success');
@@ -583,13 +765,22 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     setContratoNumero(val.numero_contrato);
     setContratoNumeroOriginal(val.numero_contrato);
     setContratoProveedorCliente(val.proveedor_cliente === 1);
-    setContratoEmpresa(val.empresa);
-    setContratoSuplementos(val.suplementos || '');
+    setContratoEmpresa(
+      val.empresa != null && String(val.empresa).trim() !== ''
+        ? normalizarTextoEmpresaOSuplemento(String(val.empresa))
+        : ''
+    );
+    setContratoEmpresaCombo('');
+    setContratoSuplementos(
+      val.suplementos != null && String(val.suplementos).trim() !== ''
+        ? normalizarTextoEmpresaOSuplemento(String(val.suplementos))
+        : ''
+    );
+    setContratoSuplementosCombo('');
     setContratoVigencia(val.vigencia);
     setContratoTipo(val.tipo_contrato);
-    const fechaInicio = val.fecha_inicio ? val.fecha_inicio.substring(0, 10) : '';
-    setContratoFechaInicio(fechaInicio);
-    setContratoFechaFin(val.fecha_fin ? val.fecha_fin.substring(0, 10) : '');
+    setContratoFechaInicio(toISODate(val.fecha_inicio));
+    setContratoFechaFin(toISODate(val.fecha_fin));
     setContratoVencido(val.vencido === 1);
     setShowContratoModal(true);
   };
@@ -637,12 +828,14 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
       const nuevaFechaFin = result.value?.fechaFin;
       if (!nuevaFechaFin) return;
 
-      Axios.put('http://localhost:3001/update-contrato', {
+      const nuevaVigencia = calcularVigenciaDesdeFechas(inicioRenovacion, nuevaFechaFin);
+
+      Axios.put('/update-contrato', {
         numero_contrato: contrato.numero_contrato,
         proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
-        empresa: contrato.empresa,
-        suplementos: contrato.suplementos || '',
-        vigencia: contrato.vigencia,
+        empresa: normalizarTextoEmpresaOSuplemento(String(contrato.empresa || '')),
+        suplementos: normalizarTextoEmpresaOSuplemento(String(contrato.suplementos || '')),
+        vigencia: nuevaVigencia,
         tipo_contrato: contrato.tipo_contrato,
         fecha_inicio: inicioRenovacion,
         fecha_fin: nuevaFechaFin,
@@ -705,6 +898,58 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     return Array.from(setTipos);
   }, [contratosEnriquecidos]);
 
+  const empresasDesdeContratos = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    contratosList.forEach((c) => {
+      const raw = String(c.empresa || '').trim();
+      if (!raw) return;
+      const v = normalizarTextoEmpresaOSuplemento(raw);
+      if (!v) return;
+      const k = v.toLowerCase();
+      if (seen.has(k)) return;
+      seen.add(k);
+      out.push(v);
+    });
+    return out.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [contratosList]);
+
+  const suplementosDesdeContratos = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    contratosList.forEach((c) => {
+      const raw = String(c.suplementos || '').trim();
+      if (!raw) return;
+      const v = normalizarTextoEmpresaOSuplemento(raw);
+      if (!v) return;
+      const k = v.toLowerCase();
+      if (seen.has(k)) return;
+      seen.add(k);
+      out.push(v);
+    });
+    return out.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [contratosList]);
+
+  const empresaEfectivaModal = useMemo(
+    () =>
+      normalizarTextoEmpresaOSuplemento(
+        String(contratoEmpresa || '').trim() || String(contratoEmpresaCombo || '').trim()
+      ),
+    [contratoEmpresa, contratoEmpresaCombo]
+  );
+
+  /** N° contrato, empresa (tras normalizar) y vigencia sin error: el resto según reglas de negocio. */
+  const faltanObligatoriosModalContrato =
+    esSoloBlancosOVacio(contratoNumero) || !empresaEfectivaModal;
+
+  const suplementosEfectivoModal = useMemo(
+    () =>
+      normalizarTextoEmpresaOSuplemento(
+        String(contratoSuplementos || '').trim() || String(contratoSuplementosCombo || '').trim()
+      ),
+    [contratoSuplementos, contratoSuplementosCombo]
+  );
+
   const contratosPrioritarios = useMemo(() => {
     return contratosEnriquecidos
       .filter((c) => c.diasRestantes != null && c.diasRestantes <= 90)
@@ -727,7 +972,8 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         String(c.tipo_contrato || '').toLowerCase().includes(term);
       if (!matchTerm) return false;
       if (!c.fecha_fin || (!desde && !hasta)) return true;
-      const fin = new Date(`${toISODate(c.fecha_fin)}T00:00:00`);
+      const fin = parseFechaCivilYMDaDate(c.fecha_fin);
+      if (!fin) return true;
       if (desde && fin < desde) return false;
       if (hasta && fin > hasta) return false;
       return true;
@@ -740,8 +986,8 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     const counts = Array(12).fill(0);
     contratosEnriquecidos.forEach((c) => {
       if (c.fecha_fin) {
-        const m = new Date(`${toISODate(c.fecha_fin)}T00:00:00`).getMonth();
-        counts[m] += 1;
+        const fd = parseFechaCivilYMDaDate(c.fecha_fin);
+        if (fd) counts[fd.getMonth()] += 1;
       }
     });
     const max = Math.max(...counts, 1);
@@ -788,13 +1034,14 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
         await Promise.all(
           objetivo.map((contrato) => {
             const baseInicio = toISODate(contrato.fecha_fin) || toISODate(contrato.fecha_inicio);
-            const nuevaFechaFin = sumarTiempoConVigencia(baseInicio, contrato.vigencia);
-            return Axios.put('http://localhost:3001/update-contrato', {
+            const nuevaFechaFin = sumarTiempoConVigencia(baseInicio, contrato.vigencia) || baseInicio;
+            const nuevaVigencia = calcularVigenciaDesdeFechas(baseInicio, nuevaFechaFin);
+            return Axios.put('/update-contrato', {
               numero_contrato: contrato.numero_contrato,
               proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
-              empresa: contrato.empresa,
-              suplementos: contrato.suplementos || '',
-              vigencia: contrato.vigencia,
+              empresa: normalizarTextoEmpresaOSuplemento(String(contrato.empresa || '')),
+              suplementos: normalizarTextoEmpresaOSuplemento(String(contrato.suplementos || '')),
+              vigencia: nuevaVigencia,
               tipo_contrato: contrato.tipo_contrato,
               fecha_inicio: toISODate(contrato.fecha_inicio),
               fecha_fin: nuevaFechaFin,
@@ -811,51 +1058,62 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
   };
 
   const verDetalleContrato = (contrato) => {
+    const pdf = getPdfContrato(contrato.numero_contrato);
+    const documentoLinea = pdf
+      ? `Sí: ${escapeForSwalHtml(pdf.nombre || 'PDF en este navegador')}`
+      : 'No (no hay PDF asociado en este equipo o navegador).';
+    const vig = contrato.vigencia != null && String(contrato.vigencia).trim() !== '' ? `${escapeForSwalHtml(contrato.vigencia)} año(s)` : '—';
+    const parte = contrato.proveedor_cliente ? 'Proveedor' : 'Cliente';
+    const sup = (contrato.suplementos && String(contrato.suplementos).trim()) ? escapeForSwalHtml(contrato.suplementos) : '—';
+    const vencidoStr =
+      contrato.vencido === 1 || contrato.vencido === true ? 'Sí' : contrato.vencido === 0 || contrato.vencido === false ? 'No' : '—';
     Swal.fire({
-      title: `Contrato ${contrato.numero_contrato}`,
+      title: `Contrato ${escapeForSwalHtml(String(contrato.numero_contrato ?? '—'))}`,
+      width: 520,
+      icon: 'info',
+      showCloseButton: true,
+      confirmButtonText: 'Cerrar',
       html: `
-        <div style="text-align:left">
-          <p><strong>Empresa:</strong> ${contrato.empresa || '-'}</p>
-          <p><strong>Tipo:</strong> ${contrato.tipo_contrato || '-'}</p>
-          <p><strong>Vigencia:</strong> ${contrato.vigencia || '-'} año(s)</p>
-          <p><strong>Inicio:</strong> ${toISODate(contrato.fecha_inicio) || '-'}</p>
-          <p><strong>Fin:</strong> ${toISODate(contrato.fecha_fin) || '-'}</p>
-          <p><strong>Estado:</strong> ${contrato.estado}</p>
-          <p><strong>${formatDiferenciaDias(contrato.diasRestantes)}</strong></p>
+        <div style="text-align:left;font-size:0.95rem;max-width:100%">
+          <p style="margin-bottom:0.4rem"><strong>Parte:</strong> ${escapeForSwalHtml(parte)}</p>
+          <p style="margin-bottom:0.4rem"><strong>Empresa:</strong> ${escapeForSwalHtml(contrato.empresa)}</p>
+          <p style="margin-bottom:0.4rem"><strong>Suplementos:</strong> ${sup}</p>
+          <p style="margin-bottom:0.4rem"><strong>Tipo de contrato:</strong> ${escapeForSwalHtml(contrato.tipo_contrato)}</p>
+          <p style="margin-bottom:0.4rem"><strong>Vigencia:</strong> ${vig}</p>
+          <p style="margin-bottom:0.4rem"><strong>Fecha inicio:</strong> ${escapeForSwalHtml(toISODate(contrato.fecha_inicio) || '—')}</p>
+          <p style="margin-bottom:0.4rem"><strong>Fecha fin:</strong> ${escapeForSwalHtml(toISODate(contrato.fecha_fin) || '—')}</p>
+          <p style="margin-bottom:0.4rem"><strong>Estado (vigencia / alerta):</strong> ${escapeForSwalHtml(contrato.estado || '—')}</p>
+          <p style="margin-bottom:0.4rem"><strong>Marcado vencido (BD):</strong> ${vencidoStr}</p>
+          <p style="margin-bottom:0.4rem"><strong>Tiempo:</strong> ${escapeForSwalHtml(formatDiferenciaDias(contrato.diasRestantes))}</p>
+          <p style="margin-bottom:0"><strong>Documento PDF:</strong> ${documentoLinea}</p>
         </div>
       `,
-      icon: 'info',
     });
   };
 
-  const exportarReporteCSV = () => {
-    const headers = ['numero_contrato', 'parte', 'empresa', 'tipo_contrato', 'vigencia', 'fecha_inicio', 'fecha_fin', 'estado', 'dias_restantes', 'documento'];
-    const rows = contratosEnriquecidos.map((c) => {
-      const p = getPdfContrato(c.numero_contrato);
-      return [
-        c.numero_contrato,
-        c.proveedor_cliente ? 'Proveedor' : 'Cliente',
-        c.empresa || '',
-        c.tipo_contrato || '',
-        c.vigencia || '',
-        toISODate(c.fecha_inicio),
-        toISODate(c.fecha_fin),
-        c.estado,
-        c.diasRestantes ?? '',
-        p?.nombre || (p?.dataUrl ? 'PDF' : ''),
-      ];
-    });
-    const csv = [headers, ...rows]
-      .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `reporte_contratos_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const intentarRenovarDesdeCola = (c) => {
+    if (!puedeEscribir) {
+      void Swal.fire({
+        title: 'Solo consulta',
+        text: 'Su usuario no puede editar contratos (p. ej. rol director u otro de solo lectura). Para renovar, use un perfil con permiso de modificación.',
+        icon: 'info',
+      });
+      return;
+    }
+    renovarContrato(c);
   };
+
+  const aepgParametrosContratos = useMemo(
+    () =>
+      getParametrosAepgTablaContratos({
+        user: usuarioAuth,
+        empresaNombre: nombreEmpresaReporte,
+        contratosEnriquecidos,
+        getPdfContrato,
+        toISODate,
+      }),
+    [usuarioAuth, nombreEmpresaReporte, contratosEnriquecidos, getPdfContrato, toISODate],
+  );
 
   const seccionLabel = {
     resumen: 'Resumen',
@@ -884,6 +1142,8 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
     );
   };
 
+  const mensajeErrorVigencia = getMensajeErrorVigencia(contratoVigencia);
+
   return (
     <div className="contratos-page">
       <div className="contratos-topbar">
@@ -894,16 +1154,24 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
               type="button"
               className="btn btn-primary contratos-btn-primary d-inline-flex align-items-center"
               onClick={abrirModalNuevoContrato}
+              disabled={!puedeEscribir}
             >
               <i className="bi bi-plus-lg me-2" aria-hidden="true" />
               Agregar contrato
             </button>
           )}
           {activeSection === 'reportes' && (
-            <button type="button" className="btn btn-outline-primary d-inline-flex align-items-center" onClick={exportarReporteCSV}>
-              <i className="bi bi-filetype-csv me-2" aria-hidden="true" />
-              Exportar CSV
-            </button>
+            <ExportacionAepgGrupo
+              tituloSistema={aepgParametrosContratos.tituloSistema}
+              subtitulo={aepgParametrosContratos.subtitulo}
+              descripcion={aepgParametrosContratos.descripcion}
+              nombreBaseArchivo={aepgParametrosContratos.nombreBaseArchivo}
+              sheetName={aepgParametrosContratos.sheetName}
+              headers={aepgParametrosContratos.headers}
+              dataRows={aepgParametrosContratos.dataRows}
+              empresaNombre={aepgParametrosContratos.empresaNombre}
+              disabled={!contratosEnriquecidos || contratosEnriquecidos.length === 0}
+            />
           )}
         </div>
       </div>
@@ -931,25 +1199,30 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
           subtitle=""
           onPrimary={guardarContratoModal}
           primaryLabel={editarContrato ? 'Actualizar' : 'Guardar'}
+          primaryDisabled={!puedeEscribir || Boolean(mensajeErrorVigencia) || faltanObligatoriosModalContrato}
         >
           <div className="minimal-form-stack">
             <div className="minimal-field">
-              <label className="minimal-label">No. Contrato:</label>
+              <label className="minimal-label">No. Contrato: <span className="text-danger">*</span></label>
               <input
                 type="text"
                 className="minimal-input"
-                placeholder="------------------------"
+                placeholder="Número obligatorio"
                 value={contratoNumero}
                 onChange={(e) => setContratoNumero(e.target.value)}
+                required
+                aria-required="true"
               />
             </div>
 
             <div className="minimal-divider" />
 
             <div className="minimal-inline-group">
+              <p className="text-muted small mb-2 w-100">Parte: <span className="text-danger">*</span> (siempre elija una opción — Proveedor o Cliente.)</p>
               <label className="minimal-radio">
                 <input
                   type="radio"
+                  name="contrato-proveedor-cliente"
                   checked={contratoProveedorCliente}
                   onChange={() => setContratoProveedorCliente(true)}
                 />
@@ -958,6 +1231,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
               <label className="minimal-radio">
                 <input
                   type="radio"
+                  name="contrato-proveedor-cliente"
                   checked={!contratoProveedorCliente}
                   onChange={() => setContratoProveedorCliente(false)}
                 />
@@ -966,14 +1240,53 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
             </div>
 
             <div className="minimal-field">
-              <label className="minimal-label">Empresa:</label>
+              <label className="minimal-label" htmlFor="contrato-empresa-texto">
+                Empresa: <span className="text-danger">*</span>
+              </label>
+              <p className="text-muted small mb-2" style={{ maxWidth: 480 }}>
+                <strong>Obligatorio.</strong> Puede escribir un nombre o elegir una existente. <strong>El texto del cuadro superior
+                prevalece</strong> sobre la lista; si deja arriba vacío, se toma el elegido en el desplegable. El valor que se
+                guarde nunca puede quedar en blanco.
+              </p>
+              <p className="text-muted small mb-2" style={{ maxWidth: 480 }}>
+                Letras, cifras, punto y guiones (-, –, —). Un solo espacio entre tramos, sin espacios al inicio. Mayúscula
+                inicial en cada tramo de letras. El N° de contrato es independiente y admite cualquier texto. Si al guardar
+                el nombre parece poco habitual (p. ej. cifras, incluso un solo punto, signos raros o sin letras), se
+                pedirá confirmación.
+              </p>
               <input
+                id="contrato-empresa-texto"
                 type="text"
                 className="minimal-input"
-                placeholder="------------------------"
+                placeholder="Escriba la empresa o deje vacío y use la lista"
                 value={contratoEmpresa}
-                onChange={(e) => setContratoEmpresa(e.target.value)}
+                onChange={(e) => setContratoEmpresa(normalizarMientrasEscribeSoloLetras(e.target.value))}
+                onBlur={() => setContratoEmpresa((v) => normalizarTextoEmpresaOSuplemento(v))}
+                autoComplete="off"
               />
+              <label className="minimal-label mt-2 mb-1" htmlFor="contrato-empresa-combo">
+                Elegir empresa existente
+              </label>
+              <AppSelect
+                id="contrato-empresa-combo"
+                variant="modal"
+                className={`minimal-select ${contratoEmpresaCombo ? 'is-selected' : ''}`}
+                value={contratoEmpresaCombo}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setContratoEmpresaCombo(v ? normalizarTextoEmpresaOSuplemento(v) : '');
+                }}
+              >
+                <option value="">— Ninguna (solo texto de arriba) —</option>
+                {empresasDesdeContratos.map((e) => (
+                  <option key={e} value={e}>
+                    {e}
+                  </option>
+                ))}
+              </AppSelect>
+              <p className="text-muted small mt-1 mb-0">
+                Valor que se guardará: <strong>{empresaEfectivaModal || '—'}</strong>
+              </p>
             </div>
 
             <div className="minimal-field">
@@ -990,23 +1303,25 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                   type="button"
                   className="btn btn-sm btn-outline-secondary"
                   onClick={() => inputIconoEmpresaRef.current?.click()}
+                  disabled={!puedeEscribir}
                 >
                   Elegir archivo
                 </button>
-                {!getIconoEmpresa(contratoEmpresa) && nombreArchivoIcono && (
+                {!getIconoEmpresa(empresaEfectivaModal) && nombreArchivoIcono && (
                   <small className="text-muted text-truncate">{nombreArchivoIcono}</small>
                 )}
               </div>
               <small className="text-muted d-block mt-1">
                 Selecciona una imagen (max 1 MB).
               </small>
-              {getIconoEmpresa(contratoEmpresa) && (
+              {getIconoEmpresa(empresaEfectivaModal) && (
                 <div className="d-flex align-items-center gap-2 mt-2">
-                  <img src={getIconoEmpresa(contratoEmpresa)} alt="" className="contrato-empresa-icon-preview" />
+                  <img src={getIconoEmpresa(empresaEfectivaModal)} alt="" className="contrato-empresa-icon-preview" />
                   <button
                     type="button"
                     className="btn btn-sm btn-outline-danger"
-                    onClick={() => eliminarIconoEmpresa(contratoEmpresa)}
+                    onClick={() => eliminarIconoEmpresa(empresaEfectivaModal)}
+                    disabled={!puedeEscribir}
                   >
                     Quitar icono
                   </button>
@@ -1028,6 +1343,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                   type="button"
                   className="btn btn-sm btn-outline-secondary"
                   onClick={() => inputPdfContratoRef.current?.click()}
+                  disabled={!puedeEscribir}
                 >
                   {getPdfContrato(contratoNumero) ? 'Cambiar PDF' : 'Agregar PDF'}
                 </button>
@@ -1051,6 +1367,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                     type="button"
                     className="btn btn-sm btn-outline-danger"
                     onClick={() => eliminarPdfContrato(contratoNumero)}
+                    disabled={!puedeEscribir}
                   >
                     Quitar PDF
                   </button>
@@ -1060,26 +1377,77 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
             </div>
 
             <div className="minimal-field">
-              <label className="minimal-label">Suplementos:</label>
+              <label className="minimal-label" htmlFor="contrato-suplementos-texto">
+                Suplementos:
+              </label>
+              <p className="text-muted small mb-2" style={{ maxWidth: 480 }}>
+                Misma regla: <strong>el texto de arriba manda</strong> sobre el desplegable; si el texto está vacío, se aplica
+                la opción elegida.
+              </p>
+              <p className="text-muted small mb-2" style={{ maxWidth: 480 }}>
+                Mismas reglas que empresa. Al guardar, si el texto no parece un nombre “puro” (p. ej. cifras, incluso un solo punto, signos raros), se pedirá confirmación.
+              </p>
               <input
+                id="contrato-suplementos-texto"
                 type="text"
                 className="minimal-input"
-                placeholder="------------------------"
+                placeholder="Escriba suplemento(s) o deje vacío y use la lista"
                 value={contratoSuplementos}
-                onChange={(e) => setContratoSuplementos(e.target.value)}
+                onChange={(e) => setContratoSuplementos(normalizarMientrasEscribeSoloLetras(e.target.value))}
+                onBlur={() => setContratoSuplementos((v) => normalizarTextoEmpresaOSuplemento(v))}
+                autoComplete="off"
               />
+              <label className="minimal-label mt-2 mb-1" htmlFor="contrato-suplementos-combo">
+                Elegir suplemento existente
+              </label>
+              <AppSelect
+                id="contrato-suplementos-combo"
+                variant="modal"
+                className={`minimal-select ${contratoSuplementosCombo ? 'is-selected' : ''}`}
+                value={contratoSuplementosCombo}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setContratoSuplementosCombo(v ? normalizarTextoEmpresaOSuplemento(v) : '');
+                }}
+              >
+                <option value="">— Ninguno (solo texto de arriba) —</option>
+                {suplementosDesdeContratos.map((s) => (
+                  <option key={s} value={s}>
+                    {s.length > 120 ? `${s.slice(0, 117)}…` : s}
+                  </option>
+                ))}
+              </AppSelect>
+              <p className="text-muted small mt-1 mb-0 text-break">
+                Valor que se guardará: <strong>{suplementosEfectivoModal || '—'}</strong>
+              </p>
             </div>
 
             <div className="minimal-field">
-              <label className="minimal-label">Vigencia:</label>
+              <label className="minimal-label" htmlFor="contrato-vigencia">
+                Vigencia:
+              </label>
               <input
+                id="contrato-vigencia"
                 type="number"
                 step="0.01"
-                className="minimal-input"
+                className={`minimal-input${mensajeErrorVigencia ? ' border border-danger' : ''}`}
                 placeholder="--- años ---"
                 value={contratoVigencia}
                 onChange={(e) => setContratoVigencia(e.target.value)}
+                aria-invalid={mensajeErrorVigencia ? 'true' : 'false'}
+                aria-describedby={
+                  mensajeErrorVigencia ? 'contrato-vigencia-ayuda contrato-vigencia-error' : 'contrato-vigencia-ayuda'
+                }
               />
+              <p id="contrato-vigencia-ayuda" className="text-muted small mb-1 mt-1">
+                Obligatorio. Duración en años (puede usar decimales, p. ej. 0,5). Debe ser estrictamente mayor que cero; no
+                se admite 0 ni valores negativos.
+              </p>
+              {mensajeErrorVigencia && (
+                <p id="contrato-vigencia-error" className="text-danger small mb-0" role="alert">
+                  {mensajeErrorVigencia}
+                </p>
+              )}
             </div>
 
             <div className="minimal-field">
@@ -1099,12 +1467,17 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
             </div>
 
             <div className="minimal-field">
-              <label className="minimal-label">Fecha de inicio:</label>
+              <label className="minimal-label">Fecha de inicio: <span className="text-danger">*</span></label>
+              <p className="text-muted small mb-2">
+                Si deja el campo vacío, al <strong>guardar</strong> se usará la fecha de hoy. Además, en <strong>Agregar
+                contrato</strong> se rellena por defecto con la fecha de hoy para su comodidad.
+              </p>
               <input
                 type="date"
                 className="minimal-input"
                 value={contratoFechaInicio}
                 onChange={(e) => setContratoFechaInicio(e.target.value)}
+                aria-label="Fecha de inicio del contrato; vacía equivale a hoy al guardar"
               />
             </div>
           </div>
@@ -1165,6 +1538,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                               type="button"
                               className="btn btn-sm btn-contrato-renovar-text"
                               onClick={() => renovarContrato(c)}
+                              disabled={!puedeEscribir}
                             >
                               Renovar
                             </button>
@@ -1328,6 +1702,7 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                           type="button"
                           className="btn btn-sm btn-contrato-renovar-text"
                           onClick={() => renovarContrato(c)}
+                          disabled={!puedeEscribir}
                         >
                           Renovar
                         </button>
@@ -1399,7 +1774,12 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                         <button
                           type="button"
                           className="btn btn-sm renov-kpi-btn-todos flex-shrink-0"
-                          onClick={() => { setSearchTerm(''); setRenovFechaDesde(''); setRenovFechaHasta(''); }}
+                          onClick={() => {
+                            setSearchTerm('');
+                            setRenovFechaDesde('');
+                            setRenovFechaHasta('');
+                            setActiveSection('contratos');
+                          }}
                         >
                           Ver todos
                         </button>
@@ -1423,7 +1803,12 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                         <button
                           type="button"
                           className="btn btn-sm renov-kpi-btn-todos flex-shrink-0"
-                          onClick={() => setActiveSection('vencimientos')}
+                          onClick={() => {
+                            setSearchTerm('');
+                            setRenovFechaDesde('');
+                            setRenovFechaHasta('');
+                            setActiveSection('contratos');
+                          }}
                         >
                           Ver todos
                         </button>
@@ -1477,21 +1862,32 @@ function GestionContratos({ vistaInicial = 'contratos' }) {
                                 <td>
                                   <span className={`renov-badge renov-badge--${estado.mod}`}>{estado.label}</span>
                                 </td>
-                                <td>
+                                <td className="renov-cola-td-accion position-relative">
                                   <div className="d-flex flex-column gap-1 renov-actions">
                                     <div className="d-flex align-items-stretch gap-1 renov-actions__row-renovar">
                                       <button
                                         type="button"
                                         className="btn btn-sm btn-primary flex-grow-1 d-inline-flex align-items-center justify-content-center"
-                                        onClick={() => renovarContrato(c)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          intentarRenovarDesdeCola(c);
+                                        }}
+                                        title={!puedeEscribir ? 'Solo consulta' : 'Abrir asistente de renovación'}
+                                        aria-label={`Renovar contrato ${c.numero_contrato}`}
+                                        style={!puedeEscribir ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
                                       >
                                         Renovar
                                       </button>
                                       <button
                                         type="button"
                                         className="btn btn-sm renov-actions__eye"
-                                        onClick={() => verDetalleContrato(c)}
-                                        title="Ver detalles"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          verDetalleContrato(c);
+                                        }}
+                                        title="Ver datos del contrato"
                                         aria-label={`Ver detalles del contrato ${c.numero_contrato}`}
                                       >
                                         <i className="bi bi-eye-fill" aria-hidden="true" />

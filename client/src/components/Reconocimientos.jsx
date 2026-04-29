@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
@@ -6,8 +6,13 @@ import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
 import AppSelect from './AppSelect';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
+import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
 const Reconocimientos = () => {
+  const puedeEscribir = usePuedeEscribir();
   const [registros, setRegistros] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [carnet, setCarnet] = useState('');
@@ -22,7 +27,7 @@ const Reconocimientos = () => {
   const [showReconocimientoModal, setShowReconocimientoModal] = useState(false);
 
   const getRegistros = () => {
-    Axios.get('http://localhost:3001/reconocimientos-empleado')
+    Axios.get('/reconocimientos-empleado')
       .then((res) => setRegistros(res.data))
       .catch((err) => {
         console.error(err);
@@ -31,7 +36,7 @@ const Reconocimientos = () => {
   };
 
   const getEmpleados = () => {
-    Axios.get('http://localhost:3001/empleados')
+    Axios.get('/empleados')
       .then((res) => {
         const ordenados = [...res.data].sort((a, b) =>
           `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es')
@@ -74,7 +79,7 @@ const Reconocimientos = () => {
       activo: activo ? 1 : 0,
     };
     if (editando) {
-      Axios.put(`http://localhost:3001/update-reconocimiento-empleado/${idOriginal}`, data)
+      Axios.put(`/update-reconocimiento-empleado/${idOriginal}`, data)
         .then(() => {
           Swal.fire('Listo', 'Reconocimiento actualizado', 'success');
           getRegistros();
@@ -83,7 +88,7 @@ const Reconocimientos = () => {
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     } else {
-      Axios.post('http://localhost:3001/create-reconocimiento-empleado', data)
+      Axios.post('/create-reconocimiento-empleado', data)
         .then(() => {
           Swal.fire('Listo', 'Reconocimiento registrado', 'success');
           getRegistros();
@@ -116,7 +121,7 @@ const Reconocimientos = () => {
       confirmButtonText: 'Sí, eliminar',
     }).then((res) => {
       if (res.isConfirmed) {
-        Axios.delete(`http://localhost:3001/delete-reconocimiento-empleado/${r.id_reconocimiento}`)
+        Axios.delete(`/delete-reconocimiento-empleado/${r.id_reconocimiento}`)
           .then(() => {
             Swal.fire('Eliminado', '', 'success');
             getRegistros();
@@ -126,15 +131,53 @@ const Reconocimientos = () => {
     });
   };
 
+  const reconocimientosExportAepg = useMemo(() => {
+    const headers = [
+      'ID',
+      'Fecha otorgamiento',
+      'Empleado',
+      'Carnet',
+      'Tipo',
+      'Descripción',
+      'Valor estímulo',
+      'Observaciones',
+      'Activo',
+    ];
+    const dataRows = registros.map((r) => [
+      r.id_reconocimiento,
+      r.fecha_otorgamiento != null && r.fecha_otorgamiento !== '' ? String(r.fecha_otorgamiento) : '—',
+      `${r.nombre || ''} ${r.apellidos || ''}`.trim() || '—',
+      r.carnet_identidad != null ? String(r.carnet_identidad) : '—',
+      r.tipo_reconocimiento != null ? String(r.tipo_reconocimiento) : '—',
+      r.descripcion != null ? String(r.descripcion) : '—',
+      r.valor_estimulo != null && r.valor_estimulo !== '' ? String(r.valor_estimulo) : '—',
+      r.observaciones != null && r.observaciones !== '' ? String(r.observaciones) : '—',
+      r.activo == 1 ? 'Sí' : 'No',
+    ]);
+    return { headers, dataRows };
+  }, [registros]);
+
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <ModuleTitleBar
         title="Reconocimientos"
         actions={
-          <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowReconocimientoModal(true); }}>
+          <>
+            <ExportacionAepgGrupo
+              tituloSistema={AEPG_TITULO_RRHH}
+              subtitulo="Reporte: reconocimientos y estímulos."
+              descripcion="Todos los registros con descripción y observaciones completas."
+              nombreBaseArchivo={`AEPG_reconocimientos_${new Date().toISOString().slice(0, 10)}`}
+              sheetName="Reconocimientos"
+              headers={reconocimientosExportAepg.headers}
+              dataRows={reconocimientosExportAepg.dataRows}
+              disabled={!registros.length}
+            />
+          <button type="button" className="btn btn-primary btn-form-nowrap" disabled={!puedeEscribir} onClick={() => { limpiarForm(); setShowReconocimientoModal(true); }}>
             <i className="bi bi-award me-2" aria-hidden="true" />
             Registrar reconocimiento
           </button>
+          </>
         }
       />
 
@@ -145,11 +188,12 @@ const Reconocimientos = () => {
         subtitle=""
         onPrimary={() => handleSubmit({ preventDefault: () => {} })}
         primaryLabel={editando ? 'Actualizar' : 'Guardar'}
+        primaryDisabled={!puedeEscribir}
       >
         <div className="minimal-form-stack">
           <div className="minimal-field">
             <label className="minimal-label">Empleado:</label>
-            <AppSelect className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
+            <AppSelect className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)} disabled={editando}>
               <option value="" disabled hidden>--- Seleccione ---</option>
               {empleados.map((emp) => (
                 <option key={emp.carnet_identidad} value={emp.carnet_identidad}>{emp.carnet_identidad} — {emp.nombre} {emp.apellidos}</option>
@@ -157,7 +201,7 @@ const Reconocimientos = () => {
             </AppSelect>
           </div>
           <div className="minimal-field"><label className="minimal-label">Tipo:</label><input type="text" className="minimal-input" placeholder="------------------------" value={tipo} onChange={(e) => setTipo(e.target.value)} /></div>
-          <div className="minimal-field"><label className="minimal-label">Fecha otorgamiento:</label><input type="date" className="minimal-input" value={fechaOtorgamiento} onChange={(e) => setFechaOtorgamiento(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Fecha otorgamiento:</label><input type="date" className="minimal-input" value={fechaOtorgamiento} onChange={(e) => setFechaOtorgamiento(e.target.value)} disabled={editando} /></div>
           <div className="minimal-field"><label className="minimal-label">Valor estímulo:</label><input type="number" step="0.01" min={0} className="minimal-input" placeholder="------------------------" value={valorEstimulo} onChange={(e) => setValorEstimulo(e.target.value)} /></div>
           <div className="minimal-field"><label className="minimal-label">Descripción:</label><input type="text" className="minimal-input" placeholder="------------------------" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} /></div>
           <div className="minimal-field"><label className="minimal-label">Observaciones:</label><input type="text" className="minimal-input" placeholder="------------------------" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} /></div>
@@ -200,13 +244,9 @@ const Reconocimientos = () => {
                     <td style={{ maxWidth: 260, whiteSpace: 'pre-wrap' }}>{r.descripcion}</td>
                     <td>{r.valor_estimulo != null ? r.valor_estimulo : '—'}</td>
                     <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
-                    <td>
-                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarRegistro(r)}>
-                        Editar
-                      </button>
-                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarRegistro(r)}>
-                        Eliminar
-                      </button>
+                    <td className="text-center">
+                      <EditTableActionButton onClick={() => editarRegistro(r)} className="me-1" />
+                      <DeleteTableActionButton onClick={() => eliminarRegistro(r)} />
                     </td>
                   </tr>
                 ))

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Axios from 'axios';
+import Swal from 'sweetalert2';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import { Nav, Navbar, NavDropdown } from 'react-bootstrap';
@@ -35,9 +36,21 @@ import CambiosCargo from './components/CambiosCargo';
 import ReporteConsolidado from './components/ReporteConsolidado';
 import ProduccionHistorico from './components/ProduccionHistorico';
 import GestionUsuarios from './components/GestionUsuarios';
+import { PuedeEscribirProvider } from './context/PuedeEscribirContext';
+import RrhhModuloHerramientas6Modal from './components/RrhhModuloHerramientas6Modal';
 import logoAepg from './images/logo-aepg.png';
 
 const TOKEN_KEY = 'token';
+
+/** Vista inicial al entrar o al cambiar de rol */
+function getDefaultKeyForRol(rol) {
+  if (rol === 'admin') return 'usuarios';
+  if (rol === 'contratacion') return 'contratos-resumen';
+  if (rol === 'rrhh') return 'empleados';
+  if (rol === 'estadistica' || rol === 'produccion') return 'sacrificio';
+  if (rol === 'director') return 'produccion-historico';
+  return '';
+}
 
 const SIDEBAR_RRHH_KEYS = new Set([
   'empleados',
@@ -94,10 +107,10 @@ function App() {
   const [token, setToken] = useState(tokenInicial);
 
   const [key, setKey] = useState('');
-  const [sidebarRrhhOpen, setSidebarRrhhOpen] = useState(false);
-  const [sidebarProdOpen, setSidebarProdOpen] = useState(false);
-  const [sidebarContratosOpen, setSidebarContratosOpen] = useState(false);
+  /** A la vez solo un submenú lateral abierto: 'rrhh' | 'contratos' | 'prod' | null */
+  const [sidebarMenuOpen, setSidebarMenuOpen] = useState(null);
   const [now, setNow] = useState(new Date());
+  const [rrhhAnaliticaOpen, setRrhhAnaliticaOpen] = useState(false);
 
   const moduloLabel = {
     usuarios: 'Gestión de usuarios',
@@ -138,41 +151,27 @@ function App() {
   };
 
   const handleSidebarRrhhToggle = (nextOpen) => {
-    setSidebarRrhhOpen(nextOpen);
-    if (nextOpen) setSidebarProdOpen(false);
+    setSidebarMenuOpen(nextOpen ? 'rrhh' : null);
   };
 
   const handleSidebarProdToggle = (nextOpen) => {
-    setSidebarProdOpen(nextOpen);
-    if (nextOpen) setSidebarRrhhOpen(false);
+    setSidebarMenuOpen(nextOpen ? 'prod' : null);
   };
 
   const handleSidebarContratosToggle = (nextOpen) => {
-    setSidebarContratosOpen(nextOpen);
-    if (nextOpen) {
-      setSidebarRrhhOpen(false);
-      setSidebarProdOpen(false);
-    }
+    setSidebarMenuOpen(nextOpen ? 'contratos' : null);
   };
 
   const handleNavSelect = (selectedKey) => {
     setKey(selectedKey);
     if (selectedKey === 'usuarios' || selectedKey === 'contratos') {
-      setSidebarRrhhOpen(false);
-      setSidebarProdOpen(false);
-      setSidebarContratosOpen(false);
+      setSidebarMenuOpen(null);
     } else if (SIDEBAR_RRHH_KEYS.has(selectedKey)) {
-      setSidebarRrhhOpen(true);
-      setSidebarProdOpen(false);
-      setSidebarContratosOpen(false);
+      setSidebarMenuOpen('rrhh');
     } else if (SIDEBAR_CONTRATOS_KEYS.has(selectedKey)) {
-      setSidebarContratosOpen(true);
-      setSidebarRrhhOpen(false);
-      setSidebarProdOpen(false);
+      setSidebarMenuOpen('contratos');
     } else if (SIDEBAR_PROD_KEYS.has(selectedKey)) {
-      setSidebarProdOpen(true);
-      setSidebarRrhhOpen(false);
-      setSidebarContratosOpen(false);
+      setSidebarMenuOpen('prod');
     }
   };
 
@@ -191,15 +190,31 @@ function App() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    if (!user?.rol) return;
+    const k = getDefaultKeyForRol(user.rol);
+    setKey(k);
+    if (SIDEBAR_RRHH_KEYS.has(k)) setSidebarMenuOpen('rrhh');
+    else if (SIDEBAR_CONTRATOS_KEYS.has(k)) setSidebarMenuOpen('contratos');
+    else if (SIDEBAR_PROD_KEYS.has(k)) setSidebarMenuOpen('prod');
+    else setSidebarMenuOpen(null);
+  }, [user?.rol, user?.email]);
+
   const login = async (email, password) => {
     try {
-      const response = await Axios.post('http://localhost:3001/login', { email, password });
+      const response = await Axios.post('/login', { email, password });
       const { token: newToken, usuario } = response.data;
       localStorage.setItem(TOKEN_KEY, newToken);
       localStorage.setItem('user', JSON.stringify(usuario));
       setAuthToken(newToken);
       setToken(newToken);
       setUser(usuario);
+      const k = getDefaultKeyForRol(usuario.rol);
+      setKey(k);
+      if (SIDEBAR_RRHH_KEYS.has(k)) setSidebarMenuOpen('rrhh');
+      else if (SIDEBAR_CONTRATOS_KEYS.has(k)) setSidebarMenuOpen('contratos');
+      else if (SIDEBAR_PROD_KEYS.has(k)) setSidebarMenuOpen('prod');
+      else setSidebarMenuOpen(null);
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message || 'Error al conectar' };
@@ -212,35 +227,49 @@ function App() {
     setAuthToken(null);
     setToken(null);
     setUser(null);
+    setKey('');
+    setSidebarMenuOpen(null);
   };
 
-  const mostrarSacrificio = user?.rol === 'admin' || user?.rol === 'produccion';
-  const mostrarMatadero = user?.rol === 'admin' || user?.rol === 'produccion';
-  const mostrarLeche = user?.rol === 'admin' || user?.rol === 'produccion';
-  const mostrarAsistencias = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarCertificaciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarCursos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarEvalcapacitacion = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarEvaluaciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarObjetivos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarContratos = user?.rol === 'admin' || user?.rol === 'contratacion';
-  const mostrarEmpleados = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarUsuarios = user?.rol === 'admin';
-  const mostrarRHum = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarProduccion = user?.rol === 'admin' || user?.rol === 'produccion';
-  const mostrarSalarios = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarVacaciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarTurnosTrabajo = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarGruposTrabajo = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarSanciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarReconocimientos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarJubilaciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarSegSeguridad = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarSeguridad = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarCargos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarDepartamentos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarCertMedicos = user?.rol === 'admin' || user?.rol === 'rrhh' || user?.rol === 'produccion';
-  const mostrarEvalMedicas = user?.rol === 'admin' || user?.rol === 'rrhh' || user?.rol === 'produccion';
+  const rol = user?.rol;
+  const esEstadistica = rol === 'estadistica' || rol === 'produccion';
+  const mostrarUsuarios = rol === 'admin';
+  const mostrarContratos = rol === 'contratacion' || rol === 'director';
+  const mostrarRHum = rol === 'rrhh' || rol === 'director';
+  const mostrarProduccion = esEstadistica || rol === 'director';
+  const mostrarEmpleados = mostrarRHum;
+  const mostrarAsistencias = mostrarRHum;
+  const mostrarCertificaciones = mostrarRHum;
+  const mostrarCursos = mostrarRHum;
+  const mostrarEvalcapacitacion = mostrarRHum;
+  const mostrarEvaluaciones = mostrarRHum;
+  const mostrarObjetivos = mostrarRHum;
+  const mostrarSalarios = mostrarRHum;
+  const mostrarVacaciones = mostrarRHum;
+  const mostrarTurnosTrabajo = mostrarRHum;
+  const mostrarGruposTrabajo = mostrarRHum;
+  const mostrarSanciones = mostrarRHum;
+  const mostrarReconocimientos = mostrarRHum;
+  const mostrarJubilaciones = mostrarRHum;
+  const mostrarSegSeguridad = mostrarRHum;
+  const mostrarSeguridad = mostrarRHum;
+  const mostrarCargos = mostrarRHum;
+  const mostrarDepartamentos = mostrarRHum;
+  const mostrarCertMedicos = rol === 'rrhh' || esEstadistica || rol === 'director';
+  const mostrarEvalMedicas = mostrarCertMedicos;
+  const mostrarSacrificio = mostrarProduccion;
+  const mostrarMatadero = mostrarProduccion;
+  const mostrarLeche = mostrarProduccion;
+  const esDirectorLectura = rol === 'director';
+
+  const rolEtiqueta = (r) => {
+    if (r === 'estadistica' || r === 'produccion') return 'Estadística';
+    if (r === 'admin') return 'Administrador';
+    if (r === 'director') return 'Director (consulta)';
+    if (r === 'contratacion') return 'Contratación';
+    if (r === 'rrhh') return 'Rec. humanos';
+    return r || '';
+  };
 
   if (loading) {
     return (
@@ -255,6 +284,7 @@ function App() {
   }
 
   return (
+    <PuedeEscribirProvider puedeEscribir={user?.rol !== 'director'}>
     <div className="dashboard-shell d-flex vh-100" style={{ overflow: 'hidden' }}>
       <div className="dashboard-sidebar vh-100 p-4 d-flex flex-column shadow-lg" style={{ width: '280px', minWidth: '280px' }}>
         <div className="text-white mb-2 pb-4 border-bottom dashboard-sidebar-divider">
@@ -284,7 +314,7 @@ function App() {
               id="sidebar-dropdown-contratos"
               className="mi-dropdown-sidebar"
               autoClose={false}
-              show={sidebarContratosOpen}
+              show={sidebarMenuOpen === 'contratos'}
               onToggle={handleSidebarContratosToggle}
             >
               <NavDropdown.Item eventKey="contratos-resumen" active={key === 'contratos-resumen'}>
@@ -315,7 +345,7 @@ function App() {
               id="sidebar-dropdown-rrhh"
               className="mi-dropdown-sidebar"
               autoClose={false}
-              show={sidebarRrhhOpen}
+              show={sidebarMenuOpen === 'rrhh'}
               onToggle={handleSidebarRrhhToggle}
             >
               {mostrarEmpleados && (
@@ -445,13 +475,13 @@ function App() {
             <NavDropdown
               title={
                 <span className="d-inline-flex align-items-center">
-                  <i className="bi bi-box-seam me-2" aria-hidden="true"></i>Producción
+                  <i className="bi bi-box-seam me-2" aria-hidden="true"></i>Estadística
                 </span>
               }
               id="sidebar-dropdown-prod"
               className="mi-dropdown-sidebar"
               autoClose={false}
-              show={sidebarProdOpen}
+              show={sidebarMenuOpen === 'prod'}
               onToggle={handleSidebarProdToggle}
             >
               {mostrarSacrificio && (
@@ -487,7 +517,7 @@ function App() {
             <div className="dashboard-topbar-avatar-wrap">
               <div className="dashboard-topbar-user-meta">
                 <span className="dashboard-topbar-user-name">{user.nombre}</span>
-                <span className="dashboard-topbar-user-role">{user.rol}</span>
+                <span className="dashboard-topbar-user-role">{rolEtiqueta(user.rol)}</span>
               </div>
               <img src="/images/usuario.png" alt="" width="52" height="52" className="dashboard-user-avatar" />
             </div>
@@ -499,15 +529,21 @@ function App() {
           </Navbar.Collapse>
         </Navbar>
 
+        {esDirectorLectura ? (
+          <div className="alert alert-info py-2 px-4 mb-0 rounded-0 border-0 small" role="status">
+            Modo solo consulta: podés revisar la información; no podés crear, editar ni eliminar registros.
+          </div>
+        ) : null}
+
         <div className="dashboard-main-scroll">
           <div className="dashboard-content-layout">
           <div className="dashboard-content-main">
-            {(key === 'contratos' || key === 'contratos-lista') && <GestionContratos vistaInicial="contratos" />}
-            {key === 'contratos-resumen' && <GestionContratos vistaInicial="resumen" />}
-            {key === 'contratos-vencimientos' && <GestionContratos vistaInicial="vencimientos" />}
-            {key === 'contratos-renovaciones' && <GestionContratos vistaInicial="renovaciones" />}
-            {key === 'contratos-reportes' && <GestionContratos vistaInicial="reportes" />}
-            {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios />}
+            {(key === 'contratos' || key === 'contratos-lista') && <GestionContratos vistaInicial="contratos" user={user} />}
+            {key === 'contratos-resumen' && <GestionContratos vistaInicial="resumen" user={user} />}
+            {key === 'contratos-vencimientos' && <GestionContratos vistaInicial="vencimientos" user={user} />}
+            {key === 'contratos-renovaciones' && <GestionContratos vistaInicial="renovaciones" user={user} />}
+            {key === 'contratos-reportes' && <GestionContratos vistaInicial="reportes" user={user} />}
+            {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
             {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
             {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
             {key === 'leche' && mostrarLeche && <Leche />}
@@ -566,8 +602,28 @@ function App() {
           </aside>
           </div>
         </div>
+        {mostrarRHum && key && SIDEBAR_RRHH_KEYS.has(key) && (
+          <>
+            <button
+              type="button"
+              className="btn btn-primary shadow rrhh-analitica-fab"
+              onClick={() => setRrhhAnaliticaOpen(true)}
+              title="6 herramientas de análisis del módulo actual (RR.HH.)"
+              aria-label="Abrir 6 herramientas específicas del módulo de recursos humanos"
+            >
+              <i className="bi bi-bar-chart-line-fill" aria-hidden="true" />
+            </button>
+            <RrhhModuloHerramientas6Modal
+              show={rrhhAnaliticaOpen}
+              onHide={() => setRrhhAnaliticaOpen(false)}
+              moduleKey={key}
+              moduleLabel={moduloLabel[key] || key}
+            />
+          </>
+        )}
       </div>
     </div>
+    </PuedeEscribirProvider>
   );
 }
 

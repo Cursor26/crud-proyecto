@@ -1,8 +1,10 @@
+require('dotenv').config();
 
-const express = require ("express");
+const express = require('express');
+const rateLimit = require('express-rate-limit');
 const app = express();
-const mysql = require("mysql");
-const cors = require("cors");
+const mysql = require('mysql');
+const cors = require('cors');
 
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -20,52 +22,59 @@ app.use((req, res, next) => {
 
 app.use(cookieParser());
 
-const db = mysql.createConnection({
-host:"localhost",
-user:"root",
-password:"",
-database:"bd_crud"
+const { validarSacrificio, validarMatadero, validarLeche } = require('./validateProduccion');
 
+const db = mysql.createConnection({
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD !== undefined && process.env.DB_PASSWORD !== null ? String(process.env.DB_PASSWORD) : '',
+  database: process.env.DB_NAME || 'bd_crud',
 });
 
-//Usuarios y seguridad
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || String(JWT_SECRET).length < 16) {
+  throw new Error('Definí JWT_SECRET en el archivo .env (mínimo 16 caracteres). Copiá .env.example a .env en la carpeta server/.');
+}
 
-
-
-// Clave secreta para JWT (en producción, ponla en .env)
-const JWT_SECRET = 'hgnfdignrejvmklehvmlSDJVHFDVDJMOdsjvmvjmnjsbmgiSDHUNVJDFVDNVBMJF84135165132164HDND8448340I/*/*/-*/**+';
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Demasiados intentos. Probá de nuevo en unos minutos.' },
+});
 
 // ==================== MIDDLEWARES ====================
 
 // Middleware para verificar token JWT
 const verificarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
+  const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'Acceso denegado. Token no proporcionado' });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ message: 'Token inválido o expirado' });
-    req.user = user; // guardamos los datos del usuario (email, nombre, rol)
+    req.user = user;
     next();
   });
 };
 
-// Middleware para autorizar según roles (recibe un array de roles permitidos)
-const autorizarRol = (rolesPermitidos) => {
-  return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ message: 'No autenticado' });
-    if (rolesPermitidos.includes(req.user.rol)) {
-      next();
-    } else {
-      res.status(403).json({ message: 'No tienes permiso para acceder a este recurso' });
-    }
-  };
+// Rol lógico: en BD aún puede existir "produccion"; se trata como "estadistica" para permisos.
+const rolEfectivo = (rol) => (rol === 'produccion' ? 'estadistica' : rol);
+
+const autorizarRol = (rolesPermitidos) => (req, res, next) => {
+  if (!req.user) return res.status(401).json({ message: 'No autenticado' });
+  const r0 = String(req.user.rol || '');
+  const r1 = rolEfectivo(r0);
+  if (rolesPermitidos.includes(r0) || rolesPermitidos.includes(r1)) return next();
+  if (r0 === 'produccion' && rolesPermitidos.includes('estadistica')) return next();
+  return res.status(403).json({ message: 'No tienes permiso para acceder a este recurso' });
 };
 
 // ==================== RUTAS DE AUTENTICACIÓN ====================
 
-// LOGIN (público)
-app.post('/login', async (req, res) => {
+// LOGIN (público) — límite de tasa
+app.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     db.query('SELECT * FROM usuarios WHERE email = ?', [email], async (err, results) => {
@@ -100,6 +109,43 @@ app.post('/login', async (req, res) => {
 
 // ==================== RUTAS PARA GESTIÓN DE USUARIOS (SOLO ADMIN) ====================
 
+const EMAIL_USUARIO_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+
+function validarEmailGestion(s) {
+  const t = String(s || "").trim();
+  if (!t) return { ok: false, message: "El email es obligatorio y no puede ser solo espacios o tabulaciones." };
+  if (!EMAIL_USUARIO_RE.test(t)) {
+    return { ok: false, message: "El email no tiene un formato válido (use algo como correo@empresa.cu)." };
+  }
+  return { ok: true, email: t.toLowerCase() };
+}
+
+function validarPasswordGestion(pwd, obligatoria) {
+  const t = String(pwd == null ? "" : pwd).trim();
+  if (!obligatoria && t.length === 0) {
+    return { ok: true, omit: true };
+  }
+  if (t.length < 8) {
+    return {
+      ok: false,
+      message:
+        "La contraseña debe tener al menos 8 caracteres. No se admite un valor vacío ni solo espacios (se recortan al inicio y al final al guardar).",
+    };
+  }
+  return { ok: true, password: t };
+}
+
+/** Cuenta de desbloqueo del sistema: solo puede editarla ella misma; no se elimina nunca. */
+const EMAIL_USUARIO_ADMIN_PERMANENTE = 'admin@admin.com';
+
+function emailGestionNormalizado(s) {
+  return String(s || '').trim().toLowerCase();
+}
+
+function esCuentaAdminPermanente(email) {
+  return emailGestionNormalizado(email) === EMAIL_USUARIO_ADMIN_PERMANENTE;
+}
+
 // Obtener todos los usuarios (sin contraseñas)
 app.get("/usuarios", verificarToken, autorizarRol(['admin']), (req, res) => {
   // No incluir created_at: muchas instalaciones no tienen esa columna y el SELECT falla (tabla vacía en el cliente).
@@ -112,11 +158,23 @@ app.get("/usuarios", verificarToken, autorizarRol(['admin']), (req, res) => {
 // Crear usuario (solo admin)
 app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req, res) => {
   const { email, nombre, password, rol } = req.body;
+  const vEmail = validarEmailGestion(email);
+  if (!vEmail.ok) return res.status(400).json({ message: vEmail.message });
+  if (!String(nombre || "").trim()) {
+    return res.status(400).json({
+      message: "El nombre es obligatorio y no puede quedar vacío ni ser solo espacios, tabulaciones u otros blancos.",
+    });
+  }
+  if (!String(rol || "").trim()) {
+    return res.status(400).json({ message: "Debe elegir un rol. No basta con enviar un valor de solo blancos." });
+  }
+  const vPass = validarPasswordGestion(password, true);
+  if (!vPass.ok) return res.status(400).json({ message: vPass.message });
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(vPass.password, 10);
     db.query(
       'INSERT INTO usuarios (email, nombre, password, rol) VALUES (?, ?, ?, ?)',
-      [email, nombre, hashedPassword, rol],
+      [vEmail.email, String(nombre).trim(), hashedPassword, String(rol).trim()],
       (err, result) => {
         if (err) {
           if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: 'El email ya existe' });
@@ -135,18 +193,82 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
 // Actualizar usuario (solo admin). La contraseña es opcional.
 app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async (req, res) => {
   const emailAnterior = String(req.params.email || '').trim();
-  const nuevoEmail = String(req.body.email || '').trim().toLowerCase();
   const { nombre, password, rol } = req.body;
+  const vEmail = validarEmailGestion(req.body.email);
+  if (!vEmail.ok) return res.status(400).json({ message: vEmail.message });
+  const nuevoEmail = vEmail.email;
 
-  if (!emailAnterior || !nuevoEmail || !nombre || !rol) {
-    return res.status(400).json({ message: 'Email, nombre y rol son obligatorios' });
+  const nombreTrim = String(nombre == null ? "" : nombre).trim();
+  const rolTrim = String(rol == null ? "" : rol).trim();
+  if (!emailAnterior || !nombreTrim || !rolTrim) {
+    return res.status(400).json({
+      message:
+        'El email, el nombre y el rol son obligatorios; no pueden ser vacíos, solo espacios, tabulaciones u otros blancos.',
+    });
+  }
+
+  const pwdTrim = String(password == null ? "" : password).trim();
+  const quiereCambiarPassword = pwdTrim.length > 0;
+  if (quiereCambiarPassword) {
+    const vPass = validarPasswordGestion(password, true);
+    if (!vPass.ok) return res.status(400).json({ message: vPass.message });
+  }
+
+  if (esCuentaAdminPermanente(emailAnterior)) {
+    const actor = emailGestionNormalizado(req.user && req.user.email);
+    if (actor !== EMAIL_USUARIO_ADMIN_PERMANENTE) {
+      return res.status(403).json({
+        message: 'Solo el propio administrador permanente puede modificar su cuenta.',
+      });
+    }
+    if (nuevoEmail !== EMAIL_USUARIO_ADMIN_PERMANENTE) {
+      return res.status(400).json({
+        message: 'No se puede cambiar el email de la cuenta de administrador permanente.',
+      });
+    }
+    // El titular solo puede actualizar su contraseña, no nombre ni rol.
+    return db.query(
+      'SELECT nombre, rol FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+      [emailAnterior],
+      async (err, results) => {
+        if (err) return res.status(500).json({ message: err.message || 'Error al validar el usuario' });
+        if (!results || !results[0]) {
+          return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+        const { nombre: nombreDb, rol: rolDb } = results[0];
+        if (nombreTrim !== String(nombreDb == null ? '' : nombreDb).trim() || rolTrim !== String(rolDb == null ? '' : rolDb).trim()) {
+          return res.status(400).json({
+            message:
+              'El administrador permanente solo puede modificar su contraseña, no el nombre, el email ni el rol.',
+          });
+        }
+        if (!quiereCambiarPassword) {
+          return res.json({ message: 'No hubo cambios en la contraseña. El resto de los datos de esta cuenta no se pueden modificar.' });
+        }
+        const vPass2 = validarPasswordGestion(password, true);
+        if (!vPass2.ok) return res.status(400).json({ message: vPass2.message });
+        try {
+          const hashedPassword = await bcrypt.hash(vPass2.password, 10);
+          db.query('UPDATE usuarios SET password = ? WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))', [hashedPassword, emailAnterior], (e2, result2) => {
+            if (e2) return res.status(500).json({ message: e2.message || 'Error al actualizar' });
+            if (!result2 || result2.affectedRows === 0) {
+              return res.status(404).json({ message: 'Usuario no encontrado' });
+            }
+            return res.json({ message: 'Contraseña actualizada correctamente.' });
+          });
+        } catch (e) {
+          return res.status(500).json({ message: 'Error al encriptar' });
+        }
+      }
+    );
   }
 
   let query = 'UPDATE usuarios SET email = TRIM(?), nombre = ?, rol = ?';
-  let params = [nuevoEmail, nombre, rol];
+  let params = [nuevoEmail, nombreTrim, rolTrim];
 
-  if (password) {
-    const hashedPassword = await bcrypt.hash(password, 10);
+  if (quiereCambiarPassword) {
+    const vPass = validarPasswordGestion(password, true);
+    const hashedPassword = await bcrypt.hash(vPass.password, 10);
     query += ', password = ?';
     params.push(hashedPassword);
   }
@@ -171,6 +293,9 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
 // Eliminar usuario (solo admin)
 app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (req, res) => {
   const { email } = req.params;
+  if (esCuentaAdminPermanente(email)) {
+    return res.status(403).json({ message: 'La cuenta de administrador permanente no puede eliminarse.' });
+  }
   db.query('DELETE FROM usuarios WHERE email = ?', [email], (err, result) => {
     if (err) return res.status(500).send(err);
     res.json({ message: 'Usuario eliminado' });
@@ -206,89 +331,6 @@ app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (r
 
 
 
-app.post("/create", (req, res)=>{
-    const nombre = req.body.nombre;
-    const edad = req.body.edad;
-    const pais = req.body.pais;
-    const cargo = req.body.cargo;
-    const anios = req.body.anios;
-    
-    db.query('INSERT INTO tabla1 (nombre,edad,pais,cargo,anios) VALUES(?,?,?,?,?)', [nombre, edad, pais, cargo, anios],
-        (err, result)=>{
-            if(err){
-                console.log(err);
-             }else{
-            res.send(result);
-            }
-            }
-        
-    );
-});
-
-
-
-
-
-app.put("/update", (req, res)=>{
-    const id = req.body.id;
-    const nombre = req.body.nombre;
-    const edad = req.body.edad;
-    const pais = req.body.pais;
-    const cargo = req.body.cargo;
-    const anios = req.body.anios;
-    
-    db.query('UPDATE tabla1 SET nombre=?,edad=?,pais=?,cargo=?,anios=? WHERE id=?', [nombre, edad, pais, cargo, anios,id],
-        (err, result)=>{
-            if(err){
-                console.log(err);
-             }else{
-            res.send(result);
-            }
-            }
-        
-    );
-});
-
-
-
-app.delete("/delete/:id", (req, res)=>{
-    const id = req.params.id;
-
-    
-    db.query('DELETE FROM tabla1  WHERE id=?', id,
-        (err, result)=>{
-            if(err){
-                console.log(err);
-             }else{
-            res.send(result);
-            }
-            }
-        
-    );
-});
-
-
-
-app.get("/tabla1", (req, res)=>{
-
-    
-    db.query('SELECT * FROM tabla1',
-        (err, result)=>{
-            if(err){
-                console.log(err);
-             }else{
-            res.send(result);
-            }
-            }
-        
-    );
-});
-
-
-
-
-
-
 
 
 
@@ -301,12 +343,86 @@ app.get("/tabla1", (req, res)=>{
 
 //Contratos:
 
+function mensajeVigenciaContratoInvalida(vigencia) {
+  const s = vigencia == null ? '' : String(vigencia).trim();
+  if (s === '') {
+    return 'Indique la vigencia en años (debe ser mayor que cero). No basta con dejar en blanco o con solo espacios o tabulaciones.';
+  }
+  const n = parseFloat(s.replace(',', '.'));
+  if (Number.isNaN(n)) {
+    return 'Indique un número válido para la vigencia (años).';
+  }
+  if (n <= 0) {
+    return 'La vigencia debe ser mayor que cero (años; se permiten decimales).';
+  }
+  return null;
+}
+
+function mientrasEscribeComoEmpresa(s) {
+  if (s == null) return '';
+  let t = String(s).replace(/[^\p{L}\s.0-9\u002D\u2013\u2014\u2010]/gu, '');
+  t = t.replace(/\s+/g, ' ').replace(/^\s+/, '');
+  return t.trim();
+}
+
+function normalizarEmpresaSuplemento(s) {
+  const t = mientrasEscribeComoEmpresa(s);
+  if (t === '') return '';
+  return t.replace(/\p{L}+/gu, (m) => m.charAt(0).toLocaleUpperCase('es') + m.slice(1).toLowerCase('es'));
+}
+
+function fechaYMDHoyNode() {
+  const d = new Date();
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+}
+
+/** Inicio de contrato obligatorio: si no viene o es inválido, hoy (DD-MM-AAAA local al servidor, coherente con el cliente). */
+function normalizarFechaInicioContrato(fechaInicio) {
+  const t = fechaInicio == null ? '' : String(fechaInicio).trim();
+  if (t === '' || t === 'null' || t === 'undefined') {
+    return fechaYMDHoyNode();
+  }
+  const m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10);
+    const day = parseInt(m[3], 10);
+    if (y > 0 && mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
+      return `${m[1]}-${m[2]}-${m[3]}`;
+    }
+  }
+  return fechaYMDHoyNode();
+}
+
 // ==================== RUTAS PARA CONTRATOS ====================
-app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacion']), (req, res) => {
+app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), (req, res) => {
   const { numero_contrato, proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido } = req.body;
+  const nNum = numero_contrato == null ? '' : String(numero_contrato).trim();
+  if (!nNum) {
+    return res.status(400).json({
+      message: 'El número de contrato es obligatorio. No basta con espacios, tabulaciones u otros blancos.',
+    });
+  }
+  const vErr = mensajeVigenciaContratoInvalida(vigencia);
+  if (vErr) {
+    return res.status(400).json({ message: vErr });
+  }
+  const empresaNorm = normalizarEmpresaSuplemento(empresa);
+  if (!empresaNorm) {
+    return res.status(400).json({
+      message:
+        'La empresa es obligatoria: no puede quedar vacía ni ser solo espacios/ blancos (tras normalizar). Los espacios entre letras en un nombre sí son válidos.',
+    });
+  }
+  const suplementosNorm = normalizarEmpresaSuplemento(suplementos);
+  const pc = proveedor_cliente === 1 || proveedor_cliente === true || proveedor_cliente === '1' ? 1 : 0;
+  const fIni = normalizarFechaInicioContrato(fecha_inicio);
+  if (fecha_fin == null || String(fecha_fin).trim() === '' || String(fecha_fin).trim() === 'null') {
+    return res.status(400).json({ message: 'La fecha de fin del contrato es obligatoria (se calcula a partir de inicio y vigencia).' });
+  }
   db.query(
     'INSERT INTO contratos_generales (numero_contrato, proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido) VALUES (?,?,?,?,?,?,?,?,?)',
-    [numero_contrato, proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido],
+    [nNum, pc, empresaNorm, suplementosNorm, vigencia, tipo_contrato, fIni, fecha_fin, vencido],
     (err, result) => {
       if (err) {
         console.log(err);
@@ -318,7 +434,7 @@ app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacio
   );
 });
 
-app.put("/update-contrato", (req, res) => {
+app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const {
     numero_contrato,
@@ -344,16 +460,35 @@ app.put("/update-contrato", (req, res) => {
     return res.status(400).json({ message: 'El número de contrato no puede estar vacío.' });
   }
 
+  const vErr = mensajeVigenciaContratoInvalida(vigencia);
+  if (vErr) {
+    return res.status(400).json({ message: vErr });
+  }
+
+  const empresaNorm = normalizarEmpresaSuplemento(empresa);
+  if (!empresaNorm) {
+    return res.status(400).json({
+      message:
+        'La empresa es obligatoria: no puede quedar vacía ni ser solo espacios/ blancos (tras normalizar). Los espacios entre letras en un nombre sí son válidos.',
+    });
+  }
+  const suplementosNorm = normalizarEmpresaSuplemento(suplementos);
+  const pcU = proveedor_cliente === 1 || proveedor_cliente === true || proveedor_cliente === '1' ? 1 : 0;
+  const fIniU = normalizarFechaInicioContrato(fecha_inicio);
+  if (fecha_fin == null || String(fecha_fin).trim() === '' || String(fecha_fin).trim() === 'null') {
+    return res.status(400).json({ message: 'La fecha de fin del contrato es obligatoria (se calcula a partir de inicio y vigencia).' });
+  }
+
   const sql =
     'UPDATE contratos_generales SET numero_contrato=?, proveedor_cliente=?, empresa=?, suplementos=?, vigencia=?, tipo_contrato=?, fecha_inicio=?, fecha_fin=?, vencido=? WHERE numero_contrato=?';
   const params = [
     numeroNuevo,
-    proveedor_cliente,
-    empresa,
-    suplementos,
+    pcU,
+    empresaNorm,
+    suplementosNorm,
     vigencia,
     tipo_contrato,
-    fecha_inicio,
+    fIniU,
     fecha_fin,
     vencido,
     numeroContratoWhere,
@@ -396,7 +531,7 @@ app.put("/update-contrato", (req, res) => {
   });
 });
 
-app.delete("/delete-contrato/:numero_contrato", (req, res) => {
+app.delete("/delete-contrato/:numero_contrato", verificarToken, autorizarRol(['contratacion']), (req, res) => {
   const numero = req.params.numero_contrato;
   db.query('DELETE FROM contratos_generales WHERE numero_contrato=?', [numero],
     (err, result) => {
@@ -410,15 +545,21 @@ app.delete("/delete-contrato/:numero_contrato", (req, res) => {
   );
 });
 
-app.get("/contratos", (req, res) => {
-  db.query('SELECT * FROM contratos_generales',
+app.get("/contratos", verificarToken, autorizarRol(['contratacion', 'director']), (req, res) => {
+  /* DATE_FORMAT: evita desfasar un día al serializar fechas a JSON (objeto Date → ISO UTC). */
+  db.query(
+    `SELECT numero_contrato, proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato,
+            DATE_FORMAT(fecha_inicio, '%Y-%m-%d') AS fecha_inicio,
+            DATE_FORMAT(fecha_fin, '%Y-%m-%d') AS fecha_fin,
+            vencido
+     FROM contratos_generales`,
     (err, result) => {
       if (err) {
         console.log(err);
         res.status(500).send(err);
       } else {
         const rows = Array.isArray(result) ? result : [];
-        res.json(JSON.parse(JSON.stringify(rows)));
+        res.json(rows);
       }
     }
   );
@@ -427,11 +568,54 @@ app.get("/contratos", (req, res) => {
 //Empleados: 
 
 // ==================== RUTAS PARA EMPLEADOS ====================
-app.post("/create-empleado", (req, res) => {
-  const { carnet_identidad, nombre, apellidos, puesto, telefono, departamento, evaluaciones, salario_normal, beneficios, cursos_disponibles, certificados, licencias, resultados_auditorias, acceso, seguimiento_seguridad, nivel_escolar, superacion_en_proceso } = req.body;
+function validarCarnetEmpleado11(carnet) {
+  const c = String(carnet ?? '').trim();
+  if (!/^\d{11}$/.test(c)) return 'El carnet debe tener exactamente 11 dígitos (solo números).';
+  return null;
+}
+
+function validarTelefonoEmpleado8(tel) {
+  const t = String(tel ?? '').trim();
+  if (!/^\d{8}$/.test(t)) return 'El teléfono debe tener exactamente 8 dígitos (solo números).';
+  return null;
+}
+
+/** JOIN estándar: `departamento` y `salario_normal` vienen de tablas relacionadas (no columnas en `empleados`). */
+const SQL_EMPLEADOS_LISTADO_BASE = `SELECT e.*,
+  d.nombre AS departamento,
+  s.salario_neto AS salario_normal
+  FROM empleados e
+  LEFT JOIN departamentos d ON d.id_departamento = e.id_departamento
+  LEFT JOIN salarios s ON s.id_tabla = e.carnet_identidad`;
+
+app.post("/create-empleado", verificarToken, autorizarRol(['rrhh']), (req, res) => {
+  const { carnet_identidad, nombre, apellidos, puesto, telefono, beneficios, resultados_auditorias, nivel_escolar, superacion_en_proceso } = req.body;
+  const errC = validarCarnetEmpleado11(carnet_identidad);
+  if (errC) return res.status(400).json({ message: errC });
+  const errT = validarTelefonoEmpleado8(telefono);
+  if (errT) return res.status(400).json({ message: errT });
+  const nom = nombre != null ? String(nombre).trim() : '';
+  const ape = apellidos != null ? String(apellidos).trim() : '';
+  if (!nom || !ape) return res.status(400).json({ message: 'Nombre y apellidos son obligatorios.' });
+  const p = puesto != null ? String(puesto).trim() : '';
+  if (!p) return res.status(400).json({ message: 'El puesto es obligatorio.' });
+  const c = String(carnet_identidad).trim();
+  const t = String(telefono).trim();
+  const nev = nivel_escolar != null ? String(nivel_escolar).trim() : '';
+  if (!nev) return res.status(400).json({ message: 'El nivel escolar es obligatorio.' });
   db.query(
-    'INSERT INTO empleados (carnet_identidad, nombre, apellidos, puesto, telefono, departamento, evaluaciones, salario_normal, beneficios, cursos_disponibles, certificados, licencias, resultados_auditorias, acceso, seguimiento_seguridad, nivel_escolar, superacion_en_proceso) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    [carnet_identidad, nombre, apellidos, puesto, telefono, departamento, evaluaciones, salario_normal, beneficios, cursos_disponibles, certificados, licencias, resultados_auditorias, acceso, seguimiento_seguridad, nivel_escolar || null, superacion_en_proceso || null],
+    'INSERT INTO empleados (carnet_identidad, nombre, apellidos, puesto, telefono, beneficios, resultados_auditorias, nivel_escolar, superacion_en_proceso) VALUES (?,?,?,?,?,?,?,?,?)',
+    [
+      c,
+      nom,
+      ape,
+      p,
+      t,
+      beneficios != null && String(beneficios).trim() !== '' ? String(beneficios).trim() : null,
+      resultados_auditorias != null && String(resultados_auditorias).trim() !== '' ? String(resultados_auditorias).trim() : null,
+      nev,
+      superacion_en_proceso != null && String(superacion_en_proceso).trim() !== '' ? String(superacion_en_proceso).trim() : null,
+    ],
     (err, result) => {
       if (err) {
         console.log(err);
@@ -441,75 +625,102 @@ app.post("/create-empleado", (req, res) => {
   );
 });
 
-app.put("/update-empleado", (req, res) => {
-  const { carnet_identidad, nombre, apellidos, puesto, telefono, departamento, evaluaciones, salario_normal, beneficios, cursos_disponibles, certificados, licencias, resultados_auditorias, acceso, seguimiento_seguridad, nivel_escolar, superacion_en_proceso } = req.body;
+app.put("/update-empleado", verificarToken, autorizarRol(['rrhh']), (req, res) => {
+  const { carnet_identidad, nombre, apellidos, puesto, telefono, beneficios, resultados_auditorias, nivel_escolar, superacion_en_proceso } = req.body;
+  const errT = validarTelefonoEmpleado8(telefono);
+  if (errT) return res.status(400).json({ message: errT });
+  const carnet = carnet_identidad != null ? String(carnet_identidad).trim() : '';
+  if (!carnet) return res.status(400).json({ message: 'Debe indicar el carnet del empleado.' });
+  const nom = nombre != null ? String(nombre).trim() : '';
+  const ape = apellidos != null ? String(apellidos).trim() : '';
+  if (!nom || !ape) return res.status(400).json({ message: 'Nombre y apellidos son obligatorios.' });
+  const p = puesto != null ? String(puesto).trim() : '';
+  if (!p) return res.status(400).json({ message: 'El puesto es obligatorio.' });
+  const t = String(telefono).trim();
+  const nev = nivel_escolar != null ? String(nivel_escolar).trim() : '';
+  if (!nev) return res.status(400).json({ message: 'El nivel escolar es obligatorio.' });
+  const ben = beneficios != null && String(beneficios).trim() !== '' ? String(beneficios).trim() : null;
+  const aud = resultados_auditorias != null && String(resultados_auditorias).trim() !== '' ? String(resultados_auditorias).trim() : null;
+  const sup = superacion_en_proceso != null && String(superacion_en_proceso).trim() !== '' ? String(superacion_en_proceso).trim() : null;
 
   const normTxt = (v) => (v == null || v === '' ? '' : String(v).trim());
-  const normSal = (v) => {
-    if (v == null || v === '') return '';
-    const n = Number(v);
-    return Number.isNaN(n) ? String(v).trim() : String(n);
-  };
 
-  db.query(
-    'SELECT puesto, departamento, salario_normal FROM empleados WHERE carnet_identidad = ?',
-    [carnet_identidad],
-    (selErr, rows) => {
-      if (selErr) {
-        console.log(selErr);
-        return res.status(500).send(selErr);
-      }
-      if (!rows || rows.length === 0) {
-        return res.status(404).json({ message: 'Empleado no encontrado' });
-      }
-
-      const prev = rows[0];
-      const cambios = [];
-      if (normTxt(prev.puesto) !== normTxt(puesto)) {
-        cambios.push(['puesto', normTxt(prev.puesto) || null, normTxt(puesto) || null]);
-      }
-      if (normTxt(prev.departamento) !== normTxt(departamento)) {
-        cambios.push(['departamento', normTxt(prev.departamento) || null, normTxt(departamento) || null]);
-      }
-      if (normSal(prev.salario_normal) !== normSal(salario_normal)) {
-        cambios.push(['salario', normSal(prev.salario_normal) || null, normSal(salario_normal) || null]);
-      }
-
-      const updateParams = [nombre, apellidos, puesto, telefono, departamento, evaluaciones, salario_normal, beneficios, cursos_disponibles, certificados, licencias, resultados_auditorias, acceso, seguimiento_seguridad, nivel_escolar || null, superacion_en_proceso || null, carnet_identidad];
-
-      const finish = (updErr, result) => {
-        if (updErr) {
-          console.log(updErr);
-          return res.status(500).send(updErr);
-        }
-        if (cambios.length === 0) return res.send(result);
-
-        const placeholders = cambios.map(() => '(?, ?, ?, ?)').join(', ');
-        const flat = cambios.flatMap(([tipo, ant, nue]) => [carnet_identidad, tipo, ant, nue]);
-        db.query(
-          `INSERT INTO historial_laboral (carnet_identidad, tipo_cambio, valor_anterior, valor_nuevo) VALUES ${placeholders}`,
-          flat,
-          (insErr) => {
-            if (insErr) {
-              console.log(insErr);
-              return res.status(500).send(insErr);
-            }
-            res.send(result);
-          }
-        );
-      };
-
-      db.query(
-        'UPDATE empleados SET nombre=?, apellidos=?, puesto=?, telefono=?, departamento=?, evaluaciones=?, salario_normal=?, beneficios=?, cursos_disponibles=?, certificados=?, licencias=?, resultados_auditorias=?, acceso=?, seguimiento_seguridad=?, nivel_escolar=?, superacion_en_proceso=? WHERE carnet_identidad=?',
-        updateParams,
-        finish
-      );
+  db.query('SELECT puesto FROM empleados WHERE carnet_identidad = ?', [carnet], (selErr, rows) => {
+    if (selErr) {
+      console.log(selErr);
+      return res.status(500).send(selErr);
     }
-  );
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Empleado no encontrado' });
+    }
+
+    const prev = rows[0];
+    const cambios = [];
+    if (normTxt(prev.puesto) !== normTxt(p)) {
+      cambios.push(['puesto', normTxt(prev.puesto) || null, normTxt(p) || null]);
+    }
+
+    const updateParams = [nom, ape, p, t, ben, aud, nev, sup, carnet];
+
+    const finish = (updErr, result) => {
+      if (updErr) {
+        console.log(updErr);
+        return res.status(500).send(updErr);
+      }
+      if (cambios.length === 0) return res.send(result);
+
+      const placeholders = cambios.map(() => '(?, ?, ?, ?)').join(', ');
+      const flat = cambios.flatMap(([tipo, ant, nue]) => [carnet, tipo, ant, nue]);
+      db.query(
+        `INSERT INTO historial_laboral (carnet_identidad, tipo_cambio, valor_anterior, valor_nuevo) VALUES ${placeholders}`,
+        flat,
+        (insErr) => {
+          if (insErr) {
+            console.log(insErr);
+            return res.status(500).send(insErr);
+          }
+          res.send(result);
+        }
+      );
+    };
+
+    db.query(
+      'UPDATE empleados SET nombre=?, apellidos=?, puesto=?, telefono=?, beneficios=?, resultados_auditorias=?, nivel_escolar=?, superacion_en_proceso=? WHERE carnet_identidad=?',
+      updateParams,
+      finish
+    );
+  });
 });
 
-// Historial laboral (RF8): cambios de puesto, departamento o salario
-app.get("/historial-laboral/:carnet_identidad", (req, res) => {
+// Historial laboral: listado global (RF8) — debe ir antes de /historial-laboral/:carnet
+app.get(
+  "/historial-laboral",
+  verificarToken,
+  autorizarRol(['rrhh', 'director', 'contratacion']),
+  (req, res) => {
+    const lim = Math.min(500, Math.max(1, parseInt(String(req.query.limite || '300'), 10) || 300));
+    db.query(
+      `SELECT h.id, h.carnet_identidad, h.tipo_cambio, h.valor_anterior, h.valor_nuevo,
+            DATE_FORMAT(h.fecha_cambio, '%Y-%m-%d %H:%i:%s') AS fecha_cambio,
+            e.nombre, e.apellidos
+     FROM historial_laboral h
+     LEFT JOIN empleados e ON e.carnet_identidad = h.carnet_identidad
+     ORDER BY h.fecha_cambio DESC, h.id DESC
+     LIMIT ?`,
+      [lim],
+      (err, result) => {
+        if (err) {
+          console.log(err);
+          return res.status(500).send(err);
+        }
+        res.send(result);
+      }
+    );
+  }
+);
+
+// Historial laboral (RF8): por carnet
+app.get("/historial-laboral/:carnet_identidad", verificarToken, autorizarRol(['rrhh', 'director', 'contratacion']), (req, res) => {
   const carnet = req.params.carnet_identidad;
   db.query(
     `SELECT id, tipo_cambio, valor_anterior, valor_nuevo,
@@ -526,7 +737,62 @@ app.get("/historial-laboral/:carnet_identidad", (req, res) => {
   );
 });
 
-app.delete("/delete-empleado/:carnet_identidad", (req, res) => {
+app.put(
+  "/historial-laboral/:id",
+  verificarToken,
+  autorizarRol(['rrhh']),
+  (req, res) => {
+    const id = parseInt(String(req.params.id), 10);
+    if (!id || id < 1) {
+      return res.status(400).json({ message: 'ID inválido' });
+    }
+    const { tipo_cambio, valor_anterior, valor_nuevo } = req.body;
+    const t = tipo_cambio != null && String(tipo_cambio).trim() ? String(tipo_cambio).trim() : null;
+    const va = valor_anterior != null ? String(valor_anterior) : null;
+    const vn = valor_nuevo != null ? String(valor_nuevo) : null;
+    if (!t || (t !== 'puesto' && t !== 'departamento' && t !== 'salario')) {
+      return res.status(400).json({ message: 'tipo_cambio debe ser puesto, departamento o salario' });
+    }
+    db.query(
+      'UPDATE historial_laboral SET tipo_cambio = ?, valor_anterior = ?, valor_nuevo = ? WHERE id = ?',
+      [t, va, vn, id],
+      (err, result) => {
+        if (err) {
+          console.log(err);
+          return res.status(500).send(err);
+        }
+        if (result.affectedRows === 0) {
+          return res.status(404).json({ message: 'Registro no encontrado' });
+        }
+        res.json({ message: 'Historial actualizado' });
+      }
+    );
+  }
+);
+
+app.delete(
+  "/historial-laboral/:id",
+  verificarToken,
+  autorizarRol(['rrhh']),
+  (req, res) => {
+    const id = parseInt(String(req.params.id), 10);
+    if (!id || id < 1) {
+      return res.status(400).json({ message: 'ID inválido' });
+    }
+    db.query('DELETE FROM historial_laboral WHERE id = ?', [id], (err, result) => {
+      if (err) {
+        console.log(err);
+        return res.status(500).send(err);
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: 'Registro no encontrado' });
+      }
+      res.json({ message: 'Movimiento eliminado del historial' });
+    });
+  }
+);
+
+app.delete("/delete-empleado/:carnet_identidad", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const carnet = req.params.carnet_identidad;
   db.query('DELETE FROM empleados WHERE carnet_identidad=?', [carnet],
     (err, result) => {
@@ -538,11 +804,11 @@ app.delete("/delete-empleado/:carnet_identidad", (req, res) => {
   );
 });
 
-app.get("/empleados", (req, res) => {
+app.get("/empleados", verificarToken, autorizarRol(['rrhh', 'director', 'contratacion', 'estadistica']), (req, res) => {
   const solo = req.query.solo_activos;
   const soloActivos = solo === '1' || solo === 'true';
-  const where = soloActivos ? ' WHERE COALESCE(activo, 1) = 1' : '';
-  db.query(`SELECT * FROM empleados${where} ORDER BY apellidos, nombre`,
+  const where = soloActivos ? ' WHERE COALESCE(e.activo, 1) = 1' : '';
+  db.query(`${SQL_EMPLEADOS_LISTADO_BASE}${where} ORDER BY e.apellidos, e.nombre`,
     (err, result) => {
       if (err) {
         console.log(err);
@@ -552,8 +818,108 @@ app.get("/empleados", (req, res) => {
   );
 });
 
+// ==================== LICENCIAS POR EMPLEADO (tabla aparte) ====================
+app.get("/licencias-empleado", verificarToken, autorizarRol(['rrhh', 'director', 'contratacion', 'estadistica']), (req, res) => {
+  const filtro = req.query.carnet != null ? String(req.query.carnet).trim() : '';
+  let sql = `SELECT l.id_licencia, l.carnet_identidad, l.descripcion,
+      DATE_FORMAT(l.fecha_registro, '%Y-%m-%d') AS fecha_registro,
+      l.observaciones, l.activo, e.nombre, e.apellidos
+     FROM licencias_empleado l
+     INNER JOIN empleados e ON e.carnet_identidad = l.carnet_identidad`;
+  const params = [];
+  if (filtro) {
+    sql += ' WHERE l.carnet_identidad = ?';
+    params.push(filtro);
+  }
+  sql += ' ORDER BY l.fecha_registro IS NULL, l.fecha_registro DESC, l.id_licencia DESC';
+  db.query(sql, params, (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).send(err);
+    }
+    res.send(result);
+  });
+});
+
+app.post("/create-licencia-empleado", verificarToken, autorizarRol(['rrhh']), (req, res) => {
+  const { carnet_identidad, descripcion, fecha_registro, observaciones, activo } = req.body;
+  if (!carnet_identidad || !String(carnet_identidad).trim()) {
+    return res.status(400).json({ message: 'Debe indicar el carnet del empleado' });
+  }
+  if (!descripcion || !String(descripcion).trim()) {
+    return res.status(400).json({ message: 'La descripción de la licencia es obligatoria' });
+  }
+  const fr =
+    fecha_registro && String(fecha_registro).trim() ? String(fecha_registro).trim().slice(0, 10) : null;
+  db.query(
+    'INSERT INTO licencias_empleado (carnet_identidad, descripcion, fecha_registro, observaciones, activo) VALUES (?, ?, ?, ?, ?)',
+    [
+      String(carnet_identidad).trim(),
+      String(descripcion).trim(),
+      fr,
+      observaciones != null && String(observaciones).trim() ? String(observaciones).trim() : null,
+      activo ? 1 : 0,
+    ],
+    (err, result) => {
+      if (err) {
+        console.log(err);
+        if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.errno === 1452) {
+          return res.status(400).json({ message: 'El carnet no corresponde a un empleado registrado' });
+        }
+        return res.status(500).send(err);
+      }
+      res.status(201).send(result);
+    }
+  );
+});
+
+app.put("/update-licencia-empleado/:id_licencia", verificarToken, autorizarRol(['rrhh']), (req, res) => {
+  const id_licencia = req.params.id_licencia;
+  const { carnet_identidad, descripcion, fecha_registro, observaciones, activo } = req.body;
+  if (!carnet_identidad || !String(carnet_identidad).trim()) {
+    return res.status(400).json({ message: 'Debe indicar el carnet del empleado' });
+  }
+  if (!descripcion || !String(descripcion).trim()) {
+    return res.status(400).json({ message: 'La descripción de la licencia es obligatoria' });
+  }
+  const fr =
+    fecha_registro && String(fecha_registro).trim() ? String(fecha_registro).trim().slice(0, 10) : null;
+  db.query(
+    'UPDATE licencias_empleado SET carnet_identidad = ?, descripcion = ?, fecha_registro = ?, observaciones = ?, activo = ? WHERE id_licencia = ?',
+    [
+      String(carnet_identidad).trim(),
+      String(descripcion).trim(),
+      fr,
+      observaciones != null && String(observaciones).trim() ? String(observaciones).trim() : null,
+      activo ? 1 : 0,
+      id_licencia,
+    ],
+    (err, result) => {
+      if (err) {
+        console.log(err);
+        if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.errno === 1452) {
+          return res.status(400).json({ message: 'El carnet no corresponde a un empleado registrado' });
+        }
+        return res.status(500).send(err);
+      }
+      res.send(result);
+    }
+  );
+});
+
+app.delete("/delete-licencia-empleado/:id_licencia", verificarToken, autorizarRol(['rrhh']), (req, res) => {
+  const id_licencia = req.params.id_licencia;
+  db.query('DELETE FROM licencias_empleado WHERE id_licencia = ?', [id_licencia], (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).send(err);
+    }
+    res.send(result);
+  });
+});
+
 // RF16 — Marcar empleados inactivos (bajas) o reactivarlos (admin / rrhh)
-app.post("/empleado-baja", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/empleado-baja", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { carnet_identidad, fecha_baja, motivo_baja } = req.body;
   if (!carnet_identidad || !String(carnet_identidad).trim()) {
     return res.status(400).json({ message: 'Debe indicar el carnet del empleado' });
@@ -580,7 +946,45 @@ app.post("/empleado-baja", verificarToken, autorizarRol(['admin', 'rrhh']), (req
   );
 });
 
-app.post("/empleado-reactivar", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+// Corregir fecha/motivo de baja (solo empleados ya inactivos)
+app.put("/empleado-baja", verificarToken, autorizarRol(['rrhh']), (req, res) => {
+  const { carnet_identidad, fecha_baja, motivo_baja } = req.body;
+  if (!carnet_identidad || !String(carnet_identidad).trim()) {
+    return res.status(400).json({ message: 'Debe indicar el carnet del empleado' });
+  }
+  const carnet = String(carnet_identidad).trim();
+  const fecha =
+    fecha_baja && String(fecha_baja).trim() ? String(fecha_baja).trim().slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const motivo = motivo_baja != null && String(motivo_baja).trim() ? String(motivo_baja).trim() : null;
+  db.query('SELECT COALESCE(activo, 1) AS a FROM empleados WHERE carnet_identidad = ?', [carnet], (selErr, rows) => {
+    if (selErr) {
+      console.log(selErr);
+      return res.status(500).send(selErr);
+    }
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Empleado no encontrado' });
+    }
+    if (Number(rows[0].a) === 1) {
+      return res.status(400).json({ message: 'Solo se edita el detalle de baja de empleados inactivos' });
+    }
+    db.query(
+      'UPDATE empleados SET fecha_baja = ?, motivo_baja = ? WHERE carnet_identidad = ? AND COALESCE(activo,0) = 0',
+      [fecha, motivo, carnet],
+      (err, result) => {
+        if (err) {
+          console.log(err);
+          return res.status(500).send(err);
+        }
+        if (result.affectedRows === 0) {
+          return res.status(404).json({ message: 'No se pudo actualizar' });
+        }
+        res.json({ message: 'Datos de baja actualizados' });
+      }
+    );
+  });
+});
+
+app.post("/empleado-reactivar", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { carnet_identidad } = req.body;
   if (!carnet_identidad || !String(carnet_identidad).trim()) {
     return res.status(400).json({ message: 'Debe indicar el carnet del empleado' });
@@ -603,23 +1007,23 @@ app.post("/empleado-reactivar", verificarToken, autorizarRol(['admin', 'rrhh']),
 });
 
 // RF17 — Reporte de personal por departamento y/o cargo
-app.get("/reporte-personal", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/reporte-personal", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   const solo = req.query.solo_activos;
   const soloActivos = solo !== '0' && solo !== 'false';
   const dep = req.query.departamento != null ? String(req.query.departamento).trim() : '';
   const puestoF = req.query.puesto != null ? String(req.query.puesto).trim() : '';
-  let sql = 'SELECT * FROM empleados WHERE 1=1';
+  let sql = `${SQL_EMPLEADOS_LISTADO_BASE} WHERE 1=1`;
   const params = [];
-  if (soloActivos) sql += ' AND COALESCE(activo, 1) = 1';
+  if (soloActivos) sql += ' AND COALESCE(e.activo, 1) = 1';
   if (dep) {
-    sql += ' AND departamento LIKE ?';
+    sql += ' AND d.nombre LIKE ?';
     params.push(`%${dep}%`);
   }
   if (puestoF) {
-    sql += ' AND puesto LIKE ?';
+    sql += ' AND e.puesto LIKE ?';
     params.push(`%${puestoF}%`);
   }
-  sql += ' ORDER BY apellidos, nombre';
+  sql += ' ORDER BY e.apellidos, e.nombre';
   db.query(sql, params, (err, result) => {
     if (err) {
       console.log(err);
@@ -629,9 +1033,9 @@ app.get("/reporte-personal", verificarToken, autorizarRol(['admin', 'rrhh']), (r
   });
 });
 
-// RF18 — Cambio de cargo (puesto) con registro en historial_laboral
-app.post("/empleado-cambio-cargo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
-  const { carnet_identidad, puesto_nuevo, salario_nuevo } = req.body;
+// RF18 — Cambio de cargo (puesto) con registro en historial_laboral (salario: tabla `salarios`)
+app.post("/empleado-cambio-cargo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
+  const { carnet_identidad, puesto_nuevo } = req.body;
   if (!carnet_identidad || !String(carnet_identidad).trim()) {
     return res.status(400).json({ message: 'Debe indicar el carnet del empleado' });
   }
@@ -642,13 +1046,8 @@ app.post("/empleado-cambio-cargo", verificarToken, autorizarRol(['admin', 'rrhh'
   const nuevoPuesto = String(puesto_nuevo).trim();
 
   const normTxt = (v) => (v == null || v === '' ? '' : String(v).trim());
-  const normSal = (v) => {
-    if (v == null || v === '') return '';
-    const n = Number(v);
-    return Number.isNaN(n) ? String(v).trim() : String(n);
-  };
 
-  db.query('SELECT puesto, salario_normal FROM empleados WHERE carnet_identidad = ?', [carnet], (selErr, rows) => {
+  db.query('SELECT puesto FROM empleados WHERE carnet_identidad = ?', [carnet], (selErr, rows) => {
     if (selErr) {
       console.log(selErr);
       return res.status(500).send(selErr);
@@ -657,22 +1056,11 @@ app.post("/empleado-cambio-cargo", verificarToken, autorizarRol(['admin', 'rrhh'
       return res.status(404).json({ message: 'Empleado no encontrado' });
     }
     const prev = rows[0];
-    let nuevoSal = prev.salario_normal;
-    if (salario_nuevo !== undefined && salario_nuevo !== null && String(salario_nuevo).trim() !== '') {
-      nuevoSal = salario_nuevo;
+    if (normTxt(prev.puesto) === normTxt(nuevoPuesto)) {
+      return res.status(400).json({ message: 'No hay cambios respecto al puesto actual' });
     }
 
-    const cambios = [];
-    if (normTxt(prev.puesto) !== normTxt(nuevoPuesto)) {
-      cambios.push(['puesto', normTxt(prev.puesto) || null, normTxt(nuevoPuesto) || null]);
-    }
-    if (normSal(prev.salario_normal) !== normSal(nuevoSal)) {
-      cambios.push(['salario', normSal(prev.salario_normal) || null, normSal(nuevoSal) || null]);
-    }
-
-    if (cambios.length === 0) {
-      return res.status(400).json({ message: 'No hay cambios respecto al puesto y salario actuales' });
-    }
+    const cambios = [['puesto', normTxt(prev.puesto) || null, normTxt(nuevoPuesto) || null]];
 
     const finish = (updErr, result) => {
       if (updErr) {
@@ -694,11 +1082,7 @@ app.post("/empleado-cambio-cargo", verificarToken, autorizarRol(['admin', 'rrhh'
       );
     };
 
-    db.query(
-      'UPDATE empleados SET puesto = ?, salario_normal = ? WHERE carnet_identidad = ?',
-      [nuevoPuesto, nuevoSal, carnet],
-      finish
-    );
+    db.query('UPDATE empleados SET puesto = ? WHERE carnet_identidad = ?', [nuevoPuesto, carnet], finish);
   });
 });
 
@@ -732,7 +1116,7 @@ function archivarProduccion(fuente, accion, req, fila, callback) {
 }
 
 // RF21 — Consulta de histórico archivado (actualización / eliminación)
-app.get('/produccion-historico', verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.get('/produccion-historico', verificarToken, autorizarRol(['estadistica', 'director']), (req, res) => {
   let sql = `SELECT id, fuente, fecha_dato, accion, usuario_email,
     DATE_FORMAT(creado_en, '%Y-%m-%d %H:%i:%s') AS creado_en,
     datos_json
@@ -768,15 +1152,17 @@ app.get('/produccion-historico', verificarToken, autorizarRol(['admin', 'producc
 });
 
 // RF23 — Totales de personal agrupados por departamento (vista global RRHH)
-app.get('/reporte-consolidado-departamentos', verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get('/reporte-consolidado-departamentos', verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   const sql = `SELECT 
- COALESCE(NULLIF(TRIM(departamento), ''), '(Sin departamento)') AS departamento,
-      SUM(CASE WHEN COALESCE(activo, 1) = 1 THEN 1 ELSE 0 END) AS empleados_activos,
-      SUM(CASE WHEN COALESCE(activo, 1) = 0 THEN 1 ELSE 0 END) AS empleados_inactivos,
+      COALESCE(NULLIF(TRIM(d.nombre), ''), '(Sin departamento)') AS departamento,
+      SUM(CASE WHEN COALESCE(e.activo, 1) = 1 THEN 1 ELSE 0 END) AS empleados_activos,
+      SUM(CASE WHEN COALESCE(e.activo, 1) = 0 THEN 1 ELSE 0 END) AS empleados_inactivos,
       COUNT(*) AS total_empleados,
-      SUM(CASE WHEN COALESCE(activo, 1) = 1 THEN IFNULL(salario_normal + 0, 0) ELSE 0 END) AS masa_salarial_activos
-    FROM empleados
-    GROUP BY departamento
+      SUM(CASE WHEN COALESCE(e.activo, 1) = 1 THEN IFNULL(s.salario_neto + 0, 0) ELSE 0 END) AS masa_salarial_activos
+    FROM empleados e
+    LEFT JOIN departamentos d ON d.id_departamento = e.id_departamento
+    LEFT JOIN salarios s ON s.id_tabla = e.carnet_identidad
+    GROUP BY COALESCE(NULLIF(TRIM(d.nombre), ''), '(Sin departamento)')
     ORDER BY departamento`;
   db.query(sql, (err, result) => {
     if (err) {
@@ -808,7 +1194,7 @@ app.get('/reporte-consolidado-departamentos', verificarToken, autorizarRol(['adm
 // (protegidas: solo admin y produccion)
 
 // Obtener todos los registros (ordenados por fecha) formateando la fecha como YYYY-MM-DD
-app.get("/sacrificio", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.get("/sacrificio", verificarToken, autorizarRol(['estadistica', 'director']), (req, res) => {
     // Usamos DATE_FORMAT para que la fecha venga como string sin hora
     db.query(
         `SELECT DATE_FORMAT(fecha, '%Y-%m-%d') as fecha, 
@@ -875,9 +1261,13 @@ app.get("/sacrificio", verificarToken, autorizarRol(['admin', 'produccion']), (r
 });
 
 // Crear un nuevo registro (fecha única) — RF22 responsables
-app.post("/create-sacrificio", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.post("/create-sacrificio", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const v = validarSacrificio(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
     const email = emailUsuario(req);
-    const fields = { ...req.body };
+    const fields = { ...v.data };
     delete fields.creado_por;
     delete fields.actualizado_por;
     if (email) {
@@ -905,8 +1295,12 @@ app.post("/create-sacrificio", verificarToken, autorizarRol(['admin', 'produccio
 });
 
 // Actualizar — RF21 archiva versión anterior; RF22 actualiza responsable
-app.put("/update-sacrificio/:fecha", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.put("/update-sacrificio/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
     const fecha = req.params.fecha;
+    const v = validarSacrificio(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
     const email = emailUsuario(req);
 
     db.query('SELECT * FROM sacrificio_vacuno WHERE fecha = ?', [fecha], (selErr, rows) => {
@@ -923,7 +1317,7 @@ app.put("/update-sacrificio/:fecha", verificarToken, autorizarRol(['admin', 'pro
                 console.log(archErr);
                 return res.status(500).send(archErr);
             }
-            const fields = { ...req.body };
+            const fields = { ...v.data };
             delete fields.fecha;
             delete fields.creado_por;
             if (anterior.creado_por != null && anterior.creado_por !== '') {
@@ -952,7 +1346,7 @@ app.put("/update-sacrificio/:fecha", verificarToken, autorizarRol(['admin', 'pro
 });
 
 // Eliminar — RF21 archiva antes de borrar
-app.delete("/delete-sacrificio/:fecha", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.delete("/delete-sacrificio/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
     const fecha = req.params.fecha;
     db.query('SELECT * FROM sacrificio_vacuno WHERE fecha = ?', [fecha], (selErr, rows) => {
         if (selErr) {
@@ -1003,7 +1397,7 @@ app.delete("/delete-sacrificio/:fecha", verificarToken, autorizarRol(['admin', '
 // (protegidas: solo admin y produccion)
 
 // Obtener todos los registros (ordenados por fecha)
-app.get("/matadero", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.get("/matadero", verificarToken, autorizarRol(['estadistica', 'director']), (req, res) => {
     db.query('SELECT *, DATE_FORMAT(fecha, "%Y-%m-%d") as fecha FROM matadero_vivo ORDER BY fecha DESC', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1011,9 +1405,13 @@ app.get("/matadero", verificarToken, autorizarRol(['admin', 'produccion']), (req
 });
 
 // Crear un nuevo registro — RF22
-app.post("/create-matadero", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.post("/create-matadero", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const v = validarMatadero(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
     const email = emailUsuario(req);
-    const fields = { ...req.body };
+    const fields = { ...v.data };
     delete fields.creado_por;
     delete fields.actualizado_por;
     if (email) {
@@ -1041,8 +1439,12 @@ app.post("/create-matadero", verificarToken, autorizarRol(['admin', 'produccion'
 });
 
 // Actualizar — RF21 + RF22
-app.put("/update-matadero/:fecha", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.put("/update-matadero/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
     const fecha = req.params.fecha;
+    const v = validarMatadero(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
     const email = emailUsuario(req);
 
     db.query('SELECT * FROM matadero_vivo WHERE fecha = ?', [fecha], (selErr, rows) => {
@@ -1059,7 +1461,7 @@ app.put("/update-matadero/:fecha", verificarToken, autorizarRol(['admin', 'produ
                 console.log(archErr);
                 return res.status(500).send(archErr);
             }
-            const fields = { ...req.body };
+            const fields = { ...v.data };
             delete fields.fecha;
             delete fields.creado_por;
             if (anterior.creado_por != null && anterior.creado_por !== '') {
@@ -1088,7 +1490,7 @@ app.put("/update-matadero/:fecha", verificarToken, autorizarRol(['admin', 'produ
 });
 
 // Eliminar — RF21
-app.delete("/delete-matadero/:fecha", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.delete("/delete-matadero/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
     const fecha = req.params.fecha;
     db.query('SELECT * FROM matadero_vivo WHERE fecha = ?', [fecha], (selErr, rows) => {
         if (selErr) {
@@ -1136,7 +1538,7 @@ app.delete("/delete-matadero/:fecha", verificarToken, autorizarRol(['admin', 'pr
 // (protegidas: solo admin y produccion)
 
 // Obtener todos los registros (ordenados por fecha)
-app.get("/leche", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.get("/leche", verificarToken, autorizarRol(['estadistica', 'director']), (req, res) => {
     db.query('SELECT *, DATE_FORMAT(fecha, "%Y-%m-%d") as fecha FROM leche ORDER BY fecha DESC', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1144,9 +1546,13 @@ app.get("/leche", verificarToken, autorizarRol(['admin', 'produccion']), (req, r
 });
 
 // Crear un nuevo registro — RF22
-app.post("/create-leche", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.post("/create-leche", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const v = validarLeche(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
     const email = emailUsuario(req);
-    const fields = { ...req.body };
+    const fields = { ...v.data };
     delete fields.creado_por;
     delete fields.actualizado_por;
     if (email) {
@@ -1174,8 +1580,12 @@ app.post("/create-leche", verificarToken, autorizarRol(['admin', 'produccion']),
 });
 
 // Actualizar — RF21 + RF22
-app.put("/update-leche/:fecha", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.put("/update-leche/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
     const fecha = req.params.fecha;
+    const v = validarLeche(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
     const email = emailUsuario(req);
 
     db.query('SELECT * FROM leche WHERE fecha = ?', [fecha], (selErr, rows) => {
@@ -1192,7 +1602,7 @@ app.put("/update-leche/:fecha", verificarToken, autorizarRol(['admin', 'producci
                 console.log(archErr);
                 return res.status(500).send(archErr);
             }
-            const fields = { ...req.body };
+            const fields = { ...v.data };
             delete fields.fecha;
             delete fields.creado_por;
             if (anterior.creado_por != null && anterior.creado_por !== '') {
@@ -1221,7 +1631,7 @@ app.put("/update-leche/:fecha", verificarToken, autorizarRol(['admin', 'producci
 });
 
 // Eliminar — RF21
-app.delete("/delete-leche/:fecha", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.delete("/delete-leche/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
     const fecha = req.params.fecha;
     db.query('SELECT * FROM leche WHERE fecha = ?', [fecha], (selErr, rows) => {
         if (selErr) {
@@ -1268,7 +1678,7 @@ app.delete("/delete-leche/:fecha", verificarToken, autorizarRol(['admin', 'produ
 // (protegidas: solo admin y produccion)
 
 // Obtener todos los registros
-app.get("/asistencias", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.get("/asistencias", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT * FROM asistencias ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1276,7 +1686,7 @@ app.get("/asistencias", verificarToken, autorizarRol(['admin', 'produccion']), (
 });
 
 // Crear un nuevo registro
-app.post("/create-asistencia", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.post("/create-asistencia", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, codigo_asistencia, desc_causas, horas_trabajadas } = req.body;
     db.query(
         'INSERT INTO asistencias (id_tabla, codigo_asistencia, desc_causas, horas_trabajadas) VALUES (?, ?, ?, ?)',
@@ -1295,7 +1705,7 @@ app.post("/create-asistencia", verificarToken, autorizarRol(['admin', 'produccio
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-asistencia/:id_tabla", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.put("/update-asistencia/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { codigo_asistencia, desc_causas, horas_trabajadas } = req.body;
     db.query(
@@ -1312,7 +1722,7 @@ app.put("/update-asistencia/:id_tabla", verificarToken, autorizarRol(['admin', '
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-asistencia/:id_tabla", verificarToken, autorizarRol(['admin', 'produccion']), (req, res) => {
+app.delete("/delete-asistencia/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM asistencias WHERE id_tabla = ?',
@@ -1343,7 +1753,7 @@ app.delete("/delete-asistencia/:id_tabla", verificarToken, autorizarRol(['admin'
 // (protegidas: solo admin y rrhh)
 
 // Obtener todos los registros
-app.get("/certificaciones", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/certificaciones", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT * FROM certificaciones ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1351,7 +1761,7 @@ app.get("/certificaciones", verificarToken, autorizarRol(['admin', 'rrhh']), (re
 });
 
 // Crear un nuevo registro
-app.post("/create-certificacion", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-certificacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, certificacion } = req.body;
     db.query(
         'INSERT INTO certificaciones (id_tabla, certificacion) VALUES (?, ?)',
@@ -1370,7 +1780,7 @@ app.post("/create-certificacion", verificarToken, autorizarRol(['admin', 'rrhh']
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-certificacion/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-certificacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { certificacion } = req.body;
     db.query(
@@ -1387,7 +1797,7 @@ app.put("/update-certificacion/:id_tabla", verificarToken, autorizarRol(['admin'
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-certificacion/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-certificacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM certificaciones WHERE id_tabla = ?',
@@ -1411,7 +1821,7 @@ app.delete("/delete-certificacion/:id_tabla", verificarToken, autorizarRol(['adm
 // (protegidas: solo admin y rrhh)
 
 // Obtener todos los registros
-app.get("/cursos", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/cursos", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT *, DATE_FORMAT(fech_fin_curso, "%Y-%m-%d") as fech_fin_curso FROM cursos ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1419,7 +1829,7 @@ app.get("/cursos", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) =
 });
 
 // Crear un nuevo registro
-app.post("/create-curso", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-curso", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, curso, descr, logrado, fech_fin_curso } = req.body;
     db.query(
         'INSERT INTO cursos (id_tabla, curso, descr, logrado, fech_fin_curso) VALUES (?, ?, ?, ?, ?)',
@@ -1438,7 +1848,7 @@ app.post("/create-curso", verificarToken, autorizarRol(['admin', 'rrhh']), (req,
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-curso/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-curso/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { curso, descr, logrado, fech_fin_curso } = req.body;
     db.query(
@@ -1455,7 +1865,7 @@ app.put("/update-curso/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh'
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-curso/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-curso/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM cursos WHERE id_tabla = ?',
@@ -1476,7 +1886,7 @@ app.delete("/delete-curso/:id_tabla", verificarToken, autorizarRol(['admin', 'rr
 // (protegidas: solo admin y rrhh)
 
 // Obtener todos los registros
-app.get("/evalcapacitacion", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/evalcapacitacion", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT * FROM evalcapacitacion ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1484,7 +1894,7 @@ app.get("/evalcapacitacion", verificarToken, autorizarRol(['admin', 'rrhh']), (r
 });
 
 // Crear un nuevo registro
-app.post("/create-evalcapacitacion", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-evalcapacitacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, evaluacion, descr } = req.body;
     db.query(
         'INSERT INTO evalcapacitacion (id_tabla, evaluacion, descr) VALUES (?, ?, ?)',
@@ -1503,7 +1913,7 @@ app.post("/create-evalcapacitacion", verificarToken, autorizarRol(['admin', 'rrh
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { evaluacion, descr } = req.body;
     db.query(
@@ -1520,7 +1930,7 @@ app.put("/update-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['adm
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM evalcapacitacion WHERE id_tabla = ?',
@@ -1544,7 +1954,7 @@ app.delete("/delete-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['
 // (protegidas: solo admin y rrhh)
 
 // Obtener todos los registros
-app.get("/evaluaciones", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/evaluaciones", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT * FROM evaluaciones ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1552,7 +1962,7 @@ app.get("/evaluaciones", verificarToken, autorizarRol(['admin', 'rrhh']), (req, 
 });
 
 // Crear un nuevo registro
-app.post("/create-evaluacion", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-evaluacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, evaluacion, descr } = req.body;
     db.query(
         'INSERT INTO evaluaciones (id_tabla, evaluacion, descr) VALUES (?, ?, ?)',
@@ -1571,7 +1981,7 @@ app.post("/create-evaluacion", verificarToken, autorizarRol(['admin', 'rrhh']), 
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-evaluacion/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-evaluacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { evaluacion, descr } = req.body;
     db.query(
@@ -1588,7 +1998,7 @@ app.put("/update-evaluacion/:id_tabla", verificarToken, autorizarRol(['admin', '
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-evaluacion/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-evaluacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM evaluaciones WHERE id_tabla = ?',
@@ -1612,7 +2022,7 @@ app.delete("/delete-evaluacion/:id_tabla", verificarToken, autorizarRol(['admin'
 // (protegidas: solo admin y rrhh)
 
 // Obtener todos los registros
-app.get("/objetivos", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/objetivos", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT *, DATE_FORMAT(fecha_logrado, "%Y-%m-%d") as fecha_logrado FROM objetivos ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1620,7 +2030,7 @@ app.get("/objetivos", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res
 });
 
 // Crear un nuevo registro
-app.post("/create-objetivo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-objetivo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, objetivo, descr, logrado, fecha_logrado } = req.body;
     db.query(
         'INSERT INTO objetivos (id_tabla, objetivo, descr, logrado, fecha_logrado) VALUES (?, ?, ?, ?, ?)',
@@ -1639,7 +2049,7 @@ app.post("/create-objetivo", verificarToken, autorizarRol(['admin', 'rrhh']), (r
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-objetivo/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-objetivo/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { objetivo, descr, logrado, fecha_logrado } = req.body;
     db.query(
@@ -1656,7 +2066,7 @@ app.put("/update-objetivo/:id_tabla", verificarToken, autorizarRol(['admin', 'rr
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-objetivo/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-objetivo/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM objetivos WHERE id_tabla = ?',
@@ -1687,7 +2097,7 @@ app.delete("/delete-objetivo/:id_tabla", verificarToken, autorizarRol(['admin', 
 // (protegidas: solo admin y rrhh)
 
 // Obtener todos los registros
-app.get("/salarios", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/salarios", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT * FROM salarios ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1695,7 +2105,7 @@ app.get("/salarios", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res)
 });
 
 // Crear un nuevo registro
-app.post("/create-salario", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-salario", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, salario_neto } = req.body;
     db.query(
         'INSERT INTO salarios (id_tabla, salario_neto) VALUES (?, ?)',
@@ -1714,7 +2124,7 @@ app.post("/create-salario", verificarToken, autorizarRol(['admin', 'rrhh']), (re
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-salario/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-salario/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { salario_neto } = req.body;
     db.query(
@@ -1731,7 +2141,7 @@ app.put("/update-salario/:id_tabla", verificarToken, autorizarRol(['admin', 'rrh
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-salario/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-salario/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM salarios WHERE id_tabla = ?',
@@ -1764,7 +2174,7 @@ app.delete("/delete-salario/:id_tabla", verificarToken, autorizarRol(['admin', '
 // (protegidas: solo admin y rrhh)
 
 // Obtener todos los registros
-app.get("/segseguridad", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/segseguridad", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT * FROM segseguridad ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1772,7 +2182,7 @@ app.get("/segseguridad", verificarToken, autorizarRol(['admin', 'rrhh']), (req, 
 });
 
 // Crear un nuevo registro
-app.post("/create-segseguridad", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-segseguridad", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres } = req.body;
     db.query(
         'INSERT INTO segseguridad (id_tabla, cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -1791,7 +2201,7 @@ app.post("/create-segseguridad", verificarToken, autorizarRol(['admin', 'rrhh'])
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-segseguridad/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-segseguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres } = req.body;
     db.query(
@@ -1808,7 +2218,7 @@ app.put("/update-segseguridad/:id_tabla", verificarToken, autorizarRol(['admin',
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-segseguridad/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-segseguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM segseguridad WHERE id_tabla = ?',
@@ -1837,7 +2247,7 @@ app.delete("/delete-segseguridad/:id_tabla", verificarToken, autorizarRol(['admi
 // (protegidas: solo admin y rrhh)
 
 // Obtener todos los registros
-app.get("/seguridad", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/seguridad", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT * FROM seguridad ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -1845,7 +2255,7 @@ app.get("/seguridad", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res
 });
 
 // Crear un nuevo registro
-app.post("/create-seguridad", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-seguridad", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, acceso } = req.body;
     db.query(
         'INSERT INTO seguridad (id_tabla, acceso) VALUES (?, ?)',
@@ -1864,7 +2274,7 @@ app.post("/create-seguridad", verificarToken, autorizarRol(['admin', 'rrhh']), (
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-seguridad/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-seguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { acceso } = req.body;
     db.query(
@@ -1881,7 +2291,7 @@ app.put("/update-seguridad/:id_tabla", verificarToken, autorizarRol(['admin', 'r
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM seguridad WHERE id_tabla = ?',
@@ -1901,7 +2311,7 @@ app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['admin',
   // (protegidas: solo admin y rrhh)
 
   // Obtener todos los cargos (ordenados por id_cargo)
-  app.get("/cargos", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+  app.get("/cargos", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT * FROM cargos ORDER BY id_cargo', (err, result) => {
       if (err) return res.status(500).send(err);
       res.send(result);
@@ -1909,7 +2319,7 @@ app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['admin',
   });
 
   // Crear un nuevo cargo
-  app.post("/create-cargo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+  app.post("/create-cargo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { nombre, descripcion, salario_base, departamento } = req.body;
     db.query(
       'INSERT INTO cargos (nombre, descripcion, salario_base, departamento) VALUES (?, ?, ?, ?)',
@@ -1925,7 +2335,7 @@ app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['admin',
   });
 
   // Actualizar cargo por id_cargo
-  app.put("/update-cargo/:id_cargo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+  app.put("/update-cargo/:id_cargo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_cargo = req.params.id_cargo;
     const { nombre, descripcion, salario_base, departamento, activo } = req.body;
     db.query(
@@ -1942,7 +2352,7 @@ app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['admin',
   });
 
   // Eliminar cargo por id_cargo
-app.delete("/delete-cargo/:id_cargo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-cargo/:id_cargo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_cargo = req.params.id_cargo;
     db.query(
       'DELETE FROM cargos WHERE id_cargo = ?',
@@ -1960,7 +2370,7 @@ app.delete("/delete-cargo/:id_cargo", verificarToken, autorizarRol(['admin', 'rr
 // ==================== RUTAS PARA DEPARTAMENTOS Y ASIGNACIÓN DE EMPLEADOS (RF15) ====================
 // (protegidas: admin y rrhh)
 
-app.get("/departamentos", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/departamentos", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   db.query(
     `SELECT d.id_departamento, d.nombre, d.descripcion, d.id_padre, d.activo,
             p.nombre AS nombre_padre,
@@ -1978,7 +2388,7 @@ app.get("/departamentos", verificarToken, autorizarRol(['admin', 'rrhh']), (req,
   );
 });
 
-app.post("/create-departamento", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-departamento", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { nombre, descripcion, id_padre, activo } = req.body;
   if (!nombre || !String(nombre).trim()) {
     return res.status(400).json({ message: 'El nombre del departamento es obligatorio' });
@@ -2002,7 +2412,7 @@ app.post("/create-departamento", verificarToken, autorizarRol(['admin', 'rrhh'])
   );
 });
 
-app.put("/update-departamento/:id_departamento", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-departamento/:id_departamento", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_departamento = req.params.id_departamento;
   const { nombre, descripcion, id_padre, activo } = req.body;
   if (!nombre || !String(nombre).trim()) {
@@ -2026,49 +2436,35 @@ app.put("/update-departamento/:id_departamento", verificarToken, autorizarRol(['
         }
         return res.status(500).send(err);
       }
-      db.query(
-        'UPDATE empleados SET departamento = ? WHERE id_departamento = ?',
-        [nombreTrim, id_departamento],
-        (err2) => {
-          if (err2) {
-            console.log(err2);
-            return res.status(500).send(err2);
-          }
-          res.json({ message: 'Departamento actualizado' });
-        }
-      );
+      res.json({ message: 'Departamento actualizado' });
     }
   );
 });
 
-app.delete("/delete-departamento/:id_departamento", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-departamento/:id_departamento", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_departamento = req.params.id_departamento;
   db.query('UPDATE departamentos SET id_padre = NULL WHERE id_padre = ?', [id_departamento], (err) => {
     if (err) {
       console.log(err);
       return res.status(500).send(err);
     }
-    db.query(
-      'UPDATE empleados SET id_departamento = NULL, departamento = ? WHERE id_departamento = ?',
-      ['', id_departamento],
-      (err2) => {
-        if (err2) {
-          console.log(err2);
-          return res.status(500).send(err2);
-        }
-        db.query('DELETE FROM departamentos WHERE id_departamento = ?', [id_departamento], (err3, result) => {
-          if (err3) {
-            console.log(err3);
-            return res.status(500).send(err3);
-          }
-          res.send(result);
-        });
+    db.query('UPDATE empleados SET id_departamento = NULL WHERE id_departamento = ?', [id_departamento], (err2) => {
+      if (err2) {
+        console.log(err2);
+        return res.status(500).send(err2);
       }
-    );
+      db.query('DELETE FROM departamentos WHERE id_departamento = ?', [id_departamento], (err3, result) => {
+        if (err3) {
+          console.log(err3);
+          return res.status(500).send(err3);
+        }
+        res.send(result);
+      });
+    });
   });
 });
 
-app.post("/asignar-empleado-departamento", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/asignar-empleado-departamento", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { carnet_identidad, id_departamento } = req.body;
   if (!carnet_identidad || !String(carnet_identidad).trim()) {
     return res.status(400).json({ message: 'Debe indicar el carnet del empleado' });
@@ -2077,17 +2473,13 @@ app.post("/asignar-empleado-departamento", verificarToken, autorizarRol(['admin'
   const sinDepto =
     id_departamento === '' || id_departamento === undefined || id_departamento === null;
   if (sinDepto) {
-    db.query(
-      'UPDATE empleados SET id_departamento = NULL, departamento = ? WHERE carnet_identidad = ?',
-      ['', carnet],
-      (err, result) => {
-        if (err) {
-          console.log(err);
-          return res.status(500).send(err);
-        }
-        res.json({ message: 'Empleado sin departamento asignado', result });
+    db.query('UPDATE empleados SET id_departamento = NULL WHERE carnet_identidad = ?', [carnet], (err, result) => {
+      if (err) {
+        console.log(err);
+        return res.status(500).send(err);
       }
-    );
+      res.json({ message: 'Empleado sin departamento asignado', result });
+    });
     return;
   }
   const idDepto = Number(id_departamento);
@@ -2097,7 +2489,7 @@ app.post("/asignar-empleado-departamento", verificarToken, autorizarRol(['admin'
   db.query(
     `UPDATE empleados e
      INNER JOIN departamentos d ON d.id_departamento = ?
-     SET e.id_departamento = d.id_departamento, e.departamento = d.nombre
+     SET e.id_departamento = d.id_departamento
      WHERE e.carnet_identidad = ?`,
     [idDepto, carnet],
     (err, result) => {
@@ -2118,14 +2510,14 @@ app.post("/asignar-empleado-departamento", verificarToken, autorizarRol(['admin'
 
 // ==================== RUTAS PARA CERTIFICADOS MEDICOS ====================
 // (protegidas: admin, rrhh, produccion)
-app.get("/certificados-medicos", verificarToken, autorizarRol(['admin', 'rrhh', 'produccion']), (req, res) => {
+app.get("/certificados-medicos", verificarToken, autorizarRol(['rrhh', 'estadistica', 'director']), (req, res) => {
   db.query('SELECT * FROM cert_medicos ORDER BY id_cert_medico', (err, result) => {
     if (err) return res.status(500).send(err);
     res.send(result);
   });
 });
 
-app.post("/create-cert-medico", verificarToken, autorizarRol(['admin', 'rrhh', 'produccion']), (req, res) => {
+app.post("/create-cert-medico", verificarToken, autorizarRol(['rrhh', 'estadistica']), (req, res) => {
   const { carnet_identidad, fecha_emision, fecha_vencimiento, dias_licencia, medico_nombre, descripcion } = req.body;
   db.query(
     'INSERT INTO cert_medicos (carnet_identidad, fecha_emision, fecha_vencimiento, dias_licencia, medico_nombre, descripcion) VALUES (?, ?, ?, ?, ?, ?)',
@@ -2140,7 +2532,7 @@ app.post("/create-cert-medico", verificarToken, autorizarRol(['admin', 'rrhh', '
   );
 });
 
-app.put("/update-cert-medico/:id_cert_medico", verificarToken, autorizarRol(['admin', 'rrhh', 'produccion']), (req, res) => {
+app.put("/update-cert-medico/:id_cert_medico", verificarToken, autorizarRol(['rrhh', 'estadistica']), (req, res) => {
   const id_cert_medico = req.params.id_cert_medico;
   const { carnet_identidad, fecha_emision, fecha_vencimiento, dias_licencia, medico_nombre, descripcion, activo } = req.body;
   db.query(
@@ -2156,7 +2548,7 @@ app.put("/update-cert-medico/:id_cert_medico", verificarToken, autorizarRol(['ad
   );
 });
 
-app.delete("/delete-cert-medico/:id_cert_medico", verificarToken, autorizarRol(['admin', 'rrhh', 'produccion']), (req, res) => {
+app.delete("/delete-cert-medico/:id_cert_medico", verificarToken, autorizarRol(['rrhh', 'estadistica']), (req, res) => {
   const id_cert_medico = req.params.id_cert_medico;
   db.query(
     'DELETE FROM cert_medicos WHERE id_cert_medico = ?',
@@ -2175,7 +2567,7 @@ app.delete("/delete-cert-medico/:id_cert_medico", verificarToken, autorizarRol([
 // (protegidas: solo admin y rrhh)
 
 // Obtener todos los registros
-app.get("/vacaciones", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/vacaciones", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
     db.query('SELECT *, DATE_FORMAT(fecha_inicio, "%Y-%m-%d") as fecha_inicio, DATE_FORMAT(fecha_fin, "%Y-%m-%d") as fecha_fin FROM vacaciones ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
@@ -2183,7 +2575,7 @@ app.get("/vacaciones", verificarToken, autorizarRol(['admin', 'rrhh']), (req, re
 });
 
 // Crear un nuevo registro
-app.post("/create-vacacion", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-vacacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, fecha_inicio, fecha_fin, dias_totales, motivo, aprobado, observaciones } = req.body;
     db.query(
         'INSERT INTO vacaciones (id_tabla, fecha_inicio, fecha_fin, dias_totales, motivo, aprobado, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -2202,7 +2594,7 @@ app.post("/create-vacacion", verificarToken, autorizarRol(['admin', 'rrhh']), (r
 });
 
 // Actualizar un registro por id_tabla
-app.put("/update-vacacion/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-vacacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     const { fecha_inicio, fecha_fin, dias_totales, motivo, aprobado, observaciones } = req.body;
     db.query(
@@ -2219,7 +2611,7 @@ app.put("/update-vacacion/:id_tabla", verificarToken, autorizarRol(['admin', 'rr
 });
 
 // Eliminar un registro por id_tabla
-app.delete("/delete-vacacion/:id_tabla", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-vacacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const id_tabla = req.params.id_tabla;
     db.query(
         'DELETE FROM vacaciones WHERE id_tabla = ?',
@@ -2237,7 +2629,7 @@ app.delete("/delete-vacacion/:id_tabla", verificarToken, autorizarRol(['admin', 
 // ==================== RUTAS PARA TURNOS DE TRABAJO ====================
 // (protegidas: admin y rrhh)
 
-app.get("/turnos-trabajo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/turnos-trabajo", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   db.query(
     `SELECT t.id_turno, t.carnet_identidad, t.nombre_turno,
             DATE_FORMAT(t.hora_entrada, '%H:%i') AS hora_entrada,
@@ -2257,7 +2649,7 @@ app.get("/turnos-trabajo", verificarToken, autorizarRol(['admin', 'rrhh']), (req
   );
 });
 
-app.post("/create-turno", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-turno", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { carnet_identidad, nombre_turno, hora_entrada, hora_salida, dias_aplicacion, horas_diarias, observaciones, activo } = req.body;
   if (!carnet_identidad || !nombre_turno || !hora_entrada || !hora_salida) {
     return res.status(400).json({ message: 'Carnet, nombre del turno, hora de entrada y hora de salida son obligatorios' });
@@ -2280,7 +2672,7 @@ app.post("/create-turno", verificarToken, autorizarRol(['admin', 'rrhh']), (req,
   );
 });
 
-app.put("/update-turno/:id_turno", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-turno/:id_turno", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_turno = req.params.id_turno;
   const { carnet_identidad, nombre_turno, hora_entrada, hora_salida, dias_aplicacion, horas_diarias, observaciones, activo } = req.body;
   if (!carnet_identidad || !nombre_turno || !hora_entrada || !hora_salida) {
@@ -2304,7 +2696,7 @@ app.put("/update-turno/:id_turno", verificarToken, autorizarRol(['admin', 'rrhh'
   );
 });
 
-app.delete("/delete-turno/:id_turno", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-turno/:id_turno", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_turno = req.params.id_turno;
   db.query('DELETE FROM turnos_trabajo WHERE id_turno = ?', [id_turno], (err, result) => {
     if (err) {
@@ -2318,7 +2710,7 @@ app.delete("/delete-turno/:id_turno", verificarToken, autorizarRol(['admin', 'rr
 // ==================== RUTAS PARA GRUPOS DE TRABAJO Y ASISTENCIA GRUPAL ====================
 // (protegidas: admin y rrhh)
 
-app.get("/grupos-trabajo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/grupos-trabajo", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   db.query(
     `SELECT g.id_grupo, g.nombre, g.descripcion, g.activo,
             (SELECT COUNT(*) FROM grupo_miembros m WHERE m.id_grupo = g.id_grupo) AS num_miembros
@@ -2334,7 +2726,7 @@ app.get("/grupos-trabajo", verificarToken, autorizarRol(['admin', 'rrhh']), (req
   );
 });
 
-app.post("/create-grupo-trabajo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-grupo-trabajo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { nombre, descripcion, activo } = req.body;
   if (!nombre || !String(nombre).trim()) {
     return res.status(400).json({ message: 'El nombre del grupo es obligatorio' });
@@ -2352,7 +2744,7 @@ app.post("/create-grupo-trabajo", verificarToken, autorizarRol(['admin', 'rrhh']
   );
 });
 
-app.put("/update-grupo-trabajo/:id_grupo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-grupo-trabajo/:id_grupo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_grupo = req.params.id_grupo;
   const { nombre, descripcion, activo } = req.body;
   if (!nombre || !String(nombre).trim()) {
@@ -2371,7 +2763,7 @@ app.put("/update-grupo-trabajo/:id_grupo", verificarToken, autorizarRol(['admin'
   );
 });
 
-app.delete("/delete-grupo-trabajo/:id_grupo", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-grupo-trabajo/:id_grupo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_grupo = req.params.id_grupo;
   db.query('DELETE FROM grupos_trabajo WHERE id_grupo = ?', [id_grupo], (err, result) => {
     if (err) {
@@ -2382,7 +2774,7 @@ app.delete("/delete-grupo-trabajo/:id_grupo", verificarToken, autorizarRol(['adm
   });
 });
 
-app.get("/grupo-trabajo/:id_grupo/miembros", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/grupo-trabajo/:id_grupo/miembros", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   const id_grupo = req.params.id_grupo;
   db.query(
     `SELECT m.carnet_identidad, e.nombre, e.apellidos
@@ -2401,7 +2793,7 @@ app.get("/grupo-trabajo/:id_grupo/miembros", verificarToken, autorizarRol(['admi
   );
 });
 
-app.post("/grupo-trabajo/:id_grupo/miembros", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/grupo-trabajo/:id_grupo/miembros", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_grupo = req.params.id_grupo;
   const { carnet_identidad } = req.body;
   if (!carnet_identidad) {
@@ -2426,7 +2818,7 @@ app.post("/grupo-trabajo/:id_grupo/miembros", verificarToken, autorizarRol(['adm
   );
 });
 
-app.delete("/grupo-trabajo/:id_grupo/miembros/:carnet_identidad", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/grupo-trabajo/:id_grupo/miembros/:carnet_identidad", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { id_grupo, carnet_identidad } = req.params;
   db.query(
     'DELETE FROM grupo_miembros WHERE id_grupo = ? AND carnet_identidad = ?',
@@ -2441,7 +2833,7 @@ app.delete("/grupo-trabajo/:id_grupo/miembros/:carnet_identidad", verificarToken
   );
 });
 
-app.get("/asistencia-grupal", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/asistencia-grupal", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   db.query(
     `SELECT a.id_asistencia, a.id_grupo, DATE_FORMAT(a.fecha, '%Y-%m-%d') AS fecha,
             a.miembros_presentes, a.miembros_total, a.observaciones, g.nombre AS nombre_grupo
@@ -2458,7 +2850,7 @@ app.get("/asistencia-grupal", verificarToken, autorizarRol(['admin', 'rrhh']), (
   );
 });
 
-app.post("/create-asistencia-grupal", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-asistencia-grupal", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { id_grupo, fecha, miembros_presentes, observaciones } = req.body;
   if (!id_grupo || !fecha) {
     return res.status(400).json({ message: 'Grupo y fecha son obligatorios' });
@@ -2495,7 +2887,7 @@ app.post("/create-asistencia-grupal", verificarToken, autorizarRol(['admin', 'rr
   });
 });
 
-app.put("/update-asistencia-grupal/:id_asistencia", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-asistencia-grupal/:id_asistencia", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_asistencia = req.params.id_asistencia;
   const { id_grupo, fecha, miembros_presentes, observaciones } = req.body;
   if (!id_grupo || !fecha) {
@@ -2533,7 +2925,7 @@ app.put("/update-asistencia-grupal/:id_asistencia", verificarToken, autorizarRol
   });
 });
 
-app.delete("/delete-asistencia-grupal/:id_asistencia", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-asistencia-grupal/:id_asistencia", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_asistencia = req.params.id_asistencia;
   db.query('DELETE FROM asistencia_grupal WHERE id_asistencia = ?', [id_asistencia], (err, result) => {
     if (err) {
@@ -2547,7 +2939,7 @@ app.delete("/delete-asistencia-grupal/:id_asistencia", verificarToken, autorizar
 // ==================== RUTAS PARA SANCIONES A EMPLEADOS ====================
 // (protegidas: admin y rrhh)
 
-app.get("/sanciones-empleado", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/sanciones-empleado", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   db.query(
     `SELECT s.id_sancion, s.carnet_identidad, s.tipo_sancion, s.motivo,
             DATE_FORMAT(s.fecha_aplicacion, '%Y-%m-%d') AS fecha_aplicacion,
@@ -2566,7 +2958,7 @@ app.get("/sanciones-empleado", verificarToken, autorizarRol(['admin', 'rrhh']), 
   );
 });
 
-app.post("/create-sancion-empleado", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-sancion-empleado", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { carnet_identidad, tipo_sancion, motivo, fecha_aplicacion, dias_suspension, observaciones, activo } = req.body;
   if (!carnet_identidad || !tipo_sancion || !String(tipo_sancion).trim() || !motivo || !String(motivo).trim() || !fecha_aplicacion) {
     return res.status(400).json({ message: 'Carnet, tipo de sanción, motivo y fecha de aplicación son obligatorios' });
@@ -2597,7 +2989,7 @@ app.post("/create-sancion-empleado", verificarToken, autorizarRol(['admin', 'rrh
   );
 });
 
-app.put("/update-sancion-empleado/:id_sancion", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-sancion-empleado/:id_sancion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_sancion = req.params.id_sancion;
   const { carnet_identidad, tipo_sancion, motivo, fecha_aplicacion, dias_suspension, observaciones, activo } = req.body;
   if (!carnet_identidad || !tipo_sancion || !String(tipo_sancion).trim() || !motivo || !String(motivo).trim() || !fecha_aplicacion) {
@@ -2630,7 +3022,7 @@ app.put("/update-sancion-empleado/:id_sancion", verificarToken, autorizarRol(['a
   );
 });
 
-app.delete("/delete-sancion-empleado/:id_sancion", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-sancion-empleado/:id_sancion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_sancion = req.params.id_sancion;
   db.query('DELETE FROM sanciones_empleado WHERE id_sancion = ?', [id_sancion], (err, result) => {
     if (err) {
@@ -2644,7 +3036,7 @@ app.delete("/delete-sancion-empleado/:id_sancion", verificarToken, autorizarRol(
 // ==================== RUTAS PARA RECONOCIMIENTOS A EMPLEADOS ====================
 // (protegidas: admin y rrhh)
 
-app.get("/reconocimientos-empleado", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/reconocimientos-empleado", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   db.query(
     `SELECT r.id_reconocimiento, r.carnet_identidad, r.tipo_reconocimiento, r.descripcion,
             DATE_FORMAT(r.fecha_otorgamiento, '%Y-%m-%d') AS fecha_otorgamiento,
@@ -2663,7 +3055,7 @@ app.get("/reconocimientos-empleado", verificarToken, autorizarRol(['admin', 'rrh
   );
 });
 
-app.post("/create-reconocimiento-empleado", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-reconocimiento-empleado", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { carnet_identidad, tipo_reconocimiento, descripcion, fecha_otorgamiento, valor_estimulo, observaciones, activo } = req.body;
   if (!carnet_identidad || !tipo_reconocimiento || !String(tipo_reconocimiento).trim() || !descripcion || !String(descripcion).trim() || !fecha_otorgamiento) {
     return res.status(400).json({ message: 'Carnet, tipo de reconocimiento, descripción y fecha de otorgamiento son obligatorios' });
@@ -2694,7 +3086,7 @@ app.post("/create-reconocimiento-empleado", verificarToken, autorizarRol(['admin
   );
 });
 
-app.put("/update-reconocimiento-empleado/:id_reconocimiento", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-reconocimiento-empleado/:id_reconocimiento", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_reconocimiento = req.params.id_reconocimiento;
   const { carnet_identidad, tipo_reconocimiento, descripcion, fecha_otorgamiento, valor_estimulo, observaciones, activo } = req.body;
   if (!carnet_identidad || !tipo_reconocimiento || !String(tipo_reconocimiento).trim() || !descripcion || !String(descripcion).trim() || !fecha_otorgamiento) {
@@ -2727,7 +3119,7 @@ app.put("/update-reconocimiento-empleado/:id_reconocimiento", verificarToken, au
   );
 });
 
-app.delete("/delete-reconocimiento-empleado/:id_reconocimiento", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-reconocimiento-empleado/:id_reconocimiento", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_reconocimiento = req.params.id_reconocimiento;
   db.query('DELETE FROM reconocimientos_empleado WHERE id_reconocimiento = ?', [id_reconocimiento], (err, result) => {
     if (err) {
@@ -2741,7 +3133,7 @@ app.delete("/delete-reconocimiento-empleado/:id_reconocimiento", verificarToken,
 // ==================== RUTAS PARA JUBILACIONES Y RETIROS (RF14) ====================
 // (protegidas: admin y rrhh)
 
-app.get("/jubilaciones-empleado", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.get("/jubilaciones-empleado", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
   db.query(
     `SELECT j.id_jubilacion, j.carnet_identidad, j.tipo_salida,
             DATE_FORMAT(j.fecha_efectiva, '%Y-%m-%d') AS fecha_efectiva,
@@ -2760,7 +3152,7 @@ app.get("/jubilaciones-empleado", verificarToken, autorizarRol(['admin', 'rrhh']
   );
 });
 
-app.post("/create-jubilacion-empleado", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.post("/create-jubilacion-empleado", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { carnet_identidad, tipo_salida, fecha_efectiva, motivo, observaciones, activo } = req.body;
   if (!carnet_identidad || !tipo_salida || !String(tipo_salida).trim() || !fecha_efectiva || !motivo || !String(motivo).trim()) {
     return res.status(400).json({ message: 'Carnet, tipo de salida, fecha efectiva y motivo son obligatorios' });
@@ -2788,7 +3180,7 @@ app.post("/create-jubilacion-empleado", verificarToken, autorizarRol(['admin', '
   );
 });
 
-app.put("/update-jubilacion-empleado/:id_jubilacion", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.put("/update-jubilacion-empleado/:id_jubilacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_jubilacion = req.params.id_jubilacion;
   const { carnet_identidad, tipo_salida, fecha_efectiva, motivo, observaciones, activo } = req.body;
   if (!carnet_identidad || !tipo_salida || !String(tipo_salida).trim() || !fecha_efectiva || !motivo || !String(motivo).trim()) {
@@ -2818,7 +3210,7 @@ app.put("/update-jubilacion-empleado/:id_jubilacion", verificarToken, autorizarR
   );
 });
 
-app.delete("/delete-jubilacion-empleado/:id_jubilacion", verificarToken, autorizarRol(['admin', 'rrhh']), (req, res) => {
+app.delete("/delete-jubilacion-empleado/:id_jubilacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const id_jubilacion = req.params.id_jubilacion;
   db.query('DELETE FROM jubilaciones_empleado WHERE id_jubilacion = ?', [id_jubilacion], (err, result) => {
     if (err) {
@@ -2832,7 +3224,7 @@ app.delete("/delete-jubilacion-empleado/:id_jubilacion", verificarToken, autoriz
 // ==================== RUTAS PARA EVALUACIONES MÉDICAS (CHEQUEOS PERIÓDICOS) ====================
 // (protegidas: admin, rrhh y producción — mismo criterio que cert. médicos)
 
-app.get("/evaluaciones-medicas", verificarToken, autorizarRol(['admin', 'rrhh', 'produccion']), (req, res) => {
+app.get("/evaluaciones-medicas", verificarToken, autorizarRol(['rrhh', 'estadistica', 'director']), (req, res) => {
   db.query(
     `SELECT e.id_eval_medica, e.carnet_identidad,
             DATE_FORMAT(e.fecha_evaluacion, '%Y-%m-%d') AS fecha_evaluacion,
@@ -2853,7 +3245,7 @@ app.get("/evaluaciones-medicas", verificarToken, autorizarRol(['admin', 'rrhh', 
   );
 });
 
-app.post("/create-evaluacion-medica", verificarToken, autorizarRol(['admin', 'rrhh', 'produccion']), (req, res) => {
+app.post("/create-evaluacion-medica", verificarToken, autorizarRol(['rrhh', 'estadistica']), (req, res) => {
   const { carnet_identidad, fecha_evaluacion, tipo_chequeo, resultado, medico_nombre, proximo_chequeo, observaciones, activo } = req.body;
   if (!carnet_identidad || !fecha_evaluacion || !resultado || !String(resultado).trim() || !medico_nombre || !String(medico_nombre).trim()) {
     return res.status(400).json({ message: 'Carnet, fecha de evaluación, resultado y nombre del médico son obligatorios' });
@@ -2885,7 +3277,7 @@ app.post("/create-evaluacion-medica", verificarToken, autorizarRol(['admin', 'rr
   );
 });
 
-app.put("/update-evaluacion-medica/:id_eval_medica", verificarToken, autorizarRol(['admin', 'rrhh', 'produccion']), (req, res) => {
+app.put("/update-evaluacion-medica/:id_eval_medica", verificarToken, autorizarRol(['rrhh', 'estadistica']), (req, res) => {
   const id_eval_medica = req.params.id_eval_medica;
   const { carnet_identidad, fecha_evaluacion, tipo_chequeo, resultado, medico_nombre, proximo_chequeo, observaciones, activo } = req.body;
   if (!carnet_identidad || !fecha_evaluacion || !resultado || !String(resultado).trim() || !medico_nombre || !String(medico_nombre).trim()) {
@@ -2919,7 +3311,7 @@ app.put("/update-evaluacion-medica/:id_eval_medica", verificarToken, autorizarRo
   );
 });
 
-app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autorizarRol(['admin', 'rrhh', 'produccion']), (req, res) => {
+app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autorizarRol(['rrhh', 'estadistica']), (req, res) => {
   const id_eval_medica = req.params.id_eval_medica;
   db.query('DELETE FROM eval_medicas WHERE id_eval_medica = ?', [id_eval_medica], (err, result) => {
     if (err) {
@@ -2932,8 +3324,9 @@ app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autoriza
 
 
 
-app.listen(3001, () => {
-  console.log('Corriendo en el puerto 3001');
+const PORT = Number(process.env.PORT) || 3001;
+app.listen(PORT, () => {
+  console.log(`API en el puerto ${PORT}`);
 });
 
 

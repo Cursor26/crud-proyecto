@@ -1,27 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
+import { isValidEmail } from '../utils/validation';
 
 function Login({ onLogin }) {
-  const [captchaText, setCaptchaText] = useState('');
-  const [userCaptcha, setUserCaptcha] = useState('');
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [captchaPregunta, setCaptchaPregunta] = useState('');
+  const [respuestaEsperada, setRespuestaEsperada] = useState(null);
+  const [userRespuesta, setUserRespuesta] = useState('');
+  const [timeLeft, setTimeLeft] = useState(120);
   const [showPassword, setShowPassword] = useState(false);
   const [logoSrc, setLogoSrc] = useState('/images/login-brand.png');
   const timerRef = useRef(null);
 
-  const generateCaptcha = () => {
-    let captcha = '';
-    for (let i = 0; i < 6; i++) {
-      captcha += String(Math.floor(Math.random() * 10));
-    }
-    return captcha;
+  const generarResta = () => {
+    const b = 1 + Math.floor(Math.random() * 9);
+    const dif = 1 + Math.floor(Math.random() * 20);
+    const a = b + dif;
+    setCaptchaPregunta(`${a} − ${b}`);
+    setRespuestaEsperada(dif);
+    setUserRespuesta('');
   };
 
   const resetCaptcha = () => {
-    const newCaptcha = generateCaptcha();
-    setCaptchaText(newCaptcha);
-    setUserCaptcha('');
-    setTimeLeft(60);
+    generarResta();
+    setTimeLeft(120);
   };
 
   const startTimer = () => {
@@ -29,9 +30,9 @@ function Login({ onLogin }) {
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(timerRef.current);
-          resetCaptcha();
-          return 60;
+          if (timerRef.current) clearInterval(timerRef.current);
+          generarResta();
+          return 120;
         }
         return prev - 1;
       });
@@ -39,7 +40,7 @@ function Login({ onLogin }) {
   };
 
   useEffect(() => {
-    resetCaptcha();
+    generarResta();
     startTimer();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -47,9 +48,10 @@ function Login({ onLogin }) {
   }, []);
 
   const validateCaptcha = () => {
-    if (userCaptcha !== captchaText) {
-      Swal.fire('Captcha incorrecto', 'Verifica el código de verificación', 'error');
-      setUserCaptcha('');
+    const n = parseInt(String(userRespuesta).trim(), 10);
+    if (Number.isNaN(n) || n !== respuestaEsperada) {
+      Swal.fire('Verificación incorrecta', 'Resolvé la resta y escribí el resultado.', 'error');
+      setUserRespuesta('');
       return false;
     }
     return true;
@@ -58,14 +60,22 @@ function Login({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const email = formData.get('email');
+    const email = String(formData.get('email') || '').trim();
     const password = formData.get('password');
+    if (!isValidEmail(email)) {
+      Swal.fire('Email inválido', 'Ingresá un correo con formato válido (ej. usuario@dominio.com).', 'warning');
+      return;
+    }
+    if (!password || String(password).length < 1) {
+      Swal.fire('Datos incompletos', 'Ingresá la contraseña.', 'warning');
+      return;
+    }
     if (!validateCaptcha()) return;
     const result = await onLogin(email, password);
     if (!result.success) Swal.fire('Error', result.message, 'error');
   };
 
-  const timerDeg = `${(timeLeft / 60) * 360}deg`;
+  const timerDeg = `${(timeLeft / 120) * 360}deg`;
 
   return (
     <div className="login-page">
@@ -88,7 +98,7 @@ function Login({ onLogin }) {
               type="email"
               name="email"
               className="login-input"
-              placeholder="Usuario"
+              placeholder="Correo electrónico"
               autoComplete="username"
               required
             />
@@ -115,9 +125,10 @@ function Login({ onLogin }) {
             </button>
           </div>
 
+          <p className="text-muted small mb-2 mt-1">Resolvé la resta (números pequeños):</p>
           <div className="login-captcha-row">
-            <div className="login-captcha-code" aria-live="polite">
-              {captchaText || '------'}
+            <div className="login-captcha-code" style={{ minWidth: 140, fontSize: '1.15rem' }} aria-live="polite">
+              {captchaPregunta || '—'}
             </div>
             <div className="login-captcha-side">
               <div className="login-timer" style={{ '--timer-deg': timerDeg }}>
@@ -132,7 +143,7 @@ function Login({ onLogin }) {
                   resetCaptcha();
                   startTimer();
                 }}
-                aria-label="Generar nuevo código"
+                aria-label="Nueva operación"
               >
                 <i className="bi bi-arrow-clockwise" aria-hidden />
               </button>
@@ -146,10 +157,10 @@ function Login({ onLogin }) {
               name="captcha"
               inputMode="numeric"
               className="login-input"
-              placeholder="Escriba Aquí el Código de Verificación..."
-              value={userCaptcha}
-              onChange={(e) => setUserCaptcha(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              maxLength={6}
+              placeholder="Resultado (número)"
+              value={userRespuesta}
+              onChange={(e) => setUserRespuesta(e.target.value.replace(/\D/g, '').slice(0, 3))}
+              maxLength={4}
               autoComplete="off"
               required
             />

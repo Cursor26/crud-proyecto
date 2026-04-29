@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
-import { exportRowsToExcel } from '../utils/exportExcel';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
 
@@ -22,7 +22,7 @@ const ReportePersonal = () => {
     if (departamento.trim()) params.set('departamento', departamento.trim());
     if (puesto.trim()) params.set('puesto', puesto.trim());
     params.set('solo_activos', soloActivos ? '1' : '0');
-    Axios.get(`http://localhost:3001/reporte-personal?${params.toString()}`)
+    Axios.get(`/reporte-personal?${params.toString()}`)
       .then((res) => {
         const ordenados = [...res.data].sort((a, b) =>
           `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es')
@@ -57,42 +57,21 @@ const ReportePersonal = () => {
     return [...s].sort((a, b) => a.localeCompare(b, 'es'));
   }, [empleados]);
 
-  const exportarCsv = () => {
-    const cols = ['carnet_identidad', 'nombre', 'apellidos', 'puesto', 'departamento', 'telefono', 'salario_normal', 'activo'];
-    const header = cols.join(';');
-    const rows = empleados.map((e) =>
-      cols
-        .map((c) => {
-          let v = e[c];
-          if (c === 'activo') v = esActivo(e) ? 'activo' : 'inactivo';
-          if (v == null) v = '';
-          const s = String(v).replace(/"/g, '""');
-          return `"${s}"`;
-        })
-        .join(';')
-    );
-    const blob = new Blob(['\uFEFF' + [header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `reporte_personal_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  const exportarExcel = () => {
-    if (!empleados.length) return;
-    const rows = empleados.map((e) => ({
-      carnet_identidad: e.carnet_identidad,
-      nombre: e.nombre,
-      apellidos: e.apellidos,
-      puesto: e.puesto,
-      departamento: e.departamento,
-      telefono: e.telefono,
-      salario_normal: e.salario_normal,
-      estado: esActivo(e) ? 'activo' : 'inactivo',
-    }));
-    exportRowsToExcel(rows, 'Personal', `reporte_personal_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
+  const repExportAepg = useMemo(() => {
+    const headers = ['Carnet', 'Nombre', 'Apellidos', 'Puesto', 'Departamento', 'Teléfono', 'Salario', 'Estado'];
+    const r = (v) => (v == null || v === '' ? '—' : v);
+    const dataRows = empleados.map((e) => [
+      e.carnet_identidad,
+      r(e.nombre),
+      r(e.apellidos),
+      r(e.puesto),
+      r(e.departamento),
+      r(e.telefono),
+      r(e.salario_normal),
+      esActivo(e) ? 'activo' : 'inactivo',
+    ]);
+    return { headers, dataRows };
+  }, [empleados]);
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
@@ -104,12 +83,15 @@ const ReportePersonal = () => {
               <i className="bi bi-funnel me-2" aria-hidden="true" />
               Filtros
             </button>
-            <button type="button" className="btn btn-outline-secondary" onClick={exportarCsv} disabled={empleados.length === 0}>
-              Exportar CSV
-            </button>
-            <button type="button" className="btn btn-success btn-form-nowrap" onClick={exportarExcel} disabled={empleados.length === 0}>
-              Exportar Excel
-            </button>
+            <ExportacionAepgGrupo
+              subtitulo="Reporte: personal filtrado. Generado con la vista Reporte de personal de AEPG."
+              descripcion="Listado según filtros (departamento, puesto, solo activos) aplicados con “Aplicar”."
+              nombreBaseArchivo={`AEPG_reporte_personal_${new Date().toISOString().slice(0, 10)}`}
+              sheetName="Reporte personal"
+              headers={repExportAepg.headers}
+              dataRows={repExportAepg.dataRows}
+              disabled={!empleados.length}
+            />
           </>
         }
       />

@@ -1,25 +1,38 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import { fmtFechaTabla } from '../utils/formatDates';
 import ModuleTitleBar from './ModuleTitleBar';
 import AppSelect from './AppSelect';
+import { FormModal } from './FormModal';
+import ListSearchToolbar from './ListSearchToolbar';
+import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { TIPOS_SALIDA_JUBIL } from '../constants/hrCatalogos';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
+import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
+
+const TIPO_OPTS = TIPOS_SALIDA_JUBIL.filter(Boolean);
 
 const Jubilaciones = () => {
+  const puedeEscribir = usePuedeEscribir();
   const [registros, setRegistros] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [carnet, setCarnet] = useState('');
-  const [tipoSalida, setTipoSalida] = useState('');
+  const [tipoSalida, setTipoSalida] = useState(TIPO_OPTS[0] || 'Retiro voluntario');
+  const [tipoOtro, setTipoOtro] = useState('');
   const [fechaEfectiva, setFechaEfectiva] = useState(() => new Date().toISOString().slice(0, 10));
   const [motivo, setMotivo] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [activo, setActivo] = useState(true);
   const [editando, setEditando] = useState(false);
   const [idOriginal, setIdOriginal] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [busq, setBusq] = useState('');
 
   const getRegistros = () => {
-    Axios.get('http://localhost:3001/jubilaciones-empleado')
+    Axios.get('/jubilaciones-empleado')
       .then((res) => setRegistros(res.data))
       .catch((err) => {
         console.error(err);
@@ -28,11 +41,9 @@ const Jubilaciones = () => {
   };
 
   const getEmpleados = () => {
-    Axios.get('http://localhost:3001/empleados')
+    Axios.get('/empleados')
       .then((res) => {
-        const ordenados = [...res.data].sort((a, b) =>
-          `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es')
-        );
+        const ordenados = [...res.data].sort((a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es'));
         setEmpleados(ordenados);
       })
       .catch((err) => console.error(err));
@@ -43,9 +54,12 @@ const Jubilaciones = () => {
     getEmpleados();
   }, []);
 
+  const tipoTexto = () => (tipoSalida === 'Otro' ? tipoOtro.trim() : tipoSalida);
+
   const limpiarForm = () => {
     setCarnet('');
-    setTipoSalida('');
+    setTipoSalida(TIPO_OPTS[0] || 'Retiro voluntario');
+    setTipoOtro('');
     setFechaEfectiva(new Date().toISOString().slice(0, 10));
     setMotivo('');
     setObservaciones('');
@@ -54,34 +68,36 @@ const Jubilaciones = () => {
     setIdOriginal('');
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!carnet || !tipoSalida.trim() || !fechaEfectiva || !motivo.trim()) {
+  const guardar = () => {
+    const ts = tipoTexto();
+    if (!carnet || !ts || !fechaEfectiva || !motivo.trim()) {
       Swal.fire('Atención', 'Complete empleado, tipo de salida, fecha efectiva y motivo.', 'warning');
       return;
     }
     const data = {
       carnet_identidad: String(carnet).trim(),
-      tipo_salida: tipoSalida.trim(),
+      tipo_salida: ts,
       fecha_efectiva: fechaEfectiva,
       motivo: motivo.trim(),
       observaciones: observaciones.trim() || null,
       activo: activo ? 1 : 0,
     };
     if (editando) {
-      Axios.put(`http://localhost:3001/update-jubilacion-empleado/${idOriginal}`, data)
+      Axios.put(`/update-jubilacion-empleado/${idOriginal}`, data)
         .then(() => {
-          Swal.fire('Listo', 'Registro de jubilación / retiro actualizado', 'success');
+          Swal.fire('Listo', 'Registro actualizado', 'success');
           getRegistros();
           limpiarForm();
+          setShowModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     } else {
-      Axios.post('http://localhost:3001/create-jubilacion-empleado', data)
+      Axios.post('/create-jubilacion-empleado', data)
         .then(() => {
-          Swal.fire('Listo', 'Jubilación o retiro registrado', 'success');
+          Swal.fire('Listo', 'Registrado', 'success');
           getRegistros();
           limpiarForm();
+          setShowModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     }
@@ -91,23 +107,31 @@ const Jubilaciones = () => {
     setEditando(true);
     setIdOriginal(r.id_jubilacion);
     setCarnet(String(r.carnet_identidad));
-    setTipoSalida(r.tipo_salida || '');
+    const t = (r.tipo_salida || '').trim();
+    if (TIPO_OPTS.filter((x) => x !== 'Otro').includes(t)) {
+      setTipoSalida(t);
+      setTipoOtro('');
+    } else {
+      setTipoSalida('Otro');
+      setTipoOtro(t);
+    }
     setFechaEfectiva(r.fecha_efectiva || '');
     setMotivo(r.motivo || '');
     setObservaciones(r.observaciones || '');
     setActivo(r.activo == 1);
+    setShowModal(true);
   };
 
   const eliminarRegistro = (r) => {
     Swal.fire({
       title: '¿Eliminar registro?',
-      text: 'Se borrará la jubilación o retiro de forma permanente.',
+      text: 'Se borrará de forma permanente.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Sí, eliminar',
     }).then((resConfirm) => {
       if (resConfirm.isConfirmed) {
-        Axios.delete(`http://localhost:3001/delete-jubilacion-empleado/${r.id_jubilacion}`)
+        Axios.delete(`/delete-jubilacion-empleado/${r.id_jubilacion}`)
           .then(() => {
             Swal.fire('Eliminado', '', 'success');
             getRegistros();
@@ -117,130 +141,154 @@ const Jubilaciones = () => {
     });
   };
 
+  const filtrados = useMemo(() => {
+    const t = busq.trim().toLowerCase();
+    if (!t) return registros;
+    return registros.filter((r) => {
+      const emp = empleados.find((e) => String(e.carnet_identidad) === String(r.carnet_identidad));
+      const nm = emp ? `${emp.nombre} ${emp.apellidos}`.trim() : '';
+      const s = `${r.carnet_identidad} ${r.tipo_salida} ${r.motivo} ${r.observaciones} ${r.fecha_efectiva} ${r.activo} ${nm}`.toLowerCase();
+      return s.includes(t);
+    });
+  }, [registros, busq, empleados]);
+
+  const jubilacionesExportAepg = useMemo(() => {
+    const headers = ['Carnet', 'Empleado', 'Tipo salida', 'Fecha efectiva', 'Motivo', 'Observaciones', 'Activo'];
+    const dataRows = filtrados.map((r) => {
+      const emp = empleados.find((e) => String(e.carnet_identidad) === String(r.carnet_identidad));
+      const nm = emp ? `${emp.nombre} ${emp.apellidos}`.trim() : '';
+      return [
+        r.carnet_identidad,
+        nm || '—',
+        r.tipo_salida != null ? String(r.tipo_salida) : '—',
+        r.fecha_efectiva != null && r.fecha_efectiva !== '' ? String(r.fecha_efectiva) : '—',
+        r.motivo != null ? String(r.motivo) : '—',
+        r.observaciones != null && r.observaciones !== '' ? String(r.observaciones) : '—',
+        r.activo == 1 ? 'Sí' : 'No',
+      ];
+    });
+    return { headers, dataRows };
+  }, [filtrados, empleados]);
+
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <ModuleTitleBar title="Jubilaciones y retiros" />
-
-      <div className="card shadow-sm border-0 p-4 mb-4">
-        <h6 className="mb-3">{editando ? 'Editar registro' : 'Registrar jubilación o retiro'}</h6>
-        <form onSubmit={handleSubmit}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label">Empleado</label>
-              <AppSelect className="form-select" value={carnet} onChange={(e) => setCarnet(e.target.value)} required>
-                <option value="" disabled hidden>— Seleccione —</option>
-                {empleados.map((emp) => (
-                  <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
-                    {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
-                  </option>
-                ))}
-              </AppSelect>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label">Tipo de salida</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Ej. Jubilación ordinaria, Retiro voluntario, Renuncia"
-                value={tipoSalida}
-                onChange={(e) => setTipoSalida(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label">Fecha efectiva</label>
-              <input
-                type="date"
-                className="form-control"
-                value={fechaEfectiva}
-                onChange={(e) => setFechaEfectiva(e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-12">
-              <label className="form-label">Motivo / resumen</label>
-              <textarea className="form-control" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} required />
-            </div>
-            <div className="col-md-8">
-              <label className="form-label">Observaciones</label>
-              <input className="form-control" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
-            </div>
-            <div className="col-md-2 d-flex align-items-end">
-              <div className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="activoJub"
-                  checked={activo}
-                  onChange={(e) => setActivo(e.target.checked)}
-                />
-                <label className="form-check-label" htmlFor="activoJub">
-                  Activo
-                </label>
-              </div>
-            </div>
-            <div className="col-md-2 d-flex align-items-end gap-1 flex-wrap">
-              <button type="submit" className="btn btn-success btn-form-nowrap">
-                {editando ? 'Guardar' : 'Registrar'}
-              </button>
-              {editando && (
-                <button type="button" className="btn btn-secondary btn-form-nowrap" onClick={limpiarForm}>
-                  Cancelar
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
-      </div>
-
+      <ModuleTitleBar
+        title="Jubilaciones y retiros"
+        actions={
+          <>
+            <ExportacionAepgGrupo
+              tituloSistema={AEPG_TITULO_RRHH}
+              subtitulo="Reporte: jubilaciones, retiros y bajas."
+              descripcion="Listado filtrado con motivo y observaciones (más detalle que la grilla resumida)."
+              nombreBaseArchivo={`AEPG_jubilaciones_${new Date().toISOString().slice(0, 10)}`}
+              sheetName="Jubilaciones"
+              headers={jubilacionesExportAepg.headers}
+              dataRows={jubilacionesExportAepg.dataRows}
+              disabled={!registros.length}
+            />
+          <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowModal(true); }} disabled={!puedeEscribir}>
+            + Registro
+          </button>
+          </>
+        }
+      />
       <div className="card shadow-sm border-0 p-3">
-        <h6 className="mb-3">Registros</h6>
+        <ListSearchToolbar value={busq} onChange={setBusq} placeholder="Carnet, tipo, motivo, fechas, observaciones…" />
+        <h6 className="mb-2">Registros ({filtrados.length} de {registros.length})</h6>
         <div className="table-responsive">
           <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
-                <th>Fecha efectiva</th>
                 <th>Empleado</th>
-                <th>Carnet</th>
-                <th>Tipo de salida</th>
-                <th>Motivo</th>
+                <th>Tipo</th>
+                <th>Fecha</th>
                 <th>Activo</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {registros.length === 0 ? (
+              {filtrados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center text-muted py-4">
-                    No hay jubilaciones ni retiros registrados.
-                  </td>
+                  <td colSpan={5} className="text-center text-muted py-4">No hay registros.</td>
                 </tr>
               ) : (
-                registros.map((r) => (
+                filtrados.map((r) => {
+                  const emp = empleados.find((e) => String(e.carnet_identidad) === String(r.carnet_identidad));
+                  const nm = emp ? `${emp.nombre} ${emp.apellidos}`.trim() : '';
+                  return (
                   <tr key={r.id_jubilacion}>
-                    <td className="text-nowrap">{fmtFechaTabla(r.fecha_efectiva)}</td>
                     <td>
-                      {r.nombre} {r.apellidos}
+                      <div>{nm || '—'}</div>
+                      <small className="text-muted">{r.carnet_identidad}</small>
                     </td>
-                    <td>{r.carnet_identidad}</td>
                     <td>{r.tipo_salida}</td>
-                    <td style={{ maxWidth: 280, whiteSpace: 'pre-wrap' }}>{r.motivo}</td>
+                    <td className="text-nowrap">{fmtFechaTabla(r.fecha_efectiva)}</td>
                     <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
                     <td>
-                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarRegistro(r)}>
-                        Editar
-                      </button>
-                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarRegistro(r)}>
-                        Eliminar
-                      </button>
+                      <EditTableActionButton onClick={() => editarRegistro(r)} className="me-1" />
+                      <DeleteTableActionButton onClick={() => eliminarRegistro(r)} />
                     </td>
                   </tr>
-                ))
+                );})
               )}
             </tbody>
           </table>
         </div>
       </div>
+      <FormModal
+        show={showModal}
+        onHide={() => { setShowModal(false); limpiarForm(); }}
+        title={editando ? 'Editar jubilación / retiro' : 'Registrar jubilación o retiro'}
+        onPrimary={guardar}
+        primaryLabel="Guardar"
+        primaryDisabled={!puedeEscribir}
+      >
+        <div className="row g-2">
+          <div className="col-12 col-md-6">
+            <label className="form-label">Empleado</label>
+            <AppSelect className="form-select" value={carnet} onChange={(e) => setCarnet(e.target.value)} required disabled={editando}>
+              <option value="" disabled hidden>— Seleccione —</option>
+              {empleados.map((emp) => (
+                <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
+                  {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
+                </option>
+              ))}
+            </AppSelect>
+          </div>
+          <div className="col-12 col-md-6">
+            <label className="form-label">Tipo de salida</label>
+            <AppSelect className="form-select" value={tipoSalida} onChange={(e) => setTipoSalida(e.target.value)}>
+              {TIPO_OPTS.map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </AppSelect>
+          </div>
+          {tipoSalida === 'Otro' && (
+            <div className="col-12">
+              <label className="form-label">Especificar</label>
+              <input className="form-control" value={tipoOtro} onChange={(e) => setTipoOtro(e.target.value)} />
+            </div>
+          )}
+          <div className="col-12 col-md-6">
+            <label className="form-label">Fecha efectiva</label>
+            <input type="date" className="form-control" value={fechaEfectiva} onChange={(e) => setFechaEfectiva(e.target.value)} required />
+          </div>
+          <div className="col-12 col-md-6 d-flex align-items-end">
+            <div className="form-check">
+              <input className="form-check-input" type="checkbox" id="actJ" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
+              <label className="form-check-label" htmlFor="actJ">Activo</label>
+            </div>
+          </div>
+          <div className="col-12">
+            <label className="form-label">Motivo / resumen *</label>
+            <textarea className="form-control" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} required />
+          </div>
+          <div className="col-12">
+            <label className="form-label">Observaciones</label>
+            <input className="form-control" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
+          </div>
+        </div>
+      </FormModal>
     </div>
   );
 };

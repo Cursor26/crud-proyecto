@@ -8,7 +8,7 @@ export function useEmpleadosOptions() {
   const [empleados, setEmpleados] = useState([]);
 
   useEffect(() => {
-    Axios.get('http://localhost:3001/empleados?solo_activos=1')
+    Axios.get('/empleados?solo_activos=1')
       .then((res) => {
         const ordenados = [...res.data].sort((a, b) =>
           `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es')

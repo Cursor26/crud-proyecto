@@ -2,9 +2,31 @@
 import { createContext, useState, useContext, useEffect } from 'react';
 import Axios from 'axios';
 
-const AuthContext = createContext();
+const AuthContext = createContext(undefined);
 
-export const useAuth = () => useContext(AuthContext);
+/** Valor por defecto cuando no hay Provider (la app usa `user` en App.js + localStorage). */
+function authDesdeLocalStorage() {
+  try {
+    const raw = localStorage.getItem('user');
+    const user = raw ? JSON.parse(raw) : null;
+    return {
+      user,
+      login: async () => ({ success: false, message: 'Usar pantalla de login' }),
+      logout: () => {},
+      isAuthenticated: !!user,
+    };
+  } catch {
+    return { user: null, login: async () => ({ success: false }), logout: () => {}, isAuthenticated: false };
+  }
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (ctx !== undefined && ctx !== null) {
+    return ctx;
+  }
+  return authDesdeLocalStorage();
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -23,7 +45,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await Axios.post('http://localhost:3001/login', { email, password });
+      const response = await Axios.post('/login', { email, password });
       const { token, usuario } = response.data;
       
       localStorage.setItem('token', token);

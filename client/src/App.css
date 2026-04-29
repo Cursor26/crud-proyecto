@@ -1434,6 +1434,13 @@ margin-top: 15px;
   padding: 0.75rem 1.5rem 1.25rem !important;
 }
 
+.modal-form-body-scroll.modal-premium-body,
+.modal-form-body-scroll.modal-minimal-body,
+.modal-body.modal-form-body-scroll {
+  max-height: min(75vh, 880px);
+  overflow-y: auto;
+}
+
 .modal-premium-body .form-label {
   font-size: 0.78rem;
   font-weight: 600;
@@ -1834,6 +1841,111 @@ margin-top: 15px;
 .minimal-eye-btn:focus-visible {
   outline: 2px solid #1e3a5f;
   outline-offset: 1px;
+}
+
+/* —— Gestión de usuarios: email / fortaleza de contraseña —— */
+.minimal-input.is-valid,
+.minimal-select.is-valid {
+  border-bottom-color: #198754;
+}
+
+.minimal-input.is-invalid,
+.minimal-select.is-invalid {
+  border-bottom-color: #dc3545;
+}
+
+.usuario-cred-hint {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  margin: 0.2rem 0 0 0;
+  max-width: 335px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.usuario-cred-hint--ok {
+  color: #0f5132;
+}
+
+.usuario-cred-hint--err {
+  color: #842029;
+  font-weight: 600;
+}
+
+.usuario-cred-pw-bars {
+  display: flex;
+  gap: 0.28rem;
+  margin: 0.4rem 0 0.15rem 0;
+  max-width: 335px;
+}
+
+.usuario-cred-pw-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: #e5e7eb;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.usuario-cred-pw-bars--short .usuario-cred-pw-bar:nth-child(1) {
+  background: #dc3545;
+}
+.usuario-cred-pw-bars--short .usuario-cred-pw-bar:nth-child(2),
+.usuario-cred-pw-bars--short .usuario-cred-pw-bar:nth-child(3) {
+  opacity: 0.45;
+}
+
+.usuario-cred-pw-bars--weak .usuario-cred-pw-bar:nth-child(1) {
+  background: #fd7e14;
+}
+.usuario-cred-pw-bars--weak .usuario-cred-pw-bar:nth-child(2) {
+  background: #e5e7eb;
+}
+.usuario-cred-pw-bars--weak .usuario-cred-pw-bar:nth-child(3) {
+  background: #e5e7eb;
+}
+
+.usuario-cred-pw-bars--medium .usuario-cred-pw-bar:nth-child(1),
+.usuario-cred-pw-bars--medium .usuario-cred-pw-bar:nth-child(2) {
+  background: #ffc107;
+}
+.usuario-cred-pw-bars--medium .usuario-cred-pw-bar:nth-child(3) {
+  background: #e5e7eb;
+}
+
+.usuario-cred-pw-bars--strong .usuario-cred-pw-bar {
+  background: #198754;
+}
+
+.usuario-cred-pw-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.1rem 0;
+}
+
+.usuario-cred-pw-label--empty {
+  color: #6b7280;
+}
+.usuario-cred-pw-label--short {
+  color: #b02a37;
+}
+.usuario-cred-pw-label--weak {
+  color: #c55a00;
+}
+.usuario-cred-pw-label--medium {
+  color: #a07800;
+}
+.usuario-cred-pw-label--strong {
+  color: #0d6232;
+}
+
+.usuario-cred-pw-omit {
+  font-size: 0.8rem;
+  color: #495057;
+  margin: 0.2rem 0 0 0;
+  max-width: 400px;
 }
 
 .minimal-select {
@@ -3662,6 +3774,20 @@ body .btn:not(.btn-link) {
   min-width: 7.5rem;
 }
 
+/* Por encima de gradientes/decor en la fila, para que los clics de Renovar y detalle no se pierdan */
+.renov-cola-td-accion,
+.dashboard-main--contratos .renov-cola-td-accion {
+  z-index: 2;
+  position: relative;
+}
+
+.renov-cola-td-accion .renov-actions,
+.dashboard-main--contratos .renov-cola-td-accion .renov-actions {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
 .renov-cola-td-num {
   font-variant-numeric: tabular-nums;
   font-size: 0.8rem;
@@ -4132,4 +4258,20 @@ button.renov-empresa-avatar:focus-visible {
   .renov-actions .btn {
     font-size: 0.72rem;
   }
+}
+
+/* Recursos humanos: botón flotante → 24 herramientas (modal) */
+.rrhh-analitica-fab {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 1040;
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1.35rem;
 }

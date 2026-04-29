@@ -1,239 +1,421 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
-import { exportRowsToExcel } from '../utils/exportExcel';
+import { Modal } from 'react-bootstrap';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
+import { AEPG_TITULO_PRODUCCION } from '../utils/exportAepgPlantilla';
 import { fmtFechaTabla } from '../utils/formatDates';
+import {
+  errorMensajeCampoNumericoProduccion,
+  armaPayloadProduccion,
+  resumenErroresProduccion,
+  fechaLocalHoyISO,
+  hayCerosOVaciosEnFormulario,
+} from '../utils/produccionFormValidation';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import ModuleTitleBar from './ModuleTitleBar';
+import ListSearchToolbar from './ListSearchToolbar';
+import SacrificioVacunoStatsPanel from './SacrificioVacunoStatsPanel';
+import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import ProduccionFormInstrucciones from './ProduccionFormInstrucciones';
+import ProduccionFormCampoNumero from './ProduccionFormCampoNumero';
 
-// Definición de categorías y sufijos (para generar los nombres de los campos)
 const categorias = [
-    'terneras', 'aniojas', 'novillas', 'vacas', 'total1',
-    'terneros', 'aniojos', 'novillos', 'bueyes', 'total2'
+  'terneras', 'aniojas', 'novillas', 'vacas', 'total1',
+  'terneros', 'aniojos', 'novillos', 'bueyes', 'total2',
 ];
 
 const sufijos = [
-    'Cbz_sal', 'Kg_sal', 'Cbz_tur', 'Kg_tur', 'Cbz_in', 'Kg_in',
-    'Cbz_p', 'Kg_p', 'Cbz_t', 'Kg_t', 'Cbz_m', 'Kg_m',
-    'Cab_se', 'Kg_se', 'Cbz_sc', 'Kg_sc', 'Cbz_st', 'Tm_st'
+  'Cbz_sal', 'Kg_sal', 'Cbz_tur', 'Kg_tur', 'Cbz_in', 'Kg_in',
+  'Cbz_p', 'Kg_p', 'Cbz_t', 'Kg_t', 'Cbz_m', 'Kg_m',
+  'Cab_se', 'Kg_se', 'Cbz_sc', 'Kg_sc', 'Cbz_st', 'Tm_st',
 ];
 
-// Generar todos los nombres de campo (sin fecha) usando backticks
 const campos = [];
-categorias.forEach(cat => {
-    sufijos.forEach(suf => {
-        campos.push(`${cat}_${suf}`);  // CORREGIDO: con backticks
-    });
+categorias.forEach((cat) => {
+  sufijos.forEach((suf) => {
+    campos.push(`${cat}_${suf}`);
+  });
 });
 
+function registroCoincideBusqueda(reg, q) {
+  if (!q || !String(q).trim()) return true;
+  const t = String(q).trim().toLowerCase();
+  const fechaStr = reg.fecha ? String(reg.fecha).split('T')[0] : '';
+  if (fechaStr.toLowerCase().includes(t)) return true;
+  if (String(reg.creado_por || '').toLowerCase().includes(t)) return true;
+  if (String(reg.actualizado_por || '').toLowerCase().includes(t)) return true;
+  for (const c of campos) {
+    const v = reg[c];
+    if (v != null && String(v).toLowerCase().includes(t)) return true;
+  }
+  return false;
+}
+
 const SacrificioVacuno = () => {
-    const [registros, setRegistros] = useState([]);
-    const [fecha, setFecha] = useState('');
-    const [formData, setFormData] = useState({});
-    const [editando, setEditando] = useState(false);
-    const [fechaOriginal, setFechaOriginal] = useState('');
+  const puedeEscribir = usePuedeEscribir();
+  const [registros, setRegistros] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [showEstadisticas, setShowEstadisticas] = useState(false);
+  const [fecha, setFecha] = useState('');
+  const [formData, setFormData] = useState({});
+  const [editando, setEditando] = useState(false);
+  const [fechaOriginal, setFechaOriginal] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [touched, setTouched] = useState({});
 
-    // Inicializar formData con todos los campos vacíos
-    useEffect(() => {
-        const initial = {};
-        campos.forEach(campo => initial[campo] = '');
-        setFormData(initial);
-    }, []);
+  useEffect(() => {
+    const initial = {};
+    campos.forEach((campo) => {
+      initial[campo] = '';
+    });
+    setFormData(initial);
+  }, []);
 
-    const getRegistros = () => {
-        Axios.get('http://localhost:3001/sacrificio')
-            .then(res => {
-                // Asegurar que las fechas se muestren como YYYY-MM-DD
-                const datos = res.data.map(item => ({
-                    ...item,
-                    fecha: item.fecha ? item.fecha.split('T')[0] : item.fecha
-                }));
-                setRegistros(datos);
-            })
-            .catch(err => console.error('Error al cargar:', err));
-    };
+  const getRegistros = () => {
+    Axios.get('/sacrificio')
+      .then((res) => {
+        const datos = (res.data || []).map((item) => ({
+          ...item,
+          fecha: item.fecha ? item.fecha.split('T')[0] : item.fecha,
+        }));
+        setRegistros(datos);
+      })
+      .catch((err) => console.error('Error al cargar:', err));
+  };
 
-    useEffect(() => {
-        getRegistros();
-    }, []);
+  useEffect(() => {
+    getRegistros();
+  }, []);
 
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
+  const registrosFiltrados = useMemo(
+    () => registros.filter((r) => registroCoincideBusqueda(r, busqueda)),
+    [registros, busqueda],
+  );
 
-    const limpiarForm = () => {
-        const empty = {};
-        campos.forEach(campo => empty[campo] = '');
-        setFormData(empty);
-        setFecha('');
-        setEditando(false);
-        setFechaOriginal('');
-    };
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setTouched((p) => ({ ...p, [name]: true }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        if (!fecha) {
-            Swal.fire('Error', 'Debes ingresar una fecha', 'warning');
-            return;
+  const handleFieldBlur = (e) => {
+    const { name } = e.target;
+    setTouched((p) => ({ ...p, [name]: true }));
+  };
+
+  const errMsg = useCallback(
+    (name) => {
+      const e = errorMensajeCampoNumericoProduccion(formData[name]);
+      if (!e) return null;
+      if (touched[name] || submitAttempted) return e;
+      return null;
+    },
+    [formData, touched, submitAttempted],
+  );
+
+  const limpiarForm = () => {
+    const empty = {};
+    campos.forEach((campo) => {
+      empty[campo] = '';
+    });
+    setFormData(empty);
+    setFecha('');
+    setEditando(false);
+    setFechaOriginal('');
+    setSubmitAttempted(false);
+    setTouched({});
+  };
+
+  const abrirNuevo = () => {
+    limpiarForm();
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitAttempted(true);
+    const errs = resumenErroresProduccion(campos, formData);
+    if (errs.length) {
+      const slice = errs.slice(0, 32);
+      const html = slice.map(
+        (x) => `<div class="text-start small mb-1"><strong>${x.campo}</strong> — ${x.mensaje}</div>`,
+      ).join('');
+      const more = errs.length > 32
+        ? `<p class="text-start small text-muted mt-2 mb-0">…y ${errs.length - 32} medidas con el mismo tipo de error (número inválido o negativo). Corregí y volvé a intentar.</p>`
+        : '';
+      await Swal.fire({
+        title: 'Revisar medidas',
+        icon: 'warning',
+        html: `${html}${more}`,
+        width: 680,
+        confirmButtonText: 'Entendido',
+      });
+      return;
+    }
+    if (hayCerosOVaciosEnFormulario(campos, formData)) {
+      const c = await Swal.fire({
+        title: 'Hay valores en cero o vacíos',
+        html: '<p class="text-start small mb-0">Ingresaste <strong>0</strong> en alguna medida o dejaste <strong>campos sin completar</strong> (se guardarán como cero). Si es lo que querés, confirmá. Si no, cancelá y completá el formulario.</p>',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, guardar',
+        cancelButtonText: 'Revisar el formulario',
+        focusCancel: true,
+        width: 600,
+      });
+      if (!c.isConfirmed) return;
+    }
+    const data = armaPayloadProduccion(campos, formData, fecha);
+    if (editando) {
+      Axios.put(`/update-sacrificio/${fechaOriginal}`, data)
+        .then(() => {
+          Swal.fire('Actualizado', 'Registro actualizado', 'success');
+          getRegistros();
+          limpiarForm();
+          setShowModal(false);
+        })
+        .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
+    } else {
+      Axios.post('/create-sacrificio', data)
+        .then(() => {
+          Swal.fire('Creado', 'Registro creado', 'success');
+          getRegistros();
+          limpiarForm();
+          setShowModal(false);
+        })
+        .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
+    }
+  };
+
+  const editarRegistro = (reg) => {
+    setEditando(true);
+    setSubmitAttempted(false);
+    setTouched({});
+    const fechaSolo = reg.fecha ? reg.fecha.split('T')[0] : '';
+    setFechaOriginal(fechaSolo);
+    setFecha(fechaSolo);
+    const nuevosDatos = {};
+    campos.forEach((campo) => {
+      nuevosDatos[campo] = reg[campo] != null && reg[campo] !== '' ? reg[campo] : '';
+    });
+    setFormData(nuevosDatos);
+    setShowModal(true);
+  };
+
+  const eliminarRegistro = (rawFecha) => {
+    const fechaSolo = String(rawFecha).split('T')[0];
+    Swal.fire({
+      title: 'Confirmar eliminación — Sacrificio vacuno',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Conservar registro',
+      focusCancel: true,
+      width: 640,
+      html: (
+        '<div class="text-start">'
+        + '<p>Se <strong>elimina de la tabla de trabajo</strong> el registro del día <strong>'
+        + `${fechaSolo}</strong> (Sacrificio vacuno).</p>`
+        + '<ul class="small ps-3 mb-2">'
+        + '<li>Antes de borrar, el sistema deja <strong>copia en archivo de auditoría</strong> (eliminación registrada) según la política interna.</li>'
+        + '<li>Después no podrás <strong>restaurar</strong> con un botón: si el borrado fue un error, tendrás que <strong>crear otra carga de día</strong> con la fecha adecuada; los numéricos admiten 0 o vacío (guardado como 0), y si hay ceros o vacíos el sistema pide confirmación antes de guardar.</li>'
+        + '<li>Los informes o estadística que tomen la fecha afectada dejarán de ver este renglón en la vista normal.</li>'
+        + '</ul></div>'
+      ),
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Axios.delete(`/delete-sacrificio/${fechaSolo}`)
+          .then(() => {
+            Swal.fire('Eliminado', 'Registro eliminado', 'success');
+            getRegistros();
+          })
+          .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
+      }
+    });
+  };
+
+  const sacrificioExportAepg = useMemo(() => {
+    const headers = ['Fecha', ...campos, 'Creado por', 'Actualizado por'];
+    const dataRows = registros.map((r) => [
+      r.fecha,
+      ...campos.map((c) => (r[c] == null || r[c] === '' ? '—' : r[c])),
+      r.creado_por || '—',
+      r.actualizado_por || '—',
+    ]);
+    return { headers, dataRows };
+  }, [registros]);
+
+  return (
+    <div className="container-fluid px-0">
+      <ModuleTitleBar
+        title="Gestión de Sacrificio Vacuno"
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center"
+              onClick={abrirNuevo}
+              disabled={!puedeEscribir}
+            >
+              <i className="bi bi-plus-lg me-2" aria-hidden="true" />
+              Nuevo registro
+            </button>
+            <ExportacionAepgGrupo
+              tituloSistema={AEPG_TITULO_PRODUCCION}
+              subtitulo="Reporte: Sacrificio vacuno. Generado con la gestión de producción/estadística AEPG."
+              descripcion="Listado con todas las medidas de categorías, totales, auditores (creado/actualizado por) y fechas de registro."
+              nombreBaseArchivo={`AEPG_sacrificio_vacuno_${new Date().toISOString().slice(0, 10)}`}
+              sheetName="Sacrificio"
+              headers={sacrificioExportAepg.headers}
+              dataRows={sacrificioExportAepg.dataRows}
+              disabled={!registros.length}
+            />
+            <button
+              type="button"
+              className="btn btn-outline-info btn-sm btn-form-nowrap d-inline-flex align-items-center"
+              onClick={() => setShowEstadisticas(true)}
+            >
+              <i className="bi bi-graph-up-arrow me-2" aria-hidden="true" />
+              Estadísticas e informes
+            </button>
+          </>
         }
-        const data = { fecha, ...formData };
+      />
 
-        if (editando) {
-            Axios.put(`http://localhost:3001/update-sacrificio/${fechaOriginal}`, data)  // CORREGIDO: backticks
-                .then(() => {
-                    Swal.fire('Actualizado', 'Registro actualizado', 'success');
-                    getRegistros();
-                    limpiarForm();
-                })
-                .catch(err => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
-        } else {
-            Axios.post('http://localhost:3001/create-sacrificio', data)
-                .then(() => {
-                    Swal.fire('Creado', 'Registro creado', 'success');
-                    getRegistros();
-                    limpiarForm();
-                })
-                .catch(err => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
-        }
-    };
-
-    const editarRegistro = (reg) => {
-        setEditando(true);
-        
-        // Extraer solo la parte de fecha (por si acaso viene con hora)
-        const fechaSolo = reg.fecha ? reg.fecha.split('T')[0] : '';
-        setFechaOriginal(fechaSolo);
-        setFecha(fechaSolo);
-
-        // Rellenar formData con los valores del registro
-        const nuevosDatos = {};
-        campos.forEach(campo => {
-            nuevosDatos[campo] = reg[campo] || '';
-        });
-        setFormData(nuevosDatos);
-    };
-
-    const eliminarRegistro = (fecha) => {
-
-
-const fechaSolo = fecha.split('T')[0];  // CORREGIDO
-        Swal.fire({
-            title: '¿Eliminar?',
-            text: `Se eliminará el registro de fecha ${fechaSolo}`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Sí'
-        }).then(result => {
-            if (result.isConfirmed) {
-                Axios.delete(`http://localhost:3001/delete-sacrificio/${fechaSolo}`)  // CORREGIDO: backticks
-                    .then(() => {
-                        Swal.fire('Eliminado', 'Registro eliminado', 'success');
-                        getRegistros();
-                    })
-                    .catch(err => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
-            }
-        });
-    };
-
-    const exportarExcel = () => {
-        if (!registros.length) return;
-        const rows = registros.map((r) => {
-            const row = { fecha: r.fecha };
-            campos.forEach((c) => {
-                row[c] = r[c];
-            });
-            row.creado_por = r.creado_por || '';
-            row.actualizado_por = r.actualizado_por || '';
-            return row;
-        });
-        exportRowsToExcel(rows, 'Sacrificio', `sacrificio_vacuno_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    };
-
-    return (
-        <div className="container-fluid px-0">
-            <ModuleTitleBar title="Gestión de Sacrificio Vacuno" />
-            <div className="card p-3">
-                
-                <form onSubmit={handleSubmit}>
-                    <div className="row mb-3">
-                        <div className="col-md-2">
-                            <label>Fecha</label>
-                            <input type="date" className="form-control" value={fecha} onChange={e => setFecha(e.target.value)} required />
-                        </div>
-                    </div>
-                    <div className="row">
-                        {categorias.map(cat => (
-                            <div key={cat} className="col-md-6 border p-2 mb-2">
-                                <h5 className="bg-light p-1">{cat.toUpperCase()}</h5>
-                                <div className="row">
-                                    {sufijos.map(suf => {
-                                        const nombreCampo = `${cat}_${suf}`;  // CORREGIDO: backticks
-                                        return (
-                                            <div className="col-md-4 mb-2" key={nombreCampo}>
-                                                <label className="small">{suf}</label>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    className="form-control form-control-sm"
-                                                    name={nombreCampo}
-                                                    value={formData[nombreCampo] || ''}
-                                                    onChange={handleInputChange}
-                                                />
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="mt-3">
-                        <button type="submit" className="btn btn-success btn-form-nowrap">
-                            {editando ? 'Actualizar' : 'Guardar'}
-                        </button>
-                        {editando && <button type="button" className="btn btn-secondary btn-form-nowrap ms-2" onClick={limpiarForm}>Cancelar</button>}
-                    </div>
-                </form>
-                <hr />
-                <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                    <h4 className="mb-0">Registros existentes</h4>
-                    <button type="button" className="btn btn-success btn-sm btn-form-nowrap" onClick={exportarExcel} disabled={!registros.length}>
-                        Exportar Excel
-                    </button>
-                </div>
-                <div style={{ overflowX: 'auto' }}>
-                    <table className="table table-data-compact table-bordered table-striped table-sm">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                {campos.map(campo => <th key={campo}>{campo}</th>)}
-                                <th>Creado por</th>
-                                <th>Actualizado por</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-
-
-{registros.map(reg => (
-                                <tr key={reg.fecha}>
-                                    <td className="text-nowrap">{fmtFechaTabla(reg.fecha)}</td>
-                                    {campos.map(campo => <td key={campo}>{reg[campo]}</td>)}
-                                    <td className="small">{reg.creado_por || '—'}</td>
-                                    <td className="small">{reg.actualizado_por || '—'}</td>
-                                    <td>
-                                        <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
-                                        <DeleteTableActionButton onClick={() => eliminarRegistro(reg.fecha)} />
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+      <div className="card p-3">
+        <ListSearchToolbar
+          value={busqueda}
+          onChange={setBusqueda}
+          placeholder="Fecha, valores, creado por, etc."
+        />
+        <h4 className="h6 text-muted mb-2">Registros ({registrosFiltrados.length} de {registros.length})</h4>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table table-data-compact table-bordered table-striped table-sm">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                {campos.map((campo) => (
+                  <th key={campo}>{campo}</th>
+                ))}
+                <th>Creado por</th>
+                <th>Actualizado por</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registrosFiltrados.map((reg) => (
+                <tr key={reg.fecha}>
+                  <td className="text-nowrap">{fmtFechaTabla(reg.fecha)}</td>
+                  {campos.map((campo) => (
+                    <td key={campo}>{reg[campo]}</td>
+                  ))}
+                  <td className="small">{reg.creado_por || '—'}</td>
+                  <td className="small">{reg.actualizado_por || '—'}</td>
+                  <td>
+                    <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
+                    <DeleteTableActionButton onClick={() => eliminarRegistro(reg.fecha)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-    );
+      </div>
+
+      <Modal
+        show={showEstadisticas}
+        onHide={() => setShowEstadisticas(false)}
+        size="xl"
+        fullscreen="lg-down"
+        scrollable
+        backdrop="static"
+        className="modal-estadisticas-produccion"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Estadísticas, análisis e informes — Sacrificio vacuno</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-0" style={{ maxHeight: 'min(90vh, 900px)' }}>
+          <div className="p-2 p-md-3 overflow-auto" style={{ maxHeight: 'min(90vh, 900px)' }}>
+            <SacrificioVacunoStatsPanel registros={registros} />
+          </div>
+        </Modal.Body>
+      </Modal>
+
+      <Modal show={showModal} onHide={() => { setShowModal(false); limpiarForm(); }} size="xl" scrollable backdrop="static" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{editando ? 'Editar registro' : 'Nuevo registro'}</Modal.Title>
+        </Modal.Header>
+        <form onSubmit={handleSubmit} id="form-sacrificio-modal" noValidate>
+          <Modal.Body className="modal-form-body-scroll">
+            <ProduccionFormInstrucciones
+              titulo="Cómo completar un día de registro (Sacrificio vacuno)"
+              nombreModulo="Sacrificio vacuno"
+            />
+            <div className="row mb-3 align-items-end g-2">
+              <div className="col-md-4 col-lg-3">
+                <label className="form-label" htmlFor="produccion-fecha-sacrificio">Fecha del registro</label>
+                <input
+                  id="produccion-fecha-sacrificio"
+                  type="date"
+                  className="form-control"
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  disabled={editando}
+                />
+                <p className="form-text small mb-0" id="produccion-fecha-help-sacrificio">
+                  Opcional: si no elegís una fecha, al pulsar <strong>Guardar</strong> o <strong>Actualizar</strong> se
+                  asigna automáticamente la de hoy según el reloj de tu dispositivo ({fechaLocalHoyISO()}).
+                </p>
+              </div>
+              <div className="col-auto">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={() => setFecha(fechaLocalHoyISO())}
+                  disabled={editando}
+                >
+                  Poner la fecha de hoy
+                </button>
+              </div>
+            </div>
+            <div className="row">
+              {categorias.map((cat) => (
+                <div key={cat} className="col-md-6 border p-2 mb-2">
+                  <h5 className="bg-light p-1">{cat.toUpperCase()}</h5>
+                  <div className="row">
+                    {sufijos.map((suf) => {
+                      const nombreCampo = `${cat}_${suf}`;
+                      return (
+                        <ProduccionFormCampoNumero
+                          key={nombreCampo}
+                          name={nombreCampo}
+                          label={suf}
+                          value={formData[nombreCampo] || ''}
+                          onChange={handleInputChange}
+                          onBlur={handleFieldBlur}
+                          error={errMsg(nombreCampo)}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <button type="button" className="btn btn-outline-secondary" onClick={() => { setShowModal(false); limpiarForm(); }}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn-success" disabled={!puedeEscribir}>
+              {editando ? 'Actualizar' : 'Guardar'}
+            </button>
+          </Modal.Footer>
+        </form>
+      </Modal>
+    </div>
+  );
 };
 
 export default SacrificioVacuno;

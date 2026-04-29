@@ -33,7 +33,7 @@ export function FormModal({
           {subtitle ? <p className="modal-premium-subtitle mb-0">{subtitle}</p> : null}
         </div>
       </Modal.Header>
-      <Modal.Body className="modal-premium-body modal-minimal-body">{children}</Modal.Body>
+      <Modal.Body className="modal-premium-body modal-minimal-body modal-form-body-scroll">{children}</Modal.Body>
       <Modal.Footer className="modal-premium-footer modal-minimal-footer border-0">
         <button
           type="button"
