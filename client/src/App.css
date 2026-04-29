@@ -113,8 +113,10 @@ margin-top: 15px;
   --accion-aceptar: #218838;
   --accion-aceptar-hover: #1c7430;
   --accion-aceptar-active: #185c29;
-  --accion-anadir: #007bff;
-  --accion-anadir-hover: #0069d9;
+  --accion-anadir: #14532d;
+  --accion-anadir-hover: #0f3d24;
+  --accion-anadir-border: #0f3d24;
+  --accion-anadir-rgb: 20, 83, 45;
   --accion-editar: #ffc107;
   --accion-editar-hover: #e0a800;
   --accion-editar-text: #212529;
@@ -836,7 +838,7 @@ margin-top: 15px;
 .dashboard-main .card > h6 {
   margin: 0 0 0.72rem;
   color: #ffffff !important;
-  background: #0b9b43 !important;
+  background: #14532d !important;
   border: none !important;
   border-radius: 0 !important;
   font-size: 0.95rem;
@@ -883,31 +885,31 @@ margin-top: 15px;
   transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease;
 }
 
-/* Primario Bootstrap = Adicionar / acciones principales azules (#007bff) */
+/* Primario = acciones principales (verde marca, alineado con Contratos) */
 .dashboard-main .btn-primary {
   background-color: var(--accion-anadir);
-  border-color: #0062cc;
+  border-color: var(--accion-anadir-border, #0f3d24);
   color: #ffffff;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 14px rgba(var(--ui-primary-rgb), 0.22);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 14px rgba(var(--accion-anadir-rgb, 20, 83, 45), 0.22);
 }
 
 .dashboard-main .btn-primary:hover {
   background-color: var(--accion-anadir-hover);
-  border-color: #0056b3;
+  border-color: var(--accion-anadir-border, #0f3d24);
   color: #ffffff;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 20px rgba(var(--ui-primary-rgb), 0.28);
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 20px rgba(var(--accion-anadir-rgb, 20, 83, 45), 0.28);
   filter: brightness(1.02);
 }
 
 .dashboard-main .btn-primary:active {
-  background-color: #005cbf;
-  border-color: #004a9e;
+  background-color: #0c301c;
+  border-color: #082414;
   box-shadow: var(--btn-win11-shadow-pressed);
   filter: brightness(0.97);
 }
 
 .dashboard-main .btn-primary:focus-visible {
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--ui-primary-rgb), 0.85);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-anadir-rgb, 20, 83, 45), 0.45);
   outline: none;
 }
 
@@ -2057,20 +2059,49 @@ margin-top: 15px;
   justify-content: center;
   padding: 72px 16px 48px;
   box-sizing: border-box;
-  background: var(--dashboard-bg, #f5f5f5);
+  background-color: #0f0f0f;
+  background-image: url('./images/login-bg-cows.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page::before,
+.login-page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.login-page::before {
+  background: inherit;
+  filter: blur(5px) saturate(1.05);
+  transform: scale(1.06);
+  z-index: 0;
+}
+
+.login-page::after {
+  background: radial-gradient(circle at center, rgba(13, 18, 26, 0.18) 0%, rgba(8, 12, 19, 0.42) 100%);
+  z-index: 0;
 }
 
 .login-card {
   width: 100%;
   max-width: 380px;
   margin: 0 auto;
-  background: #ffffff;
+  background: rgba(21, 31, 42, 0.46);
   border-radius: 15px;
-  border: 1px solid var(--login-border);
-  box-shadow: 0 10px 32px rgba(17, 17, 17, 0.07), 0 2px 8px rgba(17, 17, 17, 0.04);
+  border: 1px solid rgba(226, 232, 240, 0.28);
+  box-shadow: 0 18px 45px rgba(5, 9, 16, 0.44), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   padding: 52px 32px 28px;
   position: relative;
   text-align: center;
+  z-index: 1;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .login-logo-wrap {
@@ -2078,8 +2109,8 @@ margin-top: 15px;
   top: 0;
   left: 50%;
   transform: translate(-50%, -52%);
-  width: 118px;
-  height: 118px;
+  width: 132px;
+  height: 132px;
   border-radius: 50%;
   background: #ffffff;
   display: flex;
@@ -2090,19 +2121,20 @@ margin-top: 15px;
 }
 
 .login-logo-img {
-  width: 102px;
-  height: 102px;
+  width: 122px;
+  height: 122px;
   object-fit: contain;
   border-radius: 50%;
 }
 
 .login-title {
   margin: 8px 0 24px;
-  color: var(--login-brand);
+  color: #f3f4f6;
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .login-form {
@@ -2123,33 +2155,39 @@ margin-top: 15px;
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--login-muted);
-  font-size: 1.05rem;
+  color: rgba(203, 213, 225, 0.72);
+  font-size: 1.25rem;
   pointer-events: none;
   z-index: 1;
+}
+
+.login-form > .login-field-row:nth-of-type(1) .login-field-icon,
+.login-form > .login-field-row:nth-of-type(2) .login-field-icon {
+  color: rgba(30, 41, 59, 0.9);
 }
 
 .login-input {
   width: 100%;
   height: 48px;
   padding: 0 16px 0 42px;
-  border: 1px solid var(--login-border);
+  border: 1px solid rgba(148, 163, 184, 0.38);
   border-radius: 8px;
   font-size: 0.95rem;
-  color: #222222;
-  background: #fff;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.42);
   box-sizing: border-box;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .login-input::placeholder {
-  color: var(--login-muted);
+  color: rgba(203, 213, 225, 0.55);
 }
 
 .login-input:focus {
   outline: none;
-  border-color: var(--login-primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  border-color: rgba(248, 250, 252, 0.62);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  background: rgba(15, 23, 42, 0.56);
 }
 
 .login-input--has-trailing {
@@ -2165,7 +2203,7 @@ margin-top: 15px;
   height: 40px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--login-muted);
+  color: rgba(226, 232, 240, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2175,9 +2213,9 @@ margin-top: 15px;
 }
 
 .login-eye-btn:hover {
-  color: #374151;
-  background: rgba(0, 0, 0, 0.05);
-  border-color: #e5e7eb;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.42);
+  border-color: rgba(148, 163, 184, 0.32);
   box-shadow: var(--btn-win11-shadow-neutral);
 }
 
@@ -2197,18 +2235,78 @@ margin-top: 15px;
   min-width: 0;
   height: 52px;
   border-radius: 8px;
-  border: 1px solid var(--login-border);
-  background: #fafafa;
-  color: var(--login-primary);
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background:
+    repeating-linear-gradient(
+      12deg,
+      rgba(148, 163, 184, 0.16) 0px,
+      rgba(148, 163, 184, 0.16) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    radial-gradient(circle at 12% 22%, rgba(148, 163, 184, 0.24) 0 1.1px, transparent 1.1px),
+    radial-gradient(circle at 78% 64%, rgba(226, 232, 240, 0.2) 0 1px, transparent 1px),
+    rgba(17, 24, 39, 0.44);
+  color: #f8fafc;
   font-weight: 700;
   font-size: 1.35rem;
-  letter-spacing: 0.35em;
+  letter-spacing: 0.18em;
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
   justify-content: center;
   padding-left: 0.35em;
   font-family: ui-monospace, 'Cascadia Code', 'Segoe UI', system-ui, sans-serif;
+  position: relative;
+  overflow: hidden;
+  text-shadow:
+    0.4px 0 rgba(239, 68, 68, 0.28),
+    -0.4px 0 rgba(34, 197, 94, 0.25);
+  isolation: isolate;
+}
+
+.login-captcha-code::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.62;
+  background:
+    repeating-linear-gradient(
+      -18deg,
+      transparent 0 8px,
+      rgba(148, 163, 184, 0.16) 8px 9px
+    ),
+    repeating-linear-gradient(
+      78deg,
+      transparent 0 10px,
+      rgba(248, 250, 252, 0.12) 10px 11px
+    ),
+    radial-gradient(circle at 22% 75%, rgba(248, 250, 252, 0.22) 0 1px, transparent 1px),
+    radial-gradient(circle at 54% 36%, rgba(148, 163, 184, 0.24) 0 1px, transparent 1px),
+    radial-gradient(circle at 84% 44%, rgba(248, 250, 252, 0.2) 0 1px, transparent 1px);
+}
+
+.login-captcha-code::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.55;
+  background:
+    linear-gradient(16deg, transparent 0 46%, rgba(239, 68, 68, 0.28) 47% 49%, transparent 50% 100%),
+    linear-gradient(-12deg, transparent 0 28%, rgba(34, 197, 94, 0.24) 29% 31%, transparent 32% 100%);
+}
+
+.login-captcha-code__glyph {
+  display: inline-block;
+  position: relative;
+  z-index: 3;
+  min-width: 0.62em;
+  text-align: center;
+  font-weight: 800;
+  filter: drop-shadow(0 1px 0 rgba(15, 23, 42, 0.5));
 }
 
 .login-captcha-side {
@@ -2219,20 +2317,33 @@ margin-top: 15px;
 }
 
 .login-timer {
-  width: 48px;
-  height: 48px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
-  background: conic-gradient(var(--login-primary) var(--timer-deg, 360deg), #e5e5e5 0deg);
+  background: conic-gradient(#16a34a var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  transition: background 0.28s ease;
+}
+
+.login-timer.login-timer--safe {
+  background: conic-gradient(#22c55e var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+}
+
+.login-timer.login-timer--warn {
+  background: conic-gradient(#f59e0b var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+}
+
+.login-timer.login-timer--danger {
+  background: conic-gradient(#ef4444 var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
 }
 
 .login-timer-inner {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #f5f5f5;
+  background: rgba(15, 23, 42, 0.92);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2241,17 +2352,45 @@ margin-top: 15px;
 .login-timer-text {
   font-size: 10px;
   font-weight: 700;
-  color: #444;
+  color: #f8fafc;
   line-height: 1;
+  transition: color 0.28s ease, text-shadow 0.28s ease;
+}
+
+.login-timer-text.login-timer-text--safe {
+  color: #86efac;
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.45);
+}
+
+.login-timer-text.login-timer-text--warn {
+  color: #fcd34d;
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.42);
+}
+
+.login-timer-text.login-timer-text--danger {
+  color: #ef4444 !important;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+}
+
+.login-timer.login-timer--safe .login-timer-text {
+  color: #86efac !important;
+}
+
+.login-timer.login-timer--warn .login-timer-text {
+  color: #f59e0b !important;
+}
+
+.login-timer.login-timer--danger .login-timer-text {
+  color: #ef4444 !important;
 }
 
 .login-refresh {
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  border: 1px solid var(--login-border);
-  background: #ffffff;
-  color: var(--login-muted);
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background: rgba(15, 23, 42, 0.46);
+  color: rgba(226, 232, 240, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2261,30 +2400,30 @@ margin-top: 15px;
 }
 
 .login-refresh:hover {
-  background: #f8f9fa;
-  color: var(--login-accent-green);
+  background: rgba(15, 23, 42, 0.62);
+  color: #93c5fd;
 }
 
 .login-submit {
   width: 100%;
   height: 50px;
   margin-top: 4px;
-  border: 1px solid #1d4ed8;
+  border: 1px solid #0f3d24;
   border-radius: var(--btn-win11-radius);
-  background: linear-gradient(180deg, #3b82f6 0%, var(--login-primary-deep) 100%);
+  background: linear-gradient(180deg, #1b6a3a 0%, #14532d 100%);
   color: #ffffff;
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
   font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 14px rgba(37, 99, 235, 0.28);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 6px 18px rgba(20, 83, 45, 0.38);
   transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease;
 }
 
 .login-submit:hover {
-  background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
-  border-color: #1e40af;
-  box-shadow: var(--btn-win11-shadow-hover), 0 8px 22px rgba(37, 99, 235, 0.32);
+  background: linear-gradient(180deg, #23884b 0%, #166534 100%);
+  border-color: #14532d;
+  box-shadow: var(--btn-win11-shadow-hover), 0 10px 24px rgba(20, 83, 45, 0.44);
   filter: brightness(1.02);
 }
 
@@ -2295,7 +2434,7 @@ margin-top: 15px;
 
 .login-submit:focus-visible {
   outline: none;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(37, 99, 235, 0.55);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(20, 83, 45, 0.42);
 }
 
 .login-forgot {
@@ -2305,13 +2444,23 @@ margin-top: 15px;
 
 .login-forgot-link {
   font-size: 0.8125rem;
-  color: var(--login-forgot);
+  color: rgba(226, 232, 240, 0.82);
   text-decoration: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
 }
 
 .login-forgot-link:hover {
-  color: var(--login-accent-green);
+  color: #ffffff;
   text-decoration: underline;
+}
+
+.login-forgot-link--btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* SweetAlert2 — diálogos corporativos (sin cambiar textos en JS) */
@@ -2620,6 +2769,23 @@ body .btn:not(.btn-link) {
   z-index: 3;
 }
 
+.dashboard-side-info__dna {
+  position: fixed;
+  right: 1.2rem;
+  top: 14.8rem;
+  width: 190px;
+  height: clamp(320px, 58vh, 590px);
+  z-index: 3;
+  background: transparent !important;
+}
+
+.dashboard-side-info__dna-canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background: transparent !important;
+}
+
 .dashboard-side-info__logo {
   max-width: 165px;
   margin-left: auto;
@@ -2630,7 +2796,7 @@ body .btn:not(.btn-link) {
 .dashboard-side-info__card {
   position: fixed;
   right: 1.2rem;
-  top: 8.05rem;
+  top: 5.35rem;
   width: 190px;
   z-index: 4;
 }
@@ -2687,6 +2853,7 @@ body .btn:not(.btn-link) {
 
 @media (max-width: 992px) {
   .dashboard-side-info__card,
+  .dashboard-side-info__dna,
   .dashboard-side-info__logo-wrap,
   .dashboard-main--contratos .contratos-top-header__right {
     position: static;
@@ -2706,9 +2873,8 @@ body .btn:not(.btn-link) {
 }
 
 /* ============================================================
- * Vista Gestión de Contratos — panel gris claro (ligeramente más profundo que gray-100),
- * acentos de marca / encabezado de tabla #14532d, verde acción #28a745 (mockup cliente).
- * Activado con .dashboard-main--contratos en App.js
+ * Tema de superficie del panel (antes solo Contratos): fondo #eceef2, tablas verde #14532d,
+ * tarjetas blancas. La clase .dashboard-main--contratos va siempre en el main del dashboard.
  * ============================================================ */
 
 .dashboard-main.dashboard-main--contratos {
@@ -2726,6 +2892,52 @@ body .btn:not(.btn-link) {
   letter-spacing: -0.01em;
 }
 
+/* Misma piel en todos los módulos: quita el gris/azul inline de .content-wrapper y alinea títulos/focus al verde */
+.dashboard-main.dashboard-main--contratos .content-wrapper {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+.dashboard-main.dashboard-main--contratos h4 {
+  background: var(--contratos-navy, #14532d) !important;
+  color: #ffffff !important;
+}
+
+.dashboard-main.dashboard-main--contratos .content-wrapper > .mb-4 > h4,
+.dashboard-main.dashboard-main--contratos .content-wrapper > .d-flex > div:first-child > h4,
+.dashboard-main.dashboard-main--contratos .content-wrapper > .container-fluid > h4:first-child {
+  box-shadow: -2.5rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .container > h4:first-child,
+.dashboard-main.dashboard-main--contratos .container-fluid > h4:first-child,
+.dashboard-main.dashboard-main--contratos .container > div:first-child > h4:first-child {
+  box-shadow: -2.25rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-content-main > .row > .col-12 > .d-flex > div:first-child > h4 {
+  box-shadow: -3rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-module-red-title-anchor:not(.dashboard-module-red-title-anchor--overlay) > h4 {
+  box-shadow: -3rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-content-main > div:not(.content-wrapper) > .d-flex > div:first-child > h4 {
+  box-shadow: -1.5rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .form-control:focus,
+.dashboard-main.dashboard-main--contratos .form-select:focus,
+.dashboard-main.dashboard-main--contratos textarea.form-control:focus {
+  border-color: var(--contratos-navy, #14532d);
+  box-shadow: 0 0 0 0.2rem rgba(var(--contratos-navy-rgb, 20, 83, 45), 0.2);
+}
+
+.dashboard-main.dashboard-main--contratos .content-wrapper > .mb-4 small.text-muted {
+  border-bottom-color: var(--contratos-navy, #14532d);
+}
+
 .dashboard-main.dashboard-main--contratos .card,
 .dashboard-main.dashboard-main--contratos .table-responsive {
   background: #ffffff !important;
@@ -2738,7 +2950,7 @@ body .btn:not(.btn-link) {
   box-shadow: 0 4px 12px rgba(17, 24, 39, 0.07);
 }
 
-/* ---- Oculta el listón negro (ola) SOLO en la vista Contratos ---- */
+/* ---- Listón superior: blanco en todo el panel (misma línea que Contratos) ---- */
 .dashboard-main--contratos .dashboard-topbar-wave {
   background-image: none !important;
   background: #ffffff !important;
@@ -2999,14 +3211,14 @@ body .btn:not(.btn-link) {
 
 /* ---- Pestañas: sin caja; línea inferior visible (border:none !important anulaba el bottom) ---- */
 .contratos-tabs-card {
-  padding: 0.35rem 0 0.6rem;
+  padding: 0.35rem 0 0;
   background: transparent !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   border-top: 0;
   border-left: 0;
   border-right: 0;
-  border-bottom: 2px solid #4b5563 !important;
+  border-bottom: 2px solid #16a34a !important;
 }
 
 .dashboard-main--contratos .contratos-tabs-card {
@@ -3015,7 +3227,7 @@ body .btn:not(.btn-link) {
 }
 
 .contratos-tabs-row {
-  margin-bottom: 0.15rem;
+  margin-bottom: 0;
   flex-wrap: wrap;
   row-gap: 0.5rem;
 }
@@ -3025,7 +3237,7 @@ body .btn:not(.btn-link) {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.15rem;
+  margin-bottom: 0;
 }
 
 .contratos-tab {
@@ -3047,7 +3259,7 @@ body .btn:not(.btn-link) {
   background: var(--contratos-navy, #14532d);
   color: #ffffff !important;
   border-radius: 999px;
-  box-shadow: none;
+  box-shadow: inset 0 -6px 0 #16a34a;
 }
 
 .contratos-tab--active:hover {
@@ -3323,7 +3535,7 @@ body .btn:not(.btn-link) {
 
 /* Inmediatos: teal vivo */
 .renov-progress__bar--teal {
-  background: linear-gradient(90deg, #319795, #2c7a7b);
+  background: linear-gradient(90deg, #facc15, #f59e0b);
 }
 
 /* Vencidos: rojo más saturado */
@@ -3374,22 +3586,62 @@ body .btn:not(.btn-link) {
   margin-top: 0.1rem;
 }
 
+.dashboard-main--contratos .renov-alerts-card .card-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-main--contratos .renov-alerts-list {
+  max-height: 18.9rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.2rem;
+}
+
+.dashboard-main--contratos .renov-alerts-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-main--contratos .renov-alerts-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+
+.dashboard-main--contratos .renov-alerts-list::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
 /* ---- Cola de renovación priorizada (tabla): sin scroll interno ---- */
 .dashboard-main--contratos .renov-cola-table-wrap {
-  max-height: none;
-  overflow: visible;
+  max-height: 24.5rem;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   border-radius: 8px;
   border: 1px solid #edf2f7;
 }
 
-/* Tablas de Contratos: columna "N° Contrato" centrada y compacta */
-.dashboard-main--contratos .table.table-data-compact thead th:first-child,
-.dashboard-main--contratos .table.table-data-compact tbody td:first-child {
+.dashboard-main--contratos .renov-cola-table-wrap::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-main--contratos .renov-cola-table-wrap::-webkit-scrollbar-thumb {
+  background: #b9c2cf;
+  border-radius: 999px;
+}
+
+.dashboard-main--contratos .renov-cola-table-wrap::-webkit-scrollbar-track {
+  background: #eef2f7;
+}
+
+/* Solo listado Contratos: columna "N° Contrato" centrada (no afectar otras tablas del panel) */
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact thead th:first-child,
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact tbody td:first-child {
   text-align: center;
   white-space: nowrap;
 }
 
-.dashboard-main--contratos .table.table-data-compact thead th:first-child {
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact thead th:first-child {
   width: 1%;
 }
 
@@ -3408,11 +3660,65 @@ body .btn:not(.btn-link) {
 
 /* Reduce el "marco blanco" alrededor de las tablas */
 .dashboard-main--contratos .contratos-table-card {
-  padding: 0.5rem !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.dashboard-main--contratos .contratos-table-card.table-responsive,
+.dashboard-main--contratos .contratos-table-card .table-responsive,
+.dashboard-main.dashboard-main--contratos .contratos-table-card .table-responsive {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* Quitar por completo el filo exterior de la tabla (manteniendo líneas internas) */
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact,
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact.table-bordered {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact thead tr:first-child > th {
+  border-top: 0 !important;
+}
+
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact tbody tr:last-child > td {
+  border-bottom: 0 !important;
+}
+
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact tr > *:first-child {
+  border-left: 0 !important;
+}
+
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact tr > *:last-child {
+  border-right: 0 !important;
 }
 
 .dashboard-main--contratos .contratos-filter-card {
   padding: 0.5rem 0.9rem 0.5rem 0.5rem !important;
+}
+
+.dashboard-main--contratos .contratos-search-input-wrap {
+  position: relative;
+}
+
+.dashboard-main--contratos .contratos-search-input-icon {
+  position: absolute;
+  left: 0.62rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  font-size: 0.8rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.dashboard-main--contratos .contratos-search-input {
+  padding-left: 1.9rem !important;
 }
 
 /* Tipografia compacta en buscadores/filtros (igual a pestaña "Resumen") */
@@ -3481,6 +3787,57 @@ body .btn:not(.btn-link) {
   padding: 0.68rem 0.85rem;
   white-space: nowrap;
   font-size: 0.8125rem;
+  background-color: #ffffff !important;
+}
+
+.dashboard-main--contratos .contratos-row-check {
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid #9ca3af;
+  background: #ffffff;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  padding: 0;
+}
+
+.dashboard-main--contratos .contratos-row-check i {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.dashboard-main--contratos .contratos-row-check.is-selected {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #ffffff;
+}
+
+.dashboard-main--contratos .table.table-data-compact tbody tr.contratos-row-selected > td {
+  background-color: #dcfce7 !important;
+}
+
+.dashboard-main--contratos .contratos-numero-wrap {
+  gap: 0.45rem;
+  padding-left: 0.2rem;
+}
+
+.dashboard-main--contratos .table.table-data-compact.table-striped > tbody > tr:nth-of-type(odd) > *,
+.dashboard-main--contratos .table.table-data-compact.table-striped > tbody > tr:nth-of-type(even) > * {
+  background-color: #ffffff !important;
+}
+
+.dashboard-main--contratos .table.table-data-compact.table-hover tbody tr:hover td,
+.dashboard-main--contratos .table.table-data-compact tbody tr:hover td {
+  background-color: #ffffff !important;
+}
+
+/* Selección de contrato: debe prevalecer sobre striped/hover */
+.dashboard-main--contratos .table.table-data-compact tbody tr.contratos-row-selected > td,
+.dashboard-main--contratos .table.table-data-compact.table-striped > tbody > tr.contratos-row-selected > *,
+.dashboard-main--contratos .table.table-data-compact.table-hover tbody tr.contratos-row-selected:hover td {
+  background-color: #dcfce7 !important;
 }
 
 .dashboard-main--contratos .contratos-numero-wrap {
@@ -3587,6 +3944,28 @@ body .btn:not(.btn-link) {
 .dashboard-main--contratos .btn-table-icon-action--delete:focus-visible {
   box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(185, 28, 28, 0.45);
   outline: none;
+}
+
+/* Columna Acciones: ancho mínimo (sin hueco a la derecha) y botones un poco más chicos */
+.dashboard-main--contratos .contratos-th-actions,
+.dashboard-main--contratos .contratos-td-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+}
+
+.dashboard-main--contratos .contratos-td-actions .d-inline-flex {
+  justify-content: center;
+}
+
+.dashboard-main--contratos .btn-table-icon-action {
+  width: 1.95rem;
+  height: 1.95rem;
+  font-size: 0.88rem;
+  border-radius: 6px;
 }
 
 .contrato-pdf-preview-backdrop {
@@ -3732,6 +4111,8 @@ body .btn:not(.btn-link) {
 
 .renov-cola-table {
   margin-bottom: 0;
+  min-width: 100%;
+  table-layout: auto;
 }
 
 .renov-cola-table > thead > tr > th {
@@ -3741,6 +4122,10 @@ body .btn:not(.btn-link) {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
   border-bottom: 1px solid #dee2e6 !important;
   border-radius: 0 !important;
 }
@@ -3763,6 +4148,22 @@ body .btn:not(.btn-link) {
 
 .renov-cola-th-num {
   width: 4.5rem;
+}
+
+.renov-cola-table > thead > tr > th:nth-child(2),
+.renov-cola-table > tbody > tr > td:nth-child(2) {
+  width: 6.5rem;
+  min-width: 6.5rem;
+}
+
+.renov-cola-table > thead > tr > th:nth-child(3),
+.renov-cola-table > tbody > tr > td:nth-child(3) {
+  width: 13.5rem;
+}
+
+.renov-cola-table > thead > tr > th:nth-child(4),
+.renov-cola-table > tbody > tr > td:nth-child(4) {
+  width: 13.5rem;
 }
 
 .renov-cola-th-estado {
@@ -4052,12 +4453,19 @@ button.renov-empresa-avatar:focus-visible {
 /* ---- Botonera de acciones por fila ---- */
 .renov-actions {
   gap: 0.35rem !important;
-  min-width: 6.75rem;
-  max-width: 10rem;
+  min-width: 0;
+  max-width: none;
 }
 
 .renov-actions__row-renovar {
   min-width: 0;
+  justify-content: flex-start;
+}
+
+.renov-actions .renov-actions__row-reminder {
+  width: auto;
+  align-self: flex-start;
+  justify-content: center;
 }
 
 .renov-actions .btn {
@@ -4128,6 +4536,8 @@ button.renov-empresa-avatar:focus-visible {
   border-color: #28a745 !important;
   color: #ffffff !important;
   box-shadow: 0 1px 2px rgba(40, 167, 69, 0.25) !important;
+  padding: 0.22rem 0.3rem !important;
+  min-width: 0;
 }
 
 .renov-actions .btn.btn-primary:hover,
@@ -4146,7 +4556,7 @@ button.renov-empresa-avatar:focus-visible {
 .renov-bar-chart {
   display: flex;
   align-items: flex-end;
-  gap: 0.32rem;
+  gap: 0.55rem;
   height: 160px;
   padding: 0.4rem 0.25rem 0;
   border-bottom: 1px solid #e5e7eb;
@@ -4163,10 +4573,58 @@ button.renov-empresa-avatar:focus-visible {
 }
 
 .renov-bar {
-  width: 72%;
-  background: #14532d;
+  width: 100%;
+  max-width: 10px;
+  min-height: 4px;
   border-radius: 3px 3px 0 0;
   transition: height 0.4s ease;
+}
+
+.renov-bar-pair {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+}
+
+.renov-bar--red {
+  background: #dc2626;
+}
+
+.renov-bar--green {
+  background: #16a34a;
+}
+
+.renov-bar-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.7rem;
+  color: #4b5563;
+}
+
+.renov-bar-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.renov-bar-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.renov-bar-legend__dot--red {
+  background: #dc2626;
+}
+
+.renov-bar-legend__dot--green {
+  background: #16a34a;
 }
 
 .renov-chart-caption {
@@ -4260,6 +4718,7 @@ button.renov-empresa-avatar:focus-visible {
   }
 }
 
+<<<<<<< HEAD
 /* Recursos humanos: botón flotante → 24 herramientas (modal) */
 .rrhh-analitica-fab {
   position: fixed;
@@ -4274,4 +4733,262 @@ button.renov-empresa-avatar:focus-visible {
   justify-content: center;
   padding: 0;
   font-size: 1.35rem;
+=======
+/* ---- Reportes de contratación (vista premium, filtros propios) ---- */
+.dashboard-main--contratos .reportes-dashboard {
+  margin-bottom: 1rem;
+}
+
+.dashboard-main--contratos .reportes-export-btn-csv {
+  background-color: #2563eb;
+  border: 1px solid #1d4ed8;
+  color: #ffffff !important;
+}
+
+.dashboard-main--contratos .reportes-export-btn-csv:hover {
+  background-color: #1d4ed8;
+  border-color: #1e40af;
+  color: #ffffff !important;
+}
+
+.dashboard-main--contratos .reportes-export-btn-csv:focus-visible {
+  outline: none;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(37, 99, 235, 0.45);
+}
+
+.dashboard-main--contratos .reportes-export-btn-csv:active {
+  background-color: #1e40af;
+  border-color: #1e3a8a;
+}
+
+.reportes-hero {
+  border-radius: 14px !important;
+  background: linear-gradient(165deg, #ffffff 0%, #f4f6f8 100%);
+  border: 1px solid #e5e7eb !important;
+}
+
+.reportes-hero__title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--contratos-navy, #14532d);
+}
+
+.reportes-hero__subtitle {
+  max-width: 42rem;
+  line-height: 1.45;
+}
+
+.reportes-kpi-inline .reportes-kpi-pill {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.4rem 0.75rem;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05);
+}
+
+.reportes-kpi-pill__label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6c757d;
+}
+
+.reportes-kpi-pill strong {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  color: #111827;
+}
+
+.reportes-kpi-pill--warn strong {
+  color: #b45309;
+}
+
+.reportes-filter-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  margin-bottom: 0.25rem;
+}
+
+.dashboard-main--contratos .reportes-app-select .app-select__control {
+  min-height: 31px !important;
+  font-size: 0.875rem;
+}
+
+.reportes-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  color: #374151;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.reportes-hbar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.reportes-hbar-row {
+  display: grid;
+  grid-template-columns: minmax(4rem, 1fr) minmax(4rem, 3fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reportes-hbar-label {
+  font-size: 0.8125rem;
+  color: #374151;
+}
+
+.reportes-hbar-track {
+  height: 10px;
+  border-radius: 6px;
+  background: #eef0f3;
+  overflow: hidden;
+}
+
+.reportes-hbar-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--contratos-navy, #14532d), #22c55e);
+  min-width: 4px;
+  transition: width 0.2s ease;
+}
+
+.reportes-hbar-val {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #111827;
+  min-width: 1.5rem;
+  text-align: right;
+}
+
+.reportes-split-bar {
+  display: flex;
+  width: 100%;
+  height: 22px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.reportes-split-bar__seg {
+  min-width: 4px;
+  transition: flex 0.2s ease;
+}
+
+.reportes-split-bar__seg--prov {
+  background: linear-gradient(180deg, #14532d, #166534);
+}
+
+.reportes-split-bar__seg--cli {
+  background: linear-gradient(180deg, #0e7490, #06b6d4);
+}
+
+.reportes-split-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.reportes-split-dot--prov {
+  background: #14532d;
+}
+
+.reportes-split-dot--cli {
+  background: #0e7490;
+}
+
+.reportes-preview-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.reportes-side-card {
+  border-radius: 12px !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.reportes-card-title {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: #111827;
+  letter-spacing: -0.01em;
+}
+
+.reportes-quality-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.reportes-quality-item {
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.reportes-quality-item__val {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--contratos-navy, #14532d);
+  line-height: 1.2;
+}
+
+.reportes-quality-item__lab {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+.reportes-ranking {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.reportes-ranking-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #eef0f3;
+  background: #fafbfc;
+}
+
+.reportes-ranking-rank {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 6px;
+  background: var(--contratos-navy, #14532d);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reportes-ranking-count {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: #111827;
+>>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
 }

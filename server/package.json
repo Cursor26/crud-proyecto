@@ -12,11 +12,16 @@
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+<<<<<<< HEAD
     "dotenv": "^16.6.1",
+=======
+    "dotenv": "^17.4.2",
+>>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "jsonwebtoken": "^9.0.3",
     "mysql": "^2.18.1",
+    "nodemailer": "^8.0.7",
     "xlsx": "^0.18.5"
   }
 }

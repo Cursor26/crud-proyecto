@@ -39,6 +39,7 @@ import GestionUsuarios from './components/GestionUsuarios';
 import { PuedeEscribirProvider } from './context/PuedeEscribirContext';
 import RrhhModuloHerramientas6Modal from './components/RrhhModuloHerramientas6Modal';
 import logoAepg from './images/logo-aepg.png';
+import DnaThreeWidget from './components/DnaThreeWidget';
 
 const TOKEN_KEY = 'token';
 
@@ -173,6 +174,19 @@ function App() {
     } else if (SIDEBAR_PROD_KEYS.has(selectedKey)) {
       setSidebarMenuOpen('prod');
     }
+  };
+
+  const handleContratosSectionChange = (sectionId) => {
+    const sectionToKey = {
+      resumen: 'contratos-resumen',
+      contratos: 'contratos-lista',
+      vencimientos: 'contratos-vencimientos',
+      renovaciones: 'contratos-renovaciones',
+      reportes: 'contratos-reportes',
+    };
+    const nextKey = sectionToKey[sectionId];
+    if (!nextKey || nextKey === key) return;
+    handleNavSelect(nextKey);
   };
 
   useEffect(() => {
@@ -509,7 +523,7 @@ function App() {
         </Nav>
       </div>
 
-      <div className={`dashboard-main flex-grow-1 ps-4 pb-4 pe-0 ${key && (key === 'contratos' || key.startsWith('contratos-')) ? 'dashboard-main--contratos' : ''}`}>
+      <div className="dashboard-main dashboard-main--contratos flex-grow-1 ps-4 pb-4 pe-0">
         <div className="dashboard-topbar-wave" aria-hidden="true" />
         <Navbar expand="lg" className="dashboard-topbar shadow-none mb-2 py-2 px-4">
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
@@ -538,12 +552,37 @@ function App() {
         <div className="dashboard-main-scroll">
           <div className="dashboard-content-layout">
           <div className="dashboard-content-main">
+<<<<<<< HEAD
             {(key === 'contratos' || key === 'contratos-lista') && <GestionContratos vistaInicial="contratos" user={user} />}
             {key === 'contratos-resumen' && <GestionContratos vistaInicial="resumen" user={user} />}
             {key === 'contratos-vencimientos' && <GestionContratos vistaInicial="vencimientos" user={user} />}
             {key === 'contratos-renovaciones' && <GestionContratos vistaInicial="renovaciones" user={user} />}
             {key === 'contratos-reportes' && <GestionContratos vistaInicial="reportes" user={user} />}
             {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
+=======
+            {(key === 'contratos' ||
+              key === 'contratos-lista' ||
+              key === 'contratos-resumen' ||
+              key === 'contratos-vencimientos' ||
+              key === 'contratos-renovaciones' ||
+              key === 'contratos-reportes') && (
+              <GestionContratos
+                vistaInicial={
+                  key === 'contratos-resumen'
+                    ? 'resumen'
+                    : key === 'contratos-vencimientos'
+                      ? 'vencimientos'
+                      : key === 'contratos-renovaciones'
+                        ? 'renovaciones'
+                        : key === 'contratos-reportes'
+                          ? 'reportes'
+                          : 'contratos'
+                }
+                onSectionChange={handleContratosSectionChange}
+              />
+            )}
+            {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios />}
+>>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
             {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
             {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
             {key === 'leche' && mostrarLeche && <Leche />}
@@ -588,6 +627,9 @@ function App() {
               <p className="dashboard-side-info__time">
                 {now.toLocaleTimeString('es-ES')}
               </p>
+            </div>
+            <div className="dashboard-side-info__dna" aria-hidden="true">
+              <DnaThreeWidget />
             </div>
             <div className="dashboard-side-info__logo-wrap">
               <img

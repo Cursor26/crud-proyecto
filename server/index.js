@@ -9,6 +9,9 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+require('dotenv').config();
 
 app.use(cors());
 app.use(express.json());
@@ -31,6 +34,7 @@ const db = mysql.createConnection({
   database: process.env.DB_NAME || 'bd_crud',
 });
 
+<<<<<<< HEAD
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || String(JWT_SECRET).length < 16) {
   throw new Error('Definí JWT_SECRET en el archivo .env (mínimo 16 caracteres). Copiá .env.example a .env en la carpeta server/.');
@@ -43,6 +47,193 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: 'Demasiados intentos. Probá de nuevo en unos minutos.' },
 });
+=======
+const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
+const PASSWORD_RESET_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TTL_MINUTES || 30);
+const SMTP_REQUIRED = String(process.env.SMTP_REQUIRED || 'false').toLowerCase() === 'true';
+const MAIL_FALLBACK_MODE = String(process.env.MAIL_FALLBACK_MODE || 'graceful').toLowerCase();
+const RESET_LINK_FALLBACK_ENABLED = String(process.env.RESET_LINK_FALLBACK_ENABLED || 'true').toLowerCase() === 'true';
+
+const dbQuery = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.query(sql, params, (err, results) => {
+      if (err) return reject(err);
+      resolve(results);
+    });
+  });
+
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+const hashResetToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+const isSmtpTransientError = (error) => {
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNRESET', 'EHOSTUNREACH', 'ENOTFOUND'].includes(code) ||
+    message.includes('greeting never received') ||
+    message.includes('timeout')
+  );
+};
+const uniquePush = (arr, item, keyFn) => {
+  const key = keyFn(item);
+  if (!arr.some((x) => keyFn(x) === key)) arr.push(item);
+};
+
+const createMailer = () => {
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = Number(process.env.SMTP_PORT || 587);
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpSecure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
+  const smtpConnTimeout = Number(process.env.SMTP_CONNECTION_TIMEOUT || 15000);
+  const smtpGreetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT || 12000);
+  const smtpSocketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT || 20000);
+  const smtpAltHost = String(process.env.SMTP_ALT_HOST || '').trim();
+  const smtpAltPort = Number(process.env.SMTP_ALT_PORT || 587);
+  const smtpAltSecure = String(process.env.SMTP_ALT_SECURE || 'false').toLowerCase() === 'true';
+  const smtpAltUser = String(process.env.SMTP_ALT_USER || '').trim();
+  const smtpAltPass = String(process.env.SMTP_ALT_PASS || '').trim();
+
+  if (smtpHost && smtpUser && smtpPass) {
+    const accountConfigs = [{ host: smtpHost, user: smtpUser, pass: smtpPass, preferredPort: smtpPort, preferredSecure: smtpSecure }];
+    if (smtpAltHost && smtpAltUser && smtpAltPass) {
+      accountConfigs.push({
+        host: smtpAltHost,
+        user: smtpAltUser,
+        pass: smtpAltPass,
+        preferredPort: smtpAltPort,
+        preferredSecure: smtpAltSecure,
+      });
+    }
+
+    const transporters = [];
+    accountConfigs.forEach((account) => {
+      const fallbacks = [];
+      uniquePush(fallbacks, { port: account.preferredPort, secure: account.preferredSecure }, (x) => `${x.port}-${x.secure}`);
+      uniquePush(fallbacks, { port: 587, secure: false }, (x) => `${x.port}-${x.secure}`);
+      uniquePush(fallbacks, { port: 465, secure: true }, (x) => `${x.port}-${x.secure}`);
+
+      fallbacks.forEach((cfg) => {
+        transporters.push({
+          label: `${account.host}:${cfg.port} secure=${cfg.secure ? 'true' : 'false'}`,
+          transporter: nodemailer.createTransport({
+            host: account.host,
+            port: cfg.port,
+            secure: cfg.secure,
+            requireTLS: !cfg.secure,
+            auth: { user: account.user, pass: account.pass },
+            connectionTimeout: smtpConnTimeout,
+            greetingTimeout: smtpGreetingTimeout,
+            socketTimeout: smtpSocketTimeout,
+          }),
+        });
+      });
+    });
+
+    return {
+      mode: 'smtp',
+      transporters,
+      transporter: transporters[0].transporter,
+      from: process.env.SMTP_FROM || smtpUser,
+    };
+  }
+  return {
+    mode: 'dev',
+    transporter: nodemailer.createTransport({ jsonTransport: true }),
+    from: process.env.SMTP_FROM || 'no-reply@localhost',
+  };
+};
+
+const mailer = createMailer();
+
+const verifyMailer = async () => {
+  if (mailer.mode === 'smtp') {
+    let lastError = null;
+    for (const t of mailer.transporters || []) {
+      try {
+        await t.transporter.verify();
+        mailer.transporter = t.transporter;
+        console.log(`SMTP verificado usando ${t.label}`);
+        return;
+      } catch (error) {
+        lastError = error;
+        console.warn(`Fallo SMTP verify en ${t.label}:`, error?.code || error?.message || error);
+      }
+    }
+    throw lastError || new Error('No se pudo verificar ningún transporte SMTP.');
+  }
+  if (SMTP_REQUIRED) {
+    throw new Error('SMTP_REQUIRED=true pero faltan variables SMTP_HOST/SMTP_USER/SMTP_PASS');
+  }
+};
+
+const sendMailWithFallback = async (mailOptions) => {
+  if (mailer.mode !== 'smtp') {
+    return mailer.transporter.sendMail(mailOptions);
+  }
+
+  const transporters = mailer.transporters || [{ label: 'smtp', transporter: mailer.transporter }];
+  const startIndex = transporters.findIndex((t) => t.transporter === mailer.transporter);
+  const ordered = startIndex > 0
+    ? [...transporters.slice(startIndex), ...transporters.slice(0, startIndex)]
+    : transporters;
+
+  let lastError = null;
+  for (const t of ordered) {
+    try {
+      const result = await t.transporter.sendMail(mailOptions);
+      mailer.transporter = t.transporter;
+      return result;
+    } catch (error) {
+      lastError = error;
+      if (!isSmtpTransientError(error)) break;
+      console.warn(`SMTP send falló en ${t.label}:`, error?.code || error?.message || error);
+    }
+  }
+  throw lastError || new Error('No se pudo enviar correo por SMTP.');
+};
+
+const shouldUseGracefulMailFallback = (error) =>
+  MAIL_FALLBACK_MODE === 'graceful' && isSmtpTransientError(error);
+
+const ensurePasswordResetTable = async () => {
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) NOT NULL,
+      token_hash CHAR(64) NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used_at DATETIME NULL,
+      requested_ip VARCHAR(64) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_prt_email (email),
+      INDEX idx_prt_token_hash (token_hash),
+      INDEX idx_prt_expires_at (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+};
+
+const ensureContratoCorreoColumn = async () => {
+  const rows = await dbQuery(
+    `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'contratos_generales'
+        AND COLUMN_NAME = 'correo_notificacion'`
+  );
+  const exists = Number(rows?.[0]?.cnt || 0) > 0;
+  if (!exists) {
+    await dbQuery('ALTER TABLE contratos_generales ADD COLUMN correo_notificacion VARCHAR(255) NULL AFTER empresa');
+  }
+};
+
+//Usuarios y seguridad
+
+
+
+// Clave secreta para JWT (en producción, ponla en .env)
+const JWT_SECRET = process.env.JWT_SECRET || 'hgnfdignrejvmklehvmlSDJVHFDVDJMOdsjvmvjmnjsbmgiSDHUNVJDFVDNVBMJF84135165132164HDND8448340I/*/*/-*/**+';
+>>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
 
 // ==================== MIDDLEWARES ====================
 
@@ -104,6 +295,138 @@ app.post('/login', authLimiter, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error del servidor' });
+  }
+});
+
+app.post('/auth/forgot-password', async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const genericMessage = 'Si el correo existe en el sistema, te enviamos instrucciones para restablecer tu contraseña.';
+  let resetUrl = null;
+
+  if (!email) {
+    return res.status(200).json({ message: genericMessage });
+  }
+
+  try {
+    const users = await dbQuery(
+      'SELECT email, nombre FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1',
+      [email]
+    );
+
+    if (!users.length) {
+      return res.status(200).json({ message: genericMessage });
+    }
+
+    const user = users[0];
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashResetToken(rawToken);
+    const ttlMs = Math.max(PASSWORD_RESET_TTL_MINUTES, 5) * 60 * 1000;
+    const expiresAt = new Date(Date.now() + ttlMs);
+
+    await dbQuery('DELETE FROM password_reset_tokens WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))', [user.email]);
+    await dbQuery(
+      'INSERT INTO password_reset_tokens (email, token_hash, expires_at, requested_ip) VALUES (?, ?, ?, ?)',
+      [user.email, tokenHash, expiresAt, req.ip || null]
+    );
+
+    const baseUrl = String(APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+    resetUrl = `${baseUrl}/?resetToken=${encodeURIComponent(rawToken)}&email=${encodeURIComponent(user.email)}`;
+
+    const mailResult = await sendMailWithFallback({
+      from: mailer.from,
+      to: user.email,
+      subject: 'Recuperación de contraseña',
+      text: `Hola ${user.nombre || ''},\n\nRecibimos una solicitud para restablecer tu contraseña.\n\nUsa este enlace (expira en ${Math.max(PASSWORD_RESET_TTL_MINUTES, 5)} minutos):\n${resetUrl}\n\nSi no solicitaste este cambio, ignora este correo.`,
+      html: `
+        <div style="font-family:Segoe UI,Arial,sans-serif;color:#111827;">
+          <p>Hola ${user.nombre || ''},</p>
+          <p>Recibimos una solicitud para restablecer tu contraseña.</p>
+          <p>
+            <a href="${resetUrl}" style="display:inline-block;padding:10px 16px;background:#14532d;color:#fff;text-decoration:none;border-radius:6px;">
+              Restablecer contraseña
+            </a>
+          </p>
+          <p>Este enlace expira en ${Math.max(PASSWORD_RESET_TTL_MINUTES, 5)} minutos.</p>
+          <p>Si no solicitaste este cambio, ignora este correo.</p>
+        </div>
+      `,
+    });
+
+    const response = { message: genericMessage };
+    if (mailer.mode === 'dev') {
+      response.devResetUrl = resetUrl;
+      response.devMailPreview = mailResult?.message ? String(mailResult.message) : null;
+    }
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('Error en /auth/forgot-password:', error);
+    const smtpCode = String(error?.code || '').toUpperCase();
+    if (shouldUseGracefulMailFallback(error)) {
+      const response = {
+        message: `No se pudo enviar correo ahora mismo (${smtpCode || 'SIN_CODIGO'}), pero puedes continuar con el enlace temporal.`,
+        deliveryWarning: true,
+      };
+      if (RESET_LINK_FALLBACK_ENABLED) response.devResetUrl = resetUrl;
+      return res.status(200).json(response);
+    }
+    return res.status(500).json({
+      message: `No se pudo procesar la solicitud de recuperación (${smtpCode || 'ERROR_INTERNO'}).`,
+    });
+  }
+});
+
+app.post('/auth/reset-password', async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const token = String(req.body?.token || '').trim();
+  const newPassword = String(req.body?.newPassword || '');
+
+  if (!email || !token || !newPassword) {
+    return res.status(400).json({ message: 'Datos incompletos para restablecer contraseña.' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
+  }
+
+  try {
+    const tokenHash = hashResetToken(token);
+    const tokens = await dbQuery(
+      `SELECT id
+         FROM password_reset_tokens
+        WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))
+          AND token_hash = ?
+          AND used_at IS NULL
+          AND expires_at > NOW()
+        ORDER BY id DESC
+        LIMIT 1`,
+      [email, tokenHash]
+    );
+
+    if (!tokens.length) {
+      return res.status(400).json({ message: 'El enlace de recuperación es inválido o expiró.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const userResult = await dbQuery(
+      'UPDATE usuarios SET password = ? WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+      [hashedPassword, email]
+    );
+
+    if (!userResult?.affectedRows) {
+      return res.status(404).json({ message: 'No se encontró el usuario para restablecer contraseña.' });
+    }
+
+    await dbQuery('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = ?', [tokens[0].id]);
+    await dbQuery(
+      'UPDATE password_reset_tokens SET used_at = NOW() WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND used_at IS NULL',
+      [email]
+    );
+
+    return res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
+  } catch (error) {
+    console.error('Error en /auth/reset-password:', error);
+    return res.status(500).json({ message: 'No se pudo restablecer la contraseña.' });
   }
 });
 
@@ -395,6 +718,7 @@ function normalizarFechaInicioContrato(fechaInicio) {
 }
 
 // ==================== RUTAS PARA CONTRATOS ====================
+<<<<<<< HEAD
 app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), (req, res) => {
   const { numero_contrato, proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido } = req.body;
   const nNum = numero_contrato == null ? '' : String(numero_contrato).trim();
@@ -423,6 +747,24 @@ app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), (re
   db.query(
     'INSERT INTO contratos_generales (numero_contrato, proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido) VALUES (?,?,?,?,?,?,?,?,?)',
     [nNum, pc, empresaNorm, suplementosNorm, vigencia, tipo_contrato, fIni, fecha_fin, vencido],
+=======
+app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacion']), (req, res) => {
+  const { numero_contrato, proveedor_cliente, empresa, correo_notificacion, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido } = req.body;
+  db.query(
+    'INSERT INTO contratos_generales (numero_contrato, proveedor_cliente, empresa, correo_notificacion, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    [
+      numero_contrato,
+      proveedor_cliente,
+      empresa,
+      correo_notificacion ? String(correo_notificacion).trim() : null,
+      suplementos,
+      vigencia,
+      tipo_contrato,
+      fecha_inicio,
+      fecha_fin,
+      vencido,
+    ],
+>>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
     (err, result) => {
       if (err) {
         console.log(err);
@@ -441,6 +783,7 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), (req
     numero_contrato_original,
     proveedor_cliente,
     empresa,
+    correo_notificacion,
     suplementos,
     vigencia,
     tipo_contrato,
@@ -480,12 +823,19 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), (req
   }
 
   const sql =
-    'UPDATE contratos_generales SET numero_contrato=?, proveedor_cliente=?, empresa=?, suplementos=?, vigencia=?, tipo_contrato=?, fecha_inicio=?, fecha_fin=?, vencido=? WHERE numero_contrato=?';
+    'UPDATE contratos_generales SET numero_contrato=?, proveedor_cliente=?, empresa=?, correo_notificacion=?, suplementos=?, vigencia=?, tipo_contrato=?, fecha_inicio=?, fecha_fin=?, vencido=? WHERE numero_contrato=?';
   const params = [
     numeroNuevo,
+<<<<<<< HEAD
     pcU,
     empresaNorm,
     suplementosNorm,
+=======
+    proveedor_cliente,
+    empresa,
+    correo_notificacion ? String(correo_notificacion).trim() : null,
+    suplementos,
+>>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
     vigencia,
     tipo_contrato,
     fIniU,
@@ -563,6 +913,102 @@ app.get("/contratos", verificarToken, autorizarRol(['contratacion', 'director'])
       }
     }
   );
+});
+
+app.post("/send-contrato-reminder", async (req, res) => {
+  const numeroContrato = String(req.body?.numero_contrato || '').trim();
+  if (!numeroContrato) {
+    return res.status(400).json({ message: 'Número de contrato requerido.' });
+  }
+
+  try {
+    const rows = await dbQuery(
+      `SELECT numero_contrato, empresa, tipo_contrato, vigencia, fecha_inicio, fecha_fin, correo_notificacion
+         FROM contratos_generales
+        WHERE numero_contrato = ?
+        LIMIT 1`,
+      [numeroContrato]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: 'Contrato no encontrado.' });
+    }
+
+    const contrato = rows[0];
+    const destino = normalizeEmail(contrato.correo_notificacion);
+    if (!destino || !isValidEmail(destino)) {
+      return res.status(400).json({ message: 'Este contrato no tiene un correo de notificación válido.' });
+    }
+
+    const diasRestantes = (() => {
+      if (!contrato.fecha_fin) return null;
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const fin = new Date(contrato.fecha_fin);
+      fin.setHours(0, 0, 0, 0);
+      return Math.ceil((fin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+    })();
+    const estadoTiempo =
+      diasRestantes == null
+        ? 'Sin fecha de fin'
+        : diasRestantes < 0
+          ? `Vencido hace ${Math.abs(diasRestantes)} día(s)`
+          : `${diasRestantes} día(s) restantes`;
+
+    const safeDateToIso = (value) => {
+      if (!value) return '-';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return '-';
+      return d.toISOString().slice(0, 10);
+    };
+    const fechaInicioTxt = safeDateToIso(contrato.fecha_inicio);
+    const fechaFinTxt = safeDateToIso(contrato.fecha_fin);
+
+    console.log(`[REMINDER] Intentando enviar contrato ${contrato.numero_contrato} a ${destino}`);
+    await sendMailWithFallback({
+      from: mailer.from,
+      to: destino,
+      subject: `Recordatorio de renovación - Contrato ${contrato.numero_contrato}`,
+      text:
+        `Hola,\n\n` +
+        `Te enviamos un recordatorio de renovación del contrato ${contrato.numero_contrato}.\n` +
+        `Empresa: ${contrato.empresa || '-'}\n` +
+        `Tipo: ${contrato.tipo_contrato || '-'}\n` +
+        `Fecha inicio: ${fechaInicioTxt}\n` +
+        `Fecha fin: ${fechaFinTxt}\n` +
+        `Estado de tiempo: ${estadoTiempo}\n\n` +
+        `Por favor, realiza el seguimiento correspondiente.\n`,
+      html: `
+        <div style="font-family:Segoe UI,Arial,sans-serif;color:#111827;">
+          <p>Hola,</p>
+          <p>Te enviamos un recordatorio de renovación del contrato <strong>${contrato.numero_contrato}</strong>.</p>
+          <ul style="padding-left:1rem;margin:0.5rem 0 1rem;">
+            <li><strong>Empresa:</strong> ${contrato.empresa || '-'}</li>
+            <li><strong>Tipo:</strong> ${contrato.tipo_contrato || '-'}</li>
+            <li><strong>Fecha inicio:</strong> ${fechaInicioTxt}</li>
+            <li><strong>Fecha fin:</strong> ${fechaFinTxt}</li>
+            <li><strong>Estado de tiempo:</strong> ${estadoTiempo}</li>
+          </ul>
+          <p>Por favor, realiza el seguimiento correspondiente.</p>
+        </div>
+      `,
+    });
+
+    console.log(`[REMINDER] Envío OK contrato ${contrato.numero_contrato} a ${destino}`);
+    return res.status(200).json({ message: `Recordatorio enviado a ${destino}.` });
+  } catch (error) {
+    console.error('Error en /send-contrato-reminder:', error);
+    const smtpCode = String(error?.code || '').toUpperCase();
+    if (shouldUseGracefulMailFallback(error)) {
+      return res.status(200).json({
+        message: `No se pudo enviar el correo ahora mismo (${smtpCode || 'SIN_CODIGO'}), pero el recordatorio quedó preparado.`,
+        deliveryWarning: true,
+      });
+    }
+    return res.status(500).json({
+      message: `No se pudo enviar el recordatorio por correo (${smtpCode || 'ERROR_INTERNO'}).`,
+    });
+  }
 });
 
 //Empleados: 
@@ -3324,9 +3770,37 @@ app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autoriza
 
 
 
+<<<<<<< HEAD
 const PORT = Number(process.env.PORT) || 3001;
 app.listen(PORT, () => {
   console.log(`API en el puerto ${PORT}`);
 });
+=======
+Promise.all([ensurePasswordResetTable(), ensureContratoCorreoColumn()])
+  .then(async () => {
+    let smtpReady = false;
+    try {
+      await verifyMailer();
+      smtpReady = true;
+    } catch (err) {
+      console.warn('SMTP no disponible al iniciar. La app continuará sin bloquearse:', err?.message || err);
+    }
+
+    app.listen(3001, () => {
+      console.log('Corriendo en el puerto 3001');
+      if (mailer.mode === 'dev') {
+        console.log('Recuperación de contraseña: modo desarrollo (sin SMTP real).');
+      } else if (smtpReady) {
+        console.log('Recuperación de contraseña: SMTP activo.');
+      } else {
+        console.log('Recuperación de contraseña: SMTP configurado pero no disponible (se reintentará en cada envío).');
+      }
+    });
+  })
+  .catch((err) => {
+    console.error('No se pudo preparar la base de datos inicial (tablas/columnas):', err);
+    process.exit(1);
+  });
+>>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
 
 

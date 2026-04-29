@@ -1,11 +1,12 @@
 import { Children, useMemo } from 'react';
 import Select from 'react-select';
 
+const BRAND_GREEN = { primary: '#14532d', primaryRgb: '20, 83, 45' };
+
 const ACCENT = {
-  default: { primary: '#1e3a5f', primaryRgb: '30, 58, 95' },
-  /* Mismo verde: thead de contratos, filo/título de modales (—modal-accent) */
-  contratos: { primary: '#14532d', primaryRgb: '20, 83, 45' },
-  modal: { primary: '#14532d', primaryRgb: '20, 83, 45' },
+  default: BRAND_GREEN,
+  contratos: BRAND_GREEN,
+  modal: BRAND_GREEN,
 };
 
 function makeAppSelectStyles(variant) {
