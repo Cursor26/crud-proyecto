@@ -133,11 +133,11 @@ function Login({ onLogin }) {
 
     try {
       const response = await Axios.post('http://localhost:3001/auth/forgot-password', { email });
-      const { message, devResetUrl } = response.data || {};
+      const { message, devResetUrl, deliveryWarning } = response.data || {};
       if (devResetUrl) {
         const result = await Swal.fire({
-          icon: 'info',
-          title: 'Modo desarrollo',
+          icon: deliveryWarning ? 'warning' : 'info',
+          title: deliveryWarning ? 'Enlace temporal disponible' : 'Modo desarrollo',
           html: `
             <p>${message || 'Solicitud procesada.'}</p>
             <p style="word-break:break-all;"><strong>Enlace:</strong><br/>${devResetUrl}</p>
@@ -153,7 +153,11 @@ function Login({ onLogin }) {
         return;
       }
 
-      await Swal.fire('Solicitud enviada', message || 'Revisa tu correo para continuar.', 'success');
+      await Swal.fire(
+        deliveryWarning ? 'Atención' : 'Solicitud enviada',
+        message || 'Revisa tu correo para continuar.',
+        deliveryWarning ? 'warning' : 'success'
+      );
     } catch (error) {
       await Swal.fire('Error', error.response?.data?.message || 'No se pudo enviar el correo de recuperaci�n.', 'error');
     }

@@ -516,11 +516,27 @@ function App() {
         <div className="dashboard-main-scroll">
           <div className="dashboard-content-layout">
           <div className="dashboard-content-main">
-            {(key === 'contratos' || key === 'contratos-lista') && <GestionContratos vistaInicial="contratos" onSectionChange={handleContratosSectionChange} />}
-            {key === 'contratos-resumen' && <GestionContratos vistaInicial="resumen" onSectionChange={handleContratosSectionChange} />}
-            {key === 'contratos-vencimientos' && <GestionContratos vistaInicial="vencimientos" onSectionChange={handleContratosSectionChange} />}
-            {key === 'contratos-renovaciones' && <GestionContratos vistaInicial="renovaciones" onSectionChange={handleContratosSectionChange} />}
-            {key === 'contratos-reportes' && <GestionContratos vistaInicial="reportes" onSectionChange={handleContratosSectionChange} />}
+            {(key === 'contratos' ||
+              key === 'contratos-lista' ||
+              key === 'contratos-resumen' ||
+              key === 'contratos-vencimientos' ||
+              key === 'contratos-renovaciones' ||
+              key === 'contratos-reportes') && (
+              <GestionContratos
+                vistaInicial={
+                  key === 'contratos-resumen'
+                    ? 'resumen'
+                    : key === 'contratos-vencimientos'
+                      ? 'vencimientos'
+                      : key === 'contratos-renovaciones'
+                        ? 'renovaciones'
+                        : key === 'contratos-reportes'
+                          ? 'reportes'
+                          : 'contratos'
+                }
+                onSectionChange={handleContratosSectionChange}
+              />
+            )}
             {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios />}
             {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
             {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
