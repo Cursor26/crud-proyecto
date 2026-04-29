@@ -3480,7 +3480,7 @@ body .btn:not(.btn-link) {
 }
 
 .dashboard-main--contratos .renov-alerts-list {
-  max-height: 15.6rem;
+  max-height: 18.9rem;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.2rem;
@@ -3501,7 +3501,7 @@ body .btn:not(.btn-link) {
 
 /* ---- Cola de renovación priorizada (tabla): sin scroll interno ---- */
 .dashboard-main--contratos .renov-cola-table-wrap {
-  max-height: 12.2rem;
+  max-height: 24.5rem;
   max-width: 100%;
   overflow-x: hidden;
   overflow-y: auto;

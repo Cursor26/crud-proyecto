@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { EditTableActionButton, DeleteTableActionButton, RenewTableActionButton } from './TableActionIconButtons';
@@ -1186,24 +1186,78 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       ];
     });
 
-  const exportarReporteExcel = () => {
+  const exportarReporteExcel = async () => {
     const dataRows = construirFilasExportacionExcel();
-    const aoa = [REPORTE_EXCEL_HEADERS, ...dataRows];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const colWidths = [12, 11, 26, 30, 18, 11, 36, 12, 12, 14, 14, 18, 28];
-    ws['!cols'] = colWidths.map((wch) => ({ wch }));
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Contratos', {
+      views: [{ state: 'frozen', ySplit: 3 }],
+    });
 
-    const n = dataRows.length;
-    if (n > 0) {
-      ws['!autofilter'] = {
-        ref: `A1:${XLSX.utils.encode_cell({ r: n, c: REPORTE_EXCEL_HEADERS.length - 1 })}`,
-      };
+    const totalCols = REPORTE_EXCEL_HEADERS.length;
+    const lastColLetter = ws.getColumn(totalCols).letter;
+    const fechaTxt = new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+
+    ws.mergeCells(`A1:${lastColLetter}1`);
+    ws.getCell('A1').value = 'Reporte de contratacion';
+    ws.getCell('A1').font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 13 };
+    ws.getCell('A1').alignment = { vertical: 'middle', horizontal: 'left' };
+    ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14532D' } };
+    ws.getRow(1).height = 24;
+
+    ws.mergeCells(`A2:${lastColLetter}2`);
+    ws.getCell('A2').value = `Generado: ${fechaTxt} | Registros: ${dataRows.length}`;
+    ws.getCell('A2').font = { color: { argb: 'FF334155' }, size: 10 };
+    ws.getCell('A2').alignment = { vertical: 'middle', horizontal: 'left' };
+    ws.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    ws.getRow(2).height = 20;
+
+    ws.addRow(REPORTE_EXCEL_HEADERS);
+    ws.getRow(3).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+    ws.getRow(3).alignment = { vertical: 'middle', horizontal: 'left' };
+    ws.getRow(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF166534' } };
+    ws.getRow(3).height = 22;
+
+    dataRows.forEach((row) => ws.addRow(row));
+    ws.autoFilter = { from: 'A3', to: `${lastColLetter}3` };
+
+    ws.columns = [12, 11, 26, 30, 18, 11, 36, 12, 12, 14, 14, 18, 28].map((w) => ({ width: w }));
+
+    for (let r = 4; r <= ws.rowCount; r += 1) {
+      const row = ws.getRow(r);
+      if (r % 2 === 0) {
+        row.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAF9' } };
+        });
+      }
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        };
+      });
     }
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Contratos');
-    const nombre = `reporte_contratos_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, nombre);
+    ws.getRow(3).eachCell((cell) => {
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF0F3D24' } },
+        left: { style: 'thin', color: { argb: 'FF0F3D24' } },
+        bottom: { style: 'thin', color: { argb: 'FF0F3D24' } },
+        right: { style: 'thin', color: { argb: 'FF0F3D24' } },
+      };
+    });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reporte_contratos_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   /** CSV UTF-8 (Excel) con mismas columnas que el Excel; menos formato que .xlsx */
@@ -1917,6 +1971,29 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                     </div>
                   </div>
                 </div>
+
+                <div className="card renov-alerts-card mt-2">
+                  <div className="card-body">
+                    <h6 className="fw-bold mb-2 renov-card-title">Alertas Críticas</h6>
+                    <div className="renov-alerts-list">
+                      {contratosCriticos.map((c) => (
+                        <div key={c.numero_contrato} className="renov-alert-item">
+                          <i className="bi bi-exclamation-triangle-fill renov-alert-item__icon" aria-hidden="true" />
+                          <div className="renov-alert-item__body">
+                            <div className="renov-alert-item__title">
+                              Contrato {c.numero_contrato}
+                              {c.empresa ? ` — ${c.empresa}` : ''}
+                            </div>
+                            <small className="renov-alert-item__sub">requiere atención inmediata · {formatDiferenciaDias(c.diasRestantes)}</small>
+                          </div>
+                        </div>
+                      ))}
+                      {contratosCriticos.length === 0 && (
+                        <small className="text-muted">No hay alertas críticas en este momento.</small>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="col-12 col-md-7 col-xl-8 renov-cola-column">
@@ -2018,69 +2095,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 </div>
               </div>
 
-              <div className="col-12 col-md-5">
-                <div className="card renov-alerts-card h-100">
-                  <div className="card-body">
-                    <h6 className="fw-bold mb-2 renov-card-title">Alertas Críticas</h6>
-                    <div className="renov-alerts-list">
-                      {contratosCriticos.map((c) => (
-                        <div key={c.numero_contrato} className="renov-alert-item">
-                          <i className="bi bi-exclamation-triangle-fill renov-alert-item__icon" aria-hidden="true" />
-                          <div className="renov-alert-item__body">
-                            <div className="renov-alert-item__title">
-                              Contrato {c.numero_contrato}
-                              {c.empresa ? ` — ${c.empresa}` : ''}
-                            </div>
-                            <small className="renov-alert-item__sub">requiere atención inmediata · {formatDiferenciaDias(c.diasRestantes)}</small>
-                          </div>
-                        </div>
-                      ))}
-                      {contratosCriticos.length === 0 && (
-                        <small className="text-muted">No hay alertas críticas en este momento.</small>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-12 col-md-7">
-                <div className="card renov-stats-card h-100">
-                  <div className="card-body">
-                    <h6 className="fw-bold mb-2 renov-card-title">Estadísticas Rápidas</h6>
-                    <div className="row g-2 g-md-3 align-items-stretch renov-stats-row">
-                      <div className="col-12 col-md-7">
-                        <span className="renov-chart-caption">Contratos por Mes de Vencimiento</span>
-                        <div className="renov-bar-legend">
-                          <span className="renov-bar-legend__item"><i className="renov-bar-legend__dot renov-bar-legend__dot--red" />Vencidos</span>
-                          <span className="renov-bar-legend__item"><i className="renov-bar-legend__dot renov-bar-legend__dot--green" />Activos</span>
-                        </div>
-                        <div className="renov-bar-chart">
-                          {vencimientosPorMes.map((b) => (
-                            <div key={b.mes} className="renov-bar-col" title={`${b.mes} · Vencidos: ${b.vencidos} · Activos: ${b.activos}`}>
-                              <div className="renov-bar-pair">
-                                <div className="renov-bar renov-bar--red" style={{ height: `${Math.max(b.alturaVencidos, b.vencidos > 0 ? 8 : 0)}%` }} />
-                                <div className="renov-bar renov-bar--green" style={{ height: `${Math.max(b.alturaActivos, b.activos > 0 ? 8 : 0)}%` }} />
-                              </div>
-                              <small className="renov-bar-label">{b.mes}</small>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="col-12 col-md-5 d-flex flex-column align-items-center justify-content-start">
-                        <span className="renov-chart-caption">Total de Contratos por Estado</span>
-                        <RenovDonut
-                          segments={[
-                            { value: resumen.activos, color: '#14532d', label: 'Activos' },
-                            { value: resumen.porVencer + resumen.seguimiento, color: '#ffc107', label: 'Seguimiento / próx.' },
-                            { value: resumen.vencidos, color: '#dc3545', label: 'Vencidos' },
-                          ]}
-                          total={resumen.total}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         )}
@@ -2241,8 +2255,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 </div>
 
                 <div className="row g-3 mb-3">
-                  <div className="col-12 col-lg-5">
-                    <div className="card reportes-side-card h-100 border-0 shadow-sm">
+                  <div className="col-12 col-lg-7">
+                    <div className="card reportes-side-card border-0 shadow-sm mb-3">
                       <div className="card-body">
                         <h6 className="reportes-card-title mb-3">Calidad de datos (muestra filtrada)</h6>
                         <div className="reportes-quality-grid">
@@ -2260,8 +2274,45 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                         </p>
                       </div>
                     </div>
+
+                    <div className="card renov-stats-card border-0 shadow-sm">
+                      <div className="card-body">
+                        <h6 className="fw-bold mb-2 renov-card-title">Estadísticas Rápidas</h6>
+                        <div className="row g-2 g-md-3 align-items-stretch renov-stats-row">
+                          <div className="col-12 col-md-7">
+                            <span className="renov-chart-caption">Contratos por Mes de Vencimiento</span>
+                            <div className="renov-bar-legend">
+                              <span className="renov-bar-legend__item"><i className="renov-bar-legend__dot renov-bar-legend__dot--red" />Vencidos</span>
+                              <span className="renov-bar-legend__item"><i className="renov-bar-legend__dot renov-bar-legend__dot--green" />Activos</span>
+                            </div>
+                            <div className="renov-bar-chart">
+                              {vencimientosPorMes.map((b) => (
+                                <div key={b.mes} className="renov-bar-col" title={`${b.mes} · Vencidos: ${b.vencidos} · Activos: ${b.activos}`}>
+                                  <div className="renov-bar-pair">
+                                    <div className="renov-bar renov-bar--red" style={{ height: `${Math.max(b.alturaVencidos, b.vencidos > 0 ? 8 : 0)}%` }} />
+                                    <div className="renov-bar renov-bar--green" style={{ height: `${Math.max(b.alturaActivos, b.activos > 0 ? 8 : 0)}%` }} />
+                                  </div>
+                                  <small className="renov-bar-label">{b.mes}</small>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="col-12 col-md-5 d-flex flex-column align-items-center justify-content-start">
+                            <span className="renov-chart-caption">Total de Contratos por Estado</span>
+                            <RenovDonut
+                              segments={[
+                                { value: resumen.activos, color: '#14532d', label: 'Activos' },
+                                { value: resumen.porVencer + resumen.seguimiento, color: '#ffc107', label: 'Seguimiento / próx.' },
+                                { value: resumen.vencidos, color: '#dc3545', label: 'Vencidos' },
+                              ]}
+                              total={resumen.total}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="col-12 col-lg-7">
+                  <div className="col-12 col-lg-5">
                     <div className="card reportes-side-card h-100 border-0 shadow-sm">
                       <div className="card-body">
                         <h6 className="reportes-card-title mb-3">Concentración por empresa (filtro)</h6>
