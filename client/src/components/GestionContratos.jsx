@@ -22,7 +22,6 @@ import {
   MSJ_OBLIGATORIO_NO_SOLO_BLANCOS,
 } from '../utils/validation';
 
-<<<<<<< HEAD
 /** Fecha calendario local (YYYY-MM-DD) para inicio de contrato si el usuario no elige. */
 function hoyCivilYMD() {
   const d = new Date();
@@ -38,53 +37,16 @@ function escapeForSwalHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-function GestionContratos({ vistaInicial = 'contratos', user: usuarioAuth }) {
+function GestionContratos({ vistaInicial = 'contratos', user: usuarioAuth, onSectionChange }) {
   const puedeEscribir = usePuedeEscribir();
   const nombreEmpresaReporte = process.env.REACT_APP_EMPRESA_NOMBRE || EMPRESA_ORGANIZACION;
-=======
-/** Valores legacy numéricos en BD → etiquetas del formulario (Alimento, Servicio, Compra, Otro). */
-const MAP_TIPO_CONTRATO_NUM = {
-  '1': 'Alimento',
-  '2': 'Servicio',
-  '3': 'Compra',
-  '4': 'Otro',
-};
-
-function etiquetaTipoContratoLegible(raw) {
-  const s = raw == null ? '' : String(raw).trim();
-  if (!s) return '';
-  return MAP_TIPO_CONTRATO_NUM[s] || s;
-}
-
-const REPORTE_EXCEL_HEADERS = [
-  'Nº contrato',
-  'Parte',
-  'Empresa',
-  'Correo notificación',
-  'Tipo de contrato',
-  'Vigencia (años)',
-  'Suplementos',
-  'Fecha inicio',
-  'Fecha fin',
-  'Estado',
-  'Días restantes',
-  'Marcado vencido (BD)',
-  'Documento PDF',
-];
-
-function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
   const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
   const CONTRATOS_PDF_STORAGE_KEY = 'contratos_pdf_archivos_v1';
   const [contratoNumero, setContratoNumero] = useState('');
   const [contratoNumeroOriginal, setContratoNumeroOriginal] = useState('');
   const [contratoProveedorCliente, setContratoProveedorCliente] = useState(false);
   const [contratoEmpresa, setContratoEmpresa] = useState('');
-<<<<<<< HEAD
   const [contratoEmpresaCombo, setContratoEmpresaCombo] = useState('');
-=======
-  const [contratoCorreoNotificacion, setContratoCorreoNotificacion] = useState('');
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
   const [contratoSuplementos, setContratoSuplementos] = useState('');
   const [contratoSuplementosCombo, setContratoSuplementosCombo] = useState('');
   const [contratoVigencia, setContratoVigencia] = useState('');
@@ -92,6 +54,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const [contratoFechaInicio, setContratoFechaInicio] = useState('');
   const [contratoFechaFin, setContratoFechaFin] = useState('');
   const [contratoVencido, setContratoVencido] = useState(false);
+  const [contratoCorreoNotificacion, setContratoCorreoNotificacion] = useState('');
   const [editarContrato, setEditarContrato] = useState(false);
   const [contratosList, setContratos] = useState([]);
   const [showContratoModal, setShowContratoModal] = useState(false);
@@ -491,6 +454,18 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     return new Date(parseInt(p[1], 10), parseInt(p[2], 10) - 1, parseInt(p[3], 10));
   };
 
+  /** Fecha fin para vista previa export (DD/MM/AAAA), mismo criterio que columnas de reporte. */
+  const fechaParaExportEs = (value) => {
+    const d = parseFechaCivilYMDaDate(value);
+    if (!d) return '';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
+  const etiquetaTipoContratoLegible = (tipo) => String(tipo ?? '').trim();
+
   /**
    * Inversa de sumarTiempoConVigencia: vigencia en años (1 = un año) según inicio y fin.
    * Usar al renovar para que el valor guardado coincida con el periodo inicio–fin.
@@ -626,11 +601,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoNumeroOriginal('');
     setContratoProveedorCliente(false);
     setContratoEmpresa('');
-<<<<<<< HEAD
     setContratoEmpresaCombo('');
-=======
-    setContratoCorreoNotificacion('');
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
     setContratoSuplementos('');
     setContratoSuplementosCombo('');
     setContratoVigencia('');
@@ -638,6 +609,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoFechaInicio('');
     setContratoFechaFin('');
     setContratoVencido(false);
+    setContratoCorreoNotificacion('');
     setEditarContrato(false);
     setNombreArchivoIcono('');
     setNombreArchivoPdf('');
@@ -713,19 +685,14 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     const bodyCreate = {
       numero_contrato: numeroNuevo,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
-<<<<<<< HEAD
       empresa: empresaGuardar,
       suplementos: suplementosGuardar,
-=======
-      empresa: contratoEmpresa,
-      correo_notificacion: contratoCorreoNotificacion ? String(contratoCorreoNotificacion).trim() : null,
-      suplementos: contratoSuplementos,
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
       vigencia: contratoVigencia,
       tipo_contrato: contratoTipo,
       fecha_inicio: fechaInicioEfectiva,
       fecha_fin: nuevaFechaFin,
       vencido: vencidoCalc,
+      correo_notificacion: String(contratoCorreoNotificacion || '').trim() || null,
     };
     Axios.post('/create-contrato', bodyCreate)
       .then(() => {
@@ -777,19 +744,14 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       numero_contrato: numeroNuevo,
       numero_contrato_original: numOriginalSeguro,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
-<<<<<<< HEAD
       empresa: empresaGuardar,
       suplementos: suplementosGuardar,
-=======
-      empresa: contratoEmpresa,
-      correo_notificacion: contratoCorreoNotificacion ? String(contratoCorreoNotificacion).trim() : null,
-      suplementos: contratoSuplementos,
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
       vigencia: contratoVigencia,
       tipo_contrato: contratoTipo,
       fecha_inicio: fechaInicioEfectiva,
       fecha_fin: nuevaFechaFin,
       vencido: vencidoCalc,
+      correo_notificacion: String(contratoCorreoNotificacion || '').trim() || null,
     };
     Axios.put('/update-contrato', bodyUpdate)
       .then(() => Axios.get('/contratos'))
@@ -852,7 +814,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoNumero(val.numero_contrato);
     setContratoNumeroOriginal(val.numero_contrato);
     setContratoProveedorCliente(val.proveedor_cliente === 1);
-<<<<<<< HEAD
     setContratoEmpresa(
       val.empresa != null && String(val.empresa).trim() !== ''
         ? normalizarTextoEmpresaOSuplemento(String(val.empresa))
@@ -865,16 +826,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         : ''
     );
     setContratoSuplementosCombo('');
-=======
-    setContratoEmpresa(val.empresa);
-    setContratoCorreoNotificacion(val.correo_notificacion || '');
-    setContratoSuplementos(val.suplementos || '');
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
     setContratoVigencia(val.vigencia);
     setContratoTipo(val.tipo_contrato);
     setContratoFechaInicio(toISODate(val.fecha_inicio));
     setContratoFechaFin(toISODate(val.fecha_fin));
     setContratoVencido(val.vencido === 1);
+    setContratoCorreoNotificacion(val.correo_notificacion != null ? String(val.correo_notificacion) : '');
     setShowContratoModal(true);
   };
 
@@ -926,16 +883,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       Axios.put('/update-contrato', {
         numero_contrato: contrato.numero_contrato,
         proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
-<<<<<<< HEAD
         empresa: normalizarTextoEmpresaOSuplemento(String(contrato.empresa || '')),
         suplementos: normalizarTextoEmpresaOSuplemento(String(contrato.suplementos || '')),
         vigencia: nuevaVigencia,
-=======
-        empresa: contrato.empresa,
-        correo_notificacion: contrato.correo_notificacion || null,
-        suplementos: contrato.suplementos || '',
-        vigencia: contrato.vigencia,
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
         tipo_contrato: contrato.tipo_contrato,
         fecha_inicio: inicioRenovacion,
         fecha_fin: nuevaFechaFin,
@@ -1154,14 +1104,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     const vencidos = Array(12).fill(0);
     contratosEnriquecidos.forEach((c) => {
       if (c.fecha_fin) {
-<<<<<<< HEAD
         const fd = parseFechaCivilYMDaDate(c.fecha_fin);
-        if (fd) counts[fd.getMonth()] += 1;
-=======
-        const m = new Date(`${toISODate(c.fecha_fin)}T00:00:00`).getMonth();
-        if (c.estado === 'Vencido') vencidos[m] += 1;
-        if (c.estado === 'Activo') activos[m] += 1;
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
+        if (fd) {
+          const m = fd.getMonth();
+          if (c.estado === 'Vencido') vencidos[m] += 1;
+          else activos[m] += 1;
+        }
       }
     });
     const maxActivos = Math.max(...activos, 1);
@@ -1298,16 +1246,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
             return Axios.put('/update-contrato', {
               numero_contrato: contrato.numero_contrato,
               proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
-<<<<<<< HEAD
               empresa: normalizarTextoEmpresaOSuplemento(String(contrato.empresa || '')),
               suplementos: normalizarTextoEmpresaOSuplemento(String(contrato.suplementos || '')),
               vigencia: nuevaVigencia,
-=======
-              empresa: contrato.empresa,
-              correo_notificacion: contrato.correo_notificacion || null,
-              suplementos: contrato.suplementos || '',
-              vigencia: contrato.vigencia,
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
               tipo_contrato: contrato.tipo_contrato,
               fecha_inicio: toISODate(contrato.fecha_inicio),
               fecha_fin: nuevaFechaFin,
@@ -1444,7 +1385,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       showCloseButton: true,
       confirmButtonText: 'Cerrar',
       html: `
-<<<<<<< HEAD
         <div style="text-align:left;font-size:0.95rem;max-width:100%">
           <p style="margin-bottom:0.4rem"><strong>Parte:</strong> ${escapeForSwalHtml(parte)}</p>
           <p style="margin-bottom:0.4rem"><strong>Empresa:</strong> ${escapeForSwalHtml(contrato.empresa)}</p>
@@ -1457,23 +1397,11 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           <p style="margin-bottom:0.4rem"><strong>Marcado vencido (BD):</strong> ${vencidoStr}</p>
           <p style="margin-bottom:0.4rem"><strong>Tiempo:</strong> ${escapeForSwalHtml(formatDiferenciaDias(contrato.diasRestantes))}</p>
           <p style="margin-bottom:0"><strong>Documento PDF:</strong> ${documentoLinea}</p>
-=======
-        <div style="text-align:left">
-          <p><strong>Empresa:</strong> ${contrato.empresa || '-'}</p>
-          <p><strong>Correo notificación:</strong> ${contrato.correo_notificacion || '-'}</p>
-          <p><strong>Tipo:</strong> ${contrato.tipo_contrato || '-'}</p>
-          <p><strong>Vigencia:</strong> ${contrato.vigencia || '-'} año(s)</p>
-          <p><strong>Inicio:</strong> ${toISODate(contrato.fecha_inicio) || '-'}</p>
-          <p><strong>Fin:</strong> ${toISODate(contrato.fecha_fin) || '-'}</p>
-          <p><strong>Estado:</strong> ${contrato.estado}</p>
-          <p><strong>${formatDiferenciaDias(contrato.diasRestantes)}</strong></p>
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
         </div>
       `,
     });
   };
 
-<<<<<<< HEAD
   const intentarRenovarDesdeCola = (c) => {
     if (!puedeEscribir) {
       void Swal.fire({
@@ -1497,192 +1425,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       }),
     [usuarioAuth, nombreEmpresaReporte, contratosEnriquecidos, getPdfContrato, toISODate],
   );
-=======
-  const fechaParaExportEs = (value) => {
-    const iso = toISODate(value);
-    if (!iso) return '';
-    const [y, m, d] = iso.split('-');
-    return `${d}/${m}/${y}`;
-  };
-
-  const construirFilasExportacionExcel = () =>
-    contratosFiltradosReporte.map((c) => {
-      const p = getPdfContrato(c.numero_contrato);
-      const vig = c.vigencia;
-      const vigCell = vig === '' || vig == null ? '' : Number(vig);
-      return [
-        c.numero_contrato,
-        c.proveedor_cliente ? 'Proveedor' : 'Cliente',
-        String(c.empresa || '').trim(),
-        String(c.correo_notificacion || '').trim(),
-        etiquetaTipoContratoLegible(c.tipo_contrato),
-        vigCell === '' || Number.isNaN(vigCell) ? '' : vigCell,
-        String(c.suplementos || '').replace(/\s+/g, ' ').trim(),
-        fechaParaExportEs(c.fecha_inicio),
-        fechaParaExportEs(c.fecha_fin),
-        c.estado || '',
-        c.diasRestantes ?? '',
-        c.vencido === 1 || c.vencido === true ? 'Sí' : 'No',
-        p?.nombre || (p?.dataUrl ? '(PDF adjunto)' : ''),
-      ];
-    });
-
-  const exportarReporteExcel = async () => {
-    const dataRows = construirFilasExportacionExcel();
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Contratos', {
-      views: [{ state: 'frozen', ySplit: 3 }],
-    });
-
-    const totalCols = REPORTE_EXCEL_HEADERS.length;
-    const lastColLetter = ws.getColumn(totalCols).letter;
-    const fechaTxt = new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
-
-    ws.mergeCells(`A1:${lastColLetter}1`);
-    ws.getCell('A1').value = 'Reporte de contratacion';
-    ws.getCell('A1').font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 13 };
-    ws.getCell('A1').alignment = { vertical: 'middle', horizontal: 'left' };
-    ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14532D' } };
-    ws.getRow(1).height = 24;
-
-    ws.mergeCells(`A2:${lastColLetter}2`);
-    ws.getCell('A2').value = `Generado: ${fechaTxt} | Registros: ${dataRows.length}`;
-    ws.getCell('A2').font = { color: { argb: 'FF334155' }, size: 10 };
-    ws.getCell('A2').alignment = { vertical: 'middle', horizontal: 'left' };
-    ws.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-    ws.getRow(2).height = 20;
-
-    ws.addRow(REPORTE_EXCEL_HEADERS);
-    ws.getRow(3).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
-    ws.getRow(3).alignment = { vertical: 'middle', horizontal: 'left' };
-    ws.getRow(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF166534' } };
-    ws.getRow(3).height = 22;
-
-    dataRows.forEach((row) => ws.addRow(row));
-    ws.autoFilter = { from: 'A3', to: `${lastColLetter}3` };
-
-    ws.columns = [12, 11, 26, 30, 18, 11, 36, 12, 12, 14, 14, 18, 28].map((w) => ({ width: w }));
-
-    for (let r = 4; r <= ws.rowCount; r += 1) {
-      const row = ws.getRow(r);
-      if (r % 2 === 0) {
-        row.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAF9' } };
-        });
-      }
-      row.eachCell((cell) => {
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        };
-      });
-    }
-
-    ws.getRow(3).eachCell((cell) => {
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FF0F3D24' } },
-        left: { style: 'thin', color: { argb: 'FF0F3D24' } },
-        bottom: { style: 'thin', color: { argb: 'FF0F3D24' } },
-        right: { style: 'thin', color: { argb: 'FF0F3D24' } },
-      };
-    });
-
-    const buffer = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `reporte_contratos_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  /** CSV UTF-8 (Excel) con mismas columnas que el Excel; menos formato que .xlsx */
-  const exportarReporteCsvUtf8 = () => {
-    const dataRows = construirFilasExportacionExcel();
-    const sep = ';';
-    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lineas = [REPORTE_EXCEL_HEADERS, ...dataRows].map((row) => row.map(esc).join(sep));
-    const csv = `\uFEFF${lineas.join('\r\n')}`;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `reporte_contratos_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const exportarReportePdf = () => {
-    const dataRows = construirFilasExportacionExcel();
-    if (dataRows.length === 0) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Sin datos',
-        text: 'No hay contratos que coincidan con los filtros actuales.',
-      });
-      return;
-    }
-    try {
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      const fechaTxt = new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.setTextColor(20, 83, 45);
-      doc.text('Reporte de contratacion', 14, 14);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(66, 66, 66);
-      doc.text(`Generado: ${fechaTxt}  |  Registros: ${dataRows.length}`, 14, 20);
-
-      const truncar = (val, max = 420) => {
-        const s = val === null || val === undefined ? '' : String(val);
-        return s.length > max ? `${s.slice(0, max - 3)}...` : s;
-      };
-
-      const body = dataRows.map((row) => row.map((cell) => truncar(cell)));
-
-      autoTable(doc, {
-        head: [REPORTE_EXCEL_HEADERS.map((h) => truncar(h, 80))],
-        body,
-        startY: 24,
-        styles: {
-          fontSize: 6,
-          cellPadding: 0.8,
-          overflow: 'linebreak',
-          valign: 'middle',
-          lineColor: [220, 226, 232],
-          lineWidth: 0.1,
-        },
-        headStyles: {
-          fillColor: [20, 83, 45],
-          textColor: [255, 255, 255],
-          fontStyle: 'bold',
-          fontSize: 6.5,
-        },
-        alternateRowStyles: { fillColor: [248, 250, 249] },
-        margin: { left: 10, right: 10 },
-        tableWidth: 'auto',
-        horizontalPageBreak: true,
-        showHead: 'everyPage',
-        theme: 'grid',
-      });
-
-      doc.save(`reporte_contratos_${new Date().toISOString().slice(0, 10)}.pdf`);
-    } catch (e) {
-      console.error(e);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error al generar PDF',
-        text: String(e?.message || e),
-      });
-    }
-  };
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
 
   const seccionLabel = {
     resumen: 'Resumen',
@@ -1730,7 +1472,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
             </button>
           )}
           {activeSection === 'reportes' && (
-<<<<<<< HEAD
             <ExportacionAepgGrupo
               tituloSistema={aepgParametrosContratos.tituloSistema}
               subtitulo={aepgParametrosContratos.subtitulo}
@@ -1742,26 +1483,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               empresaNombre={aepgParametrosContratos.empresaNombre}
               disabled={!contratosEnriquecidos || contratosEnriquecidos.length === 0}
             />
-=======
-            <div className="d-flex flex-wrap align-items-center gap-2 justify-content-end reportes-top-actions">
-              <button type="button" className="btn btn-danger btn-sm d-inline-flex align-items-center text-white" onClick={exportarReportePdf} title="Tabla con los mismos datos que Excel">
-                <i className="bi bi-file-earmark-pdf me-1" aria-hidden="true" />
-                PDF
-              </button>
-              <button type="button" className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center" onClick={() => Swal.fire({ icon: 'info', title: 'Programar envío', text: 'Podrás programar el envío del reporte por correo en una próxima versión.' })}>
-                <i className="bi bi-calendar-event me-1" aria-hidden="true" />
-                Programar
-              </button>
-              <button type="button" className="btn btn-sm reportes-export-btn-csv d-inline-flex align-items-center text-white" onClick={exportarReporteCsvUtf8} title="Mismas columnas que Excel; separador ; y UTF-8">
-                <i className="bi bi-filetype-csv me-1" aria-hidden="true" />
-                CSV
-              </button>
-              <button type="button" className="btn btn-primary contratos-btn-primary d-inline-flex align-items-center" onClick={exportarReporteExcel}>
-                <i className="bi bi-file-earmark-spreadsheet me-2" aria-hidden="true" />
-                Exportar Excel
-              </button>
-            </div>
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
           )}
         </div>
       </div>
@@ -2405,16 +2126,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                         <button
                           type="button"
                           className="btn btn-sm renov-kpi-btn-todos flex-shrink-0"
-<<<<<<< HEAD
                           onClick={() => {
                             setSearchTerm('');
                             setRenovFechaDesde('');
                             setRenovFechaHasta('');
                             setActiveSection('contratos');
                           }}
-=======
-                          onClick={verTodosPorVencer}
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
                         >
                           Ver todos
                         </button>
@@ -2438,16 +2155,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                         <button
                           type="button"
                           className="btn btn-sm renov-kpi-btn-todos flex-shrink-0"
-<<<<<<< HEAD
                           onClick={() => {
                             setSearchTerm('');
                             setRenovFechaDesde('');
                             setRenovFechaHasta('');
                             setActiveSection('contratos');
                           }}
-=======
-                          onClick={verTodosVencidos}
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
                         >
                           Ver todos
                         </button>
@@ -2538,7 +2251,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                                     <div className="d-flex align-items-stretch gap-1 renov-actions__row-renovar">
                                       <button
                                         type="button"
-<<<<<<< HEAD
                                         className="btn btn-sm btn-primary flex-grow-1 d-inline-flex align-items-center justify-content-center"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -2548,10 +2260,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                                         title={!puedeEscribir ? 'Solo consulta' : 'Abrir asistente de renovación'}
                                         aria-label={`Renovar contrato ${c.numero_contrato}`}
                                         style={!puedeEscribir ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
-=======
-                                        className="btn btn-sm btn-primary d-inline-flex align-items-center justify-content-center"
-                                        onClick={() => renovarContrato(c)}
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
                                       >
                                         Renovar
                                       </button>

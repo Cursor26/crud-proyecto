@@ -10,14 +10,9 @@
     "axios": "^1.13.5",
     "bootstrap": "^5.3.8",
     "exceljs": "^4.4.0",
-<<<<<<< HEAD
     "file-saver": "^2.0.5",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
-=======
-    "jspdf": "^4.2.1",
-    "jspdf-autotable": "^5.0.7",
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
     "react": "^19.2.4",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.4",

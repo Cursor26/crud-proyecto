@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import Axios from 'axios';
-import Swal from 'sweetalert2';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import { Nav, Navbar, NavDropdown } from 'react-bootstrap';
@@ -552,37 +551,22 @@ function App() {
         <div className="dashboard-main-scroll">
           <div className="dashboard-content-layout">
           <div className="dashboard-content-main">
-<<<<<<< HEAD
-            {(key === 'contratos' || key === 'contratos-lista') && <GestionContratos vistaInicial="contratos" user={user} />}
-            {key === 'contratos-resumen' && <GestionContratos vistaInicial="resumen" user={user} />}
-            {key === 'contratos-vencimientos' && <GestionContratos vistaInicial="vencimientos" user={user} />}
-            {key === 'contratos-renovaciones' && <GestionContratos vistaInicial="renovaciones" user={user} />}
-            {key === 'contratos-reportes' && <GestionContratos vistaInicial="reportes" user={user} />}
-            {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
-=======
-            {(key === 'contratos' ||
-              key === 'contratos-lista' ||
-              key === 'contratos-resumen' ||
-              key === 'contratos-vencimientos' ||
-              key === 'contratos-renovaciones' ||
-              key === 'contratos-reportes') && (
-              <GestionContratos
-                vistaInicial={
-                  key === 'contratos-resumen'
-                    ? 'resumen'
-                    : key === 'contratos-vencimientos'
-                      ? 'vencimientos'
-                      : key === 'contratos-renovaciones'
-                        ? 'renovaciones'
-                        : key === 'contratos-reportes'
-                          ? 'reportes'
-                          : 'contratos'
-                }
-                onSectionChange={handleContratosSectionChange}
-              />
+            {(key === 'contratos' || key === 'contratos-lista') && (
+              <GestionContratos vistaInicial="contratos" user={user} onSectionChange={handleContratosSectionChange} />
             )}
-            {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios />}
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
+            {key === 'contratos-resumen' && (
+              <GestionContratos vistaInicial="resumen" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
+            {key === 'contratos-vencimientos' && (
+              <GestionContratos vistaInicial="vencimientos" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
+            {key === 'contratos-renovaciones' && (
+              <GestionContratos vistaInicial="renovaciones" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
+            {key === 'contratos-reportes' && (
+              <GestionContratos vistaInicial="reportes" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
+            {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
             {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
             {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
             {key === 'leche' && mostrarLeche && <Leche />}

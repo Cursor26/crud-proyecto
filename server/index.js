@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -11,7 +11,6 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-require('dotenv').config();
 
 app.use(cors());
 app.use(express.json());
@@ -34,7 +33,6 @@ const db = mysql.createConnection({
   database: process.env.DB_NAME || 'bd_crud',
 });
 
-<<<<<<< HEAD
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || String(JWT_SECRET).length < 16) {
   throw new Error('Definí JWT_SECRET en el archivo .env (mínimo 16 caracteres). Copiá .env.example a .env en la carpeta server/.');
@@ -47,193 +45,6 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: 'Demasiados intentos. Probá de nuevo en unos minutos.' },
 });
-=======
-const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
-const PASSWORD_RESET_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TTL_MINUTES || 30);
-const SMTP_REQUIRED = String(process.env.SMTP_REQUIRED || 'false').toLowerCase() === 'true';
-const MAIL_FALLBACK_MODE = String(process.env.MAIL_FALLBACK_MODE || 'graceful').toLowerCase();
-const RESET_LINK_FALLBACK_ENABLED = String(process.env.RESET_LINK_FALLBACK_ENABLED || 'true').toLowerCase() === 'true';
-
-const dbQuery = (sql, params = []) =>
-  new Promise((resolve, reject) => {
-    db.query(sql, params, (err, results) => {
-      if (err) return reject(err);
-      resolve(results);
-    });
-  });
-
-const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
-const hashResetToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
-const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
-const isSmtpTransientError = (error) => {
-  const code = String(error?.code || '').toUpperCase();
-  const message = String(error?.message || '').toLowerCase();
-  return (
-    ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNRESET', 'EHOSTUNREACH', 'ENOTFOUND'].includes(code) ||
-    message.includes('greeting never received') ||
-    message.includes('timeout')
-  );
-};
-const uniquePush = (arr, item, keyFn) => {
-  const key = keyFn(item);
-  if (!arr.some((x) => keyFn(x) === key)) arr.push(item);
-};
-
-const createMailer = () => {
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = Number(process.env.SMTP_PORT || 587);
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpSecure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
-  const smtpConnTimeout = Number(process.env.SMTP_CONNECTION_TIMEOUT || 15000);
-  const smtpGreetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT || 12000);
-  const smtpSocketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT || 20000);
-  const smtpAltHost = String(process.env.SMTP_ALT_HOST || '').trim();
-  const smtpAltPort = Number(process.env.SMTP_ALT_PORT || 587);
-  const smtpAltSecure = String(process.env.SMTP_ALT_SECURE || 'false').toLowerCase() === 'true';
-  const smtpAltUser = String(process.env.SMTP_ALT_USER || '').trim();
-  const smtpAltPass = String(process.env.SMTP_ALT_PASS || '').trim();
-
-  if (smtpHost && smtpUser && smtpPass) {
-    const accountConfigs = [{ host: smtpHost, user: smtpUser, pass: smtpPass, preferredPort: smtpPort, preferredSecure: smtpSecure }];
-    if (smtpAltHost && smtpAltUser && smtpAltPass) {
-      accountConfigs.push({
-        host: smtpAltHost,
-        user: smtpAltUser,
-        pass: smtpAltPass,
-        preferredPort: smtpAltPort,
-        preferredSecure: smtpAltSecure,
-      });
-    }
-
-    const transporters = [];
-    accountConfigs.forEach((account) => {
-      const fallbacks = [];
-      uniquePush(fallbacks, { port: account.preferredPort, secure: account.preferredSecure }, (x) => `${x.port}-${x.secure}`);
-      uniquePush(fallbacks, { port: 587, secure: false }, (x) => `${x.port}-${x.secure}`);
-      uniquePush(fallbacks, { port: 465, secure: true }, (x) => `${x.port}-${x.secure}`);
-
-      fallbacks.forEach((cfg) => {
-        transporters.push({
-          label: `${account.host}:${cfg.port} secure=${cfg.secure ? 'true' : 'false'}`,
-          transporter: nodemailer.createTransport({
-            host: account.host,
-            port: cfg.port,
-            secure: cfg.secure,
-            requireTLS: !cfg.secure,
-            auth: { user: account.user, pass: account.pass },
-            connectionTimeout: smtpConnTimeout,
-            greetingTimeout: smtpGreetingTimeout,
-            socketTimeout: smtpSocketTimeout,
-          }),
-        });
-      });
-    });
-
-    return {
-      mode: 'smtp',
-      transporters,
-      transporter: transporters[0].transporter,
-      from: process.env.SMTP_FROM || smtpUser,
-    };
-  }
-  return {
-    mode: 'dev',
-    transporter: nodemailer.createTransport({ jsonTransport: true }),
-    from: process.env.SMTP_FROM || 'no-reply@localhost',
-  };
-};
-
-const mailer = createMailer();
-
-const verifyMailer = async () => {
-  if (mailer.mode === 'smtp') {
-    let lastError = null;
-    for (const t of mailer.transporters || []) {
-      try {
-        await t.transporter.verify();
-        mailer.transporter = t.transporter;
-        console.log(`SMTP verificado usando ${t.label}`);
-        return;
-      } catch (error) {
-        lastError = error;
-        console.warn(`Fallo SMTP verify en ${t.label}:`, error?.code || error?.message || error);
-      }
-    }
-    throw lastError || new Error('No se pudo verificar ningún transporte SMTP.');
-  }
-  if (SMTP_REQUIRED) {
-    throw new Error('SMTP_REQUIRED=true pero faltan variables SMTP_HOST/SMTP_USER/SMTP_PASS');
-  }
-};
-
-const sendMailWithFallback = async (mailOptions) => {
-  if (mailer.mode !== 'smtp') {
-    return mailer.transporter.sendMail(mailOptions);
-  }
-
-  const transporters = mailer.transporters || [{ label: 'smtp', transporter: mailer.transporter }];
-  const startIndex = transporters.findIndex((t) => t.transporter === mailer.transporter);
-  const ordered = startIndex > 0
-    ? [...transporters.slice(startIndex), ...transporters.slice(0, startIndex)]
-    : transporters;
-
-  let lastError = null;
-  for (const t of ordered) {
-    try {
-      const result = await t.transporter.sendMail(mailOptions);
-      mailer.transporter = t.transporter;
-      return result;
-    } catch (error) {
-      lastError = error;
-      if (!isSmtpTransientError(error)) break;
-      console.warn(`SMTP send falló en ${t.label}:`, error?.code || error?.message || error);
-    }
-  }
-  throw lastError || new Error('No se pudo enviar correo por SMTP.');
-};
-
-const shouldUseGracefulMailFallback = (error) =>
-  MAIL_FALLBACK_MODE === 'graceful' && isSmtpTransientError(error);
-
-const ensurePasswordResetTable = async () => {
-  await dbQuery(`
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      email VARCHAR(255) NOT NULL,
-      token_hash CHAR(64) NOT NULL,
-      expires_at DATETIME NOT NULL,
-      used_at DATETIME NULL,
-      requested_ip VARCHAR(64) NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_prt_email (email),
-      INDEX idx_prt_token_hash (token_hash),
-      INDEX idx_prt_expires_at (expires_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
-};
-
-const ensureContratoCorreoColumn = async () => {
-  const rows = await dbQuery(
-    `SELECT COUNT(*) AS cnt
-       FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'contratos_generales'
-        AND COLUMN_NAME = 'correo_notificacion'`
-  );
-  const exists = Number(rows?.[0]?.cnt || 0) > 0;
-  if (!exists) {
-    await dbQuery('ALTER TABLE contratos_generales ADD COLUMN correo_notificacion VARCHAR(255) NULL AFTER empresa');
-  }
-};
-
-//Usuarios y seguridad
-
-
-
-// Clave secreta para JWT (en producción, ponla en .env)
-const JWT_SECRET = process.env.JWT_SECRET || 'hgnfdignrejvmklehvmlSDJVHFDVDJMOdsjvmvjmnjsbmgiSDHUNVJDFVDNVBMJF84135165132164HDND8448340I/*/*/-*/**+';
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
 
 // ==================== MIDDLEWARES ====================
 
@@ -269,34 +80,122 @@ app.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     db.query('SELECT * FROM usuarios WHERE email = ?', [email], async (err, results) => {
-      if (err) return res.status(500).json({ message: 'Error en BD' });
-      if (results.length === 0) return res.status(401).json({ message: 'Credenciales inválidas' });
-
-      const usuario = results[0];
-      const passwordValida = await bcrypt.compare(password, usuario.password);
-      if (!passwordValida) return res.status(401).json({ message: 'Credenciales inválidas' });
-
-      // Generar token (incluimos el rol)
-      const token = jwt.sign(
-        { email: usuario.email, nombre: usuario.nombre, rol: usuario.rol },
-        JWT_SECRET,
-        { expiresIn: '8h' }
-      );
-
-      res.json({
-        message: 'Login exitoso',
-        token,
-        usuario: {
-          email: usuario.email,
-          nombre: usuario.nombre,
-          rol: usuario.rol
+      try {
+        if (err) {
+          if (!res.headersSent) return res.status(500).json({ message: 'Error en BD' });
+          return;
         }
-      });
+        if (results.length === 0) {
+          if (!res.headersSent) return res.status(401).json({ message: 'Credenciales inválidas' });
+          return;
+        }
+
+        const usuario = results[0];
+        const passwordValida = await bcrypt.compare(password, usuario.password);
+        if (!passwordValida) {
+          if (!res.headersSent) return res.status(401).json({ message: 'Credenciales inválidas' });
+          return;
+        }
+
+        const token = jwt.sign(
+          { email: usuario.email, nombre: usuario.nombre, rol: usuario.rol },
+          JWT_SECRET,
+          { expiresIn: '8h' }
+        );
+
+        if (!res.headersSent) {
+          res.json({
+            message: 'Login exitoso',
+            token,
+            usuario: {
+              email: usuario.email,
+              nombre: usuario.nombre,
+              rol: usuario.rol
+            }
+          });
+        }
+      } catch (inner) {
+        console.error('Error en /login callback:', inner);
+        if (!res.headersSent) res.status(500).json({ message: 'Error del servidor' });
+      }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error del servidor' });
+    if (!res.headersSent) res.status(500).json({ message: 'Error del servidor' });
   }
 });
+
+// --- Auth / correo (reset contraseña, recordatorios): helpers usados por rutas siguientes ---
+const APP_BASE_URL = String(process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+const PASSWORD_RESET_TTL_MINUTES = Math.max(5, Number(process.env.PASSWORD_RESET_TTL_MINUTES) || 60);
+const RESET_LINK_FALLBACK_ENABLED = String(process.env.RESET_LINK_FALLBACK_ENABLED || 'true').toLowerCase() !== 'false';
+
+function normalizeEmail(raw) {
+  const s = String(raw ?? '').trim().toLowerCase();
+  return s || null;
+}
+
+function isValidEmail(s) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(String(s ?? '').trim());
+}
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(String(token), 'utf8').digest('hex');
+}
+
+function dbQuery(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.query(sql, params, (err, results) => {
+      if (err) return reject(err);
+      resolve(results);
+    });
+  });
+}
+
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+const SMTP_FROM = String(process.env.SMTP_FROM || 'noreply@localhost').trim();
+
+const mailTransporter =
+  SMTP_HOST && SMTP_USER && SMTP_PASS
+    ? nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        secure: Number(SMTP_PORT) === 465,
+        auth: { user: SMTP_USER, pass: SMTP_PASS },
+      })
+    : null;
+
+const mailer = {
+  from: SMTP_FROM,
+  mode: mailTransporter ? 'smtp' : 'dev',
+};
+
+async function sendMailWithFallback(mailOptions) {
+  if (mailTransporter) {
+    const info = await mailTransporter.sendMail(mailOptions);
+    return { message: info?.messageId ? String(info.messageId) : 'sent' };
+  }
+  console.warn('[mail] SMTP no configurado; no se envía correo. Asunto:', mailOptions?.subject);
+  return { message: 'SMTP no configurado (modo desarrollo)' };
+}
+
+function shouldUseGracefulMailFallback(error) {
+  if (!error) return false;
+  const c = String(error.code || '').toUpperCase();
+  const msg = String(error.message || '').toLowerCase();
+  return (
+    c === 'ECONNECTION' ||
+    c === 'ETIMEDOUT' ||
+    c === 'ESOCKET' ||
+    c === 'EAUTH' ||
+    c === 'EENVELOPE' ||
+    msg.includes('smtp') ||
+    msg.includes('greeting') ||
+    msg.includes('socket')
+  );
+}
 
 app.post('/auth/forgot-password', async (req, res) => {
   const email = normalizeEmail(req.body?.email);
@@ -718,7 +617,6 @@ function normalizarFechaInicioContrato(fechaInicio) {
 }
 
 // ==================== RUTAS PARA CONTRATOS ====================
-<<<<<<< HEAD
 app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), (req, res) => {
   const { numero_contrato, proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido } = req.body;
   const nNum = numero_contrato == null ? '' : String(numero_contrato).trim();
@@ -747,24 +645,6 @@ app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), (re
   db.query(
     'INSERT INTO contratos_generales (numero_contrato, proveedor_cliente, empresa, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido) VALUES (?,?,?,?,?,?,?,?,?)',
     [nNum, pc, empresaNorm, suplementosNorm, vigencia, tipo_contrato, fIni, fecha_fin, vencido],
-=======
-app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacion']), (req, res) => {
-  const { numero_contrato, proveedor_cliente, empresa, correo_notificacion, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido } = req.body;
-  db.query(
-    'INSERT INTO contratos_generales (numero_contrato, proveedor_cliente, empresa, correo_notificacion, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    [
-      numero_contrato,
-      proveedor_cliente,
-      empresa,
-      correo_notificacion ? String(correo_notificacion).trim() : null,
-      suplementos,
-      vigencia,
-      tipo_contrato,
-      fecha_inicio,
-      fecha_fin,
-      vencido,
-    ],
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
     (err, result) => {
       if (err) {
         console.log(err);
@@ -826,16 +706,9 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), (req
     'UPDATE contratos_generales SET numero_contrato=?, proveedor_cliente=?, empresa=?, correo_notificacion=?, suplementos=?, vigencia=?, tipo_contrato=?, fecha_inicio=?, fecha_fin=?, vencido=? WHERE numero_contrato=?';
   const params = [
     numeroNuevo,
-<<<<<<< HEAD
     pcU,
     empresaNorm,
     suplementosNorm,
-=======
-    proveedor_cliente,
-    empresa,
-    correo_notificacion ? String(correo_notificacion).trim() : null,
-    suplementos,
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
     vigencia,
     tipo_contrato,
     fIniU,
@@ -3770,37 +3643,9 @@ app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autoriza
 
 
 
-<<<<<<< HEAD
 const PORT = Number(process.env.PORT) || 3001;
 app.listen(PORT, () => {
   console.log(`API en el puerto ${PORT}`);
 });
-=======
-Promise.all([ensurePasswordResetTable(), ensureContratoCorreoColumn()])
-  .then(async () => {
-    let smtpReady = false;
-    try {
-      await verifyMailer();
-      smtpReady = true;
-    } catch (err) {
-      console.warn('SMTP no disponible al iniciar. La app continuará sin bloquearse:', err?.message || err);
-    }
-
-    app.listen(3001, () => {
-      console.log('Corriendo en el puerto 3001');
-      if (mailer.mode === 'dev') {
-        console.log('Recuperación de contraseña: modo desarrollo (sin SMTP real).');
-      } else if (smtpReady) {
-        console.log('Recuperación de contraseña: SMTP activo.');
-      } else {
-        console.log('Recuperación de contraseña: SMTP configurado pero no disponible (se reintentará en cada envío).');
-      }
-    });
-  })
-  .catch((err) => {
-    console.error('No se pudo preparar la base de datos inicial (tablas/columnas):', err);
-    process.exit(1);
-  });
->>>>>>> 33cbd1f502d299af85c23e48022c3984b9ebb17c
 
 
