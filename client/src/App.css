@@ -157,6 +157,8 @@ margin-top: 15px;
   --dash-pink-deep: #2a2d31;
   /* Altura reservada para el texto en hover (1.065rem × line-height + padding); evita que el resto de filas “salten”. */
   --sidebar-nav-row-min-height: 2.4rem;
+  position: relative;
+  z-index: 20;
   background: linear-gradient(180deg, #1c1c1c 0%, #141414 52%, #111111 100%) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -328,6 +330,8 @@ margin-top: 15px;
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+  /* Escala base del módulo para que 100% se vea como antes en ~80%. */
+  zoom: 0.8;
 }
 
 /* Scroll solo del contenido: la barra empieza debajo de la ola/topbar, no detrás del listón */
@@ -2582,7 +2586,8 @@ body .btn:not(.btn-link) {
 
 /* Ajuste visual solicitado: fondo blanco + paneles gris claro + logo abajo */
 .dashboard-shell {
-  background: #ffffff;
+  /* Rellena huecos residuales (por zoom) con el mismo tono del menú lateral. */
+  background: linear-gradient(180deg, #1c1c1c 0%, #141414 52%, #111111 100%);
   --dashboard-sidebar-width: 280px;
   /* Misma altura que .dashboard-topbar-wave: sirve para centrar avatar en el borde negro/blanco */
   --dashboard-topbar-wave-h: clamp(3.65rem, 5.6vw, 5rem);
@@ -3503,7 +3508,7 @@ body .btn:not(.btn-link) {
 .dashboard-main--contratos .renov-cola-table-wrap {
   max-height: 24.5rem;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   border-radius: 8px;
   border: 1px solid #edf2f7;
@@ -3511,6 +3516,7 @@ body .btn:not(.btn-link) {
 
 .dashboard-main--contratos .renov-cola-table-wrap::-webkit-scrollbar {
   width: 8px;
+  height: 10px;
 }
 
 .dashboard-main--contratos .renov-cola-table-wrap::-webkit-scrollbar-thumb {
