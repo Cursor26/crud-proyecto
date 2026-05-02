@@ -209,11 +209,15 @@ function App() {
     try {
       const response = await Axios.post('http://localhost:3001/login', { email, password });
       const { token: newToken, usuario } = response.data;
+      const usuarioNormalizado = {
+        ...usuario,
+        rol: String(usuario?.rol || '').trim().toLowerCase(),
+      };
       localStorage.setItem(TOKEN_KEY, newToken);
-      localStorage.setItem('user', JSON.stringify(usuario));
+      localStorage.setItem('user', JSON.stringify(usuarioNormalizado));
       setAuthToken(newToken);
       setToken(newToken);
-      setUser(usuario);
+      setUser(usuarioNormalizado);
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message || 'Error al conectar' };
@@ -228,33 +232,63 @@ function App() {
     setUser(null);
   };
 
-  const mostrarSacrificio = user?.rol === 'admin' || user?.rol === 'produccion';
-  const mostrarMatadero = user?.rol === 'admin' || user?.rol === 'produccion';
-  const mostrarLeche = user?.rol === 'admin' || user?.rol === 'produccion';
-  const mostrarAsistencias = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarCertificaciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarCursos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarEvalcapacitacion = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarEvaluaciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarObjetivos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarContratos = user?.rol === 'admin' || user?.rol === 'contratacion';
-  const mostrarEmpleados = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarUsuarios = user?.rol === 'admin';
-  const mostrarRHum = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarProduccion = user?.rol === 'admin' || user?.rol === 'produccion';
-  const mostrarSalarios = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarVacaciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarTurnosTrabajo = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarGruposTrabajo = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarSanciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarReconocimientos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarJubilaciones = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarSegSeguridad = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarSeguridad = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarCargos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarDepartamentos = user?.rol === 'admin' || user?.rol === 'rrhh';
-  const mostrarCertMedicos = user?.rol === 'admin' || user?.rol === 'rrhh' || user?.rol === 'produccion';
-  const mostrarEvalMedicas = user?.rol === 'admin' || user?.rol === 'rrhh' || user?.rol === 'produccion';
+  const rolDesdeToken = (() => {
+    try {
+      if (!token) return '';
+      const parts = String(token).split('.');
+      if (parts.length < 2) return '';
+      const payload = JSON.parse(atob(parts[1]));
+      return String(payload?.rol || '').trim().toLowerCase();
+    } catch {
+      return '';
+    }
+  })();
+
+  const rolActual = String(user?.rol || rolDesdeToken || '').trim().toLowerCase();
+  const rolNormalizado = rolActual.replace(/[^a-z]/g, '');
+  const esAdminTotal = rolNormalizado === 'admin';
+  const mostrarSacrificio = esAdminTotal || rolActual === 'produccion';
+  const mostrarMatadero = esAdminTotal || rolActual === 'produccion';
+  const mostrarLeche = esAdminTotal || rolActual === 'produccion';
+  const mostrarAsistencias = esAdminTotal || rolActual === 'rrhh';
+  const mostrarCertificaciones = esAdminTotal || rolActual === 'rrhh';
+  const mostrarCursos = esAdminTotal || rolActual === 'rrhh';
+  const mostrarEvalcapacitacion = esAdminTotal || rolActual === 'rrhh';
+  const mostrarEvaluaciones = esAdminTotal || rolActual === 'rrhh';
+  const mostrarObjetivos = esAdminTotal || rolActual === 'rrhh';
+  const mostrarContratos = esAdminTotal || rolActual === 'contratacion';
+  const mostrarEmpleados = esAdminTotal || rolActual === 'rrhh';
+  const mostrarUsuarios = esAdminTotal;
+  const mostrarRHum = esAdminTotal || rolActual === 'rrhh';
+  const mostrarProduccion = esAdminTotal || rolActual === 'produccion';
+  const mostrarSalarios = esAdminTotal || rolActual === 'rrhh';
+  const mostrarVacaciones = esAdminTotal || rolActual === 'rrhh';
+  const mostrarTurnosTrabajo = esAdminTotal || rolActual === 'rrhh';
+  const mostrarGruposTrabajo = esAdminTotal || rolActual === 'rrhh';
+  const mostrarSanciones = esAdminTotal || rolActual === 'rrhh';
+  const mostrarReconocimientos = esAdminTotal || rolActual === 'rrhh';
+  const mostrarJubilaciones = esAdminTotal || rolActual === 'rrhh';
+  const mostrarSegSeguridad = esAdminTotal || rolActual === 'rrhh';
+  const mostrarSeguridad = esAdminTotal || rolActual === 'rrhh';
+  const mostrarCargos = esAdminTotal || rolActual === 'rrhh';
+  const mostrarDepartamentos = esAdminTotal || rolActual === 'rrhh';
+  const mostrarCertMedicos = esAdminTotal || rolActual === 'rrhh' || rolActual === 'produccion';
+  const mostrarEvalMedicas = esAdminTotal || rolActual === 'rrhh' || rolActual === 'produccion';
+
+  useEffect(() => {
+    if (!user) return;
+    if (key) return;
+    if (esAdminTotal) {
+      setKey('usuarios');
+      setSidebarRrhhOpen(false);
+      setSidebarProdOpen(false);
+      setSidebarContratosOpen(false);
+      return;
+    }
+    if (mostrarContratos) return setKey('contratos');
+    if (mostrarRHum) return setKey('empleados');
+    if (mostrarProduccion) return setKey('sacrificio');
+  }, [user, key, esAdminTotal, mostrarContratos, mostrarRHum, mostrarProduccion]);
 
   if (loading) {
     return (
@@ -307,7 +341,11 @@ function App() {
               <NavDropdown.Item eventKey="contratos-lista" active={key === 'contratos-lista'}>
                 <i className="bi bi-table me-2" aria-hidden="true"></i>Contratos
               </NavDropdown.Item>
-              <NavDropdown.Item eventKey="contratos-vencimientos" active={key === 'contratos-vencimientos'}>
+              <NavDropdown.Item
+                eventKey="contratos-vencimientos"
+                active={key === 'contratos-vencimientos'}
+                className="contratos-menu-vencimientos--hidden-visual"
+              >
                 <i className="bi bi-calendar2-week me-2" aria-hidden="true"></i>Vencimientos
               </NavDropdown.Item>
               <NavDropdown.Item eventKey="contratos-renovaciones" active={key === 'contratos-renovaciones'}>

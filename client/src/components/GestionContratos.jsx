@@ -833,22 +833,27 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const contratosBandejaVencimientos = useMemo(() => {
     if (bandejaVencimientosModo === 'por-vencer') return contratosPorVencer;
     if (bandejaVencimientosModo === 'vencidos') return contratosVencidos;
+    if (bandejaVencimientosModo === 'criticos') return contratosCriticos;
     return contratosPrioritarios;
-  }, [bandejaVencimientosModo, contratosPorVencer, contratosVencidos, contratosPrioritarios]);
+  }, [bandejaVencimientosModo, contratosPorVencer, contratosVencidos, contratosCriticos, contratosPrioritarios]);
 
   const tituloBandejaVencimientos =
     bandejaVencimientosModo === 'por-vencer'
       ? 'Bandeja de contratos por vencer (< 30 días)'
       : bandejaVencimientosModo === 'vencidos'
         ? 'Bandeja de contratos vencidos'
-        : 'Bandeja de vencimientos y seguimiento (<= 90 días)';
+        : bandejaVencimientosModo === 'criticos'
+          ? 'Bandeja de contratos por vencer y vencidos'
+          : 'Bandeja de vencimientos y seguimiento (<= 90 días)';
 
   const mensajeVacioBandejaVencimientos =
     bandejaVencimientosModo === 'por-vencer'
       ? 'No hay contratos por vencer (< 30 días).'
       : bandejaVencimientosModo === 'vencidos'
         ? 'No hay contratos vencidos.'
-        : 'No hay contratos próximos a vencer.';
+        : bandejaVencimientosModo === 'criticos'
+          ? 'No hay contratos por vencer ni vencidos.'
+          : 'No hay contratos próximos a vencer.';
 
   /* Cola priorizada filtrada por búsqueda y rango de fechas (vista renovaciones) */
   const colaRenovacion = useMemo(() => {
@@ -1049,6 +1054,16 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       return;
     }
     setBandejaVencimientosModo('vencidos');
+    irASeccion('vencimientos');
+  };
+
+  /** Por vencer (<30 días) + vencidos: misma combinación que alertas críticas / pestaña unificada */
+  const verTodosPorVencerYVencidos = () => {
+    if (contratosCriticos.length === 0) {
+      Swal.fire('Sin contratos', 'No hay contratos por vencer ni vencidos para mostrar.', 'info');
+      return;
+    }
+    setBandejaVencimientosModo('criticos');
     irASeccion('vencimientos');
   };
 
@@ -1410,16 +1425,18 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       {/* Tabs de secciones */}
       <div className="contratos-tabs-card mb-3">
         <div className="contratos-tabs-row d-flex flex-wrap align-items-end gap-2">
-          {Object.entries(seccionLabel).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`btn btn-sm contratos-tab ${activeSection === id ? 'contratos-tab--active' : ''}`}
-              onClick={() => irASeccion(id)}
-            >
-              {label}
-            </button>
-          ))}
+          {Object.entries(seccionLabel)
+            .filter(([id]) => id !== 'vencimientos')
+            .map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`btn btn-sm contratos-tab ${activeSection === id ? 'contratos-tab--active' : ''}`}
+                onClick={() => irASeccion(id)}
+              >
+                {label}
+              </button>
+            ))}
         </div>
       </div>
 
@@ -1920,7 +1937,19 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               <div className="col-12 col-md-5 col-xl-4 renov-kpi-column align-self-start">
                 <div className="card renov-kpi-card">
                   <div className="card-body renov-kpi-card__body">
-                    <h6 className="fw-bold mb-2 renov-card-title">Panel de renovaciones</h6>
+                    <div className="renov-kpi-panel-title-bar mb-2">
+                      <h6 className="fw-bold mb-0 renov-card-title renov-kpi-panel-title-bar__title">Panel de renovaciones</h6>
+                      <div className="renov-kpi-subcard__bar-row renov-kpi-panel-title-bar__actions">
+                        <div className="renov-progress-track-wrap" aria-hidden="true" />
+                        <button
+                          type="button"
+                          className="btn btn-sm renov-kpi-btn-todos flex-shrink-0"
+                          onClick={verTodosPorVencerYVencidos}
+                        >
+                          Ver todos
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="renov-kpi-subcard">
                       <div className="renov-kpi-subcard__head">

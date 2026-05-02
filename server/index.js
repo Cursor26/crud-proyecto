@@ -210,6 +210,39 @@ const ensureContratoCorreoColumn = async () => {
   }
 };
 
+const ensureUsuariosSecurityAuditColumns = async () => {
+  const defs = [
+    { name: 'activo', sql: 'ALTER TABLE usuarios ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1 AFTER rol' },
+    { name: 'created_by', sql: 'ALTER TABLE usuarios ADD COLUMN created_by VARCHAR(255) NULL AFTER activo' },
+    { name: 'created_at', sql: 'ALTER TABLE usuarios ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER created_by' },
+    { name: 'updated_by', sql: 'ALTER TABLE usuarios ADD COLUMN updated_by VARCHAR(255) NULL AFTER created_at' },
+    { name: 'updated_at', sql: 'ALTER TABLE usuarios ADD COLUMN updated_at DATETIME NULL AFTER updated_by' },
+  ];
+
+  for (const def of defs) {
+    const rows = await dbQuery(
+      `SELECT COUNT(*) AS cnt
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'usuarios'
+          AND COLUMN_NAME = ?`,
+      [def.name]
+    );
+    const exists = Number(rows?.[0]?.cnt || 0) > 0;
+    if (!exists) await dbQuery(def.sql);
+  }
+};
+
+const ROLES_PERMITIDOS_USUARIO = ['admin', 'rrhh', 'contratacion', 'produccion'];
+
+const normalizarRol = (value) => String(value || '').trim().toLowerCase();
+const rolValido = (rol) => ROLES_PERMITIDOS_USUARIO.includes(normalizarRol(rol));
+const emailValido = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+const passwordFuerte = (value) =>
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(String(value || ''));
+const normalizarActivo = (value) =>
+  value === true || value === 1 || value === '1' || String(value || '').toLowerCase() === 'true' ? 1 : 0;
+
 //Usuarios y seguridad
 
 
@@ -255,12 +288,16 @@ app.post('/login', async (req, res) => {
       if (results.length === 0) return res.status(401).json({ message: 'Credenciales inválidas' });
 
       const usuario = results[0];
+      if (Number(usuario.activo) === 0) {
+        return res.status(403).json({ message: 'Usuario inactivo. Contacta al administrador.' });
+      }
       const passwordValida = await bcrypt.compare(password, usuario.password);
       if (!passwordValida) return res.status(401).json({ message: 'Credenciales inválidas' });
 
+      const rolCanonico = normalizarRol(usuario.rol);
       // Generar token (incluimos el rol)
       const token = jwt.sign(
-        { email: usuario.email, nombre: usuario.nombre, rol: usuario.rol },
+        { email: usuario.email, nombre: usuario.nombre, rol: rolCanonico },
         JWT_SECRET,
         { expiresIn: '8h' }
       );
@@ -271,7 +308,7 @@ app.post('/login', async (req, res) => {
         usuario: {
           email: usuario.email,
           nombre: usuario.nombre,
-          rol: usuario.rol
+          rol: rolCanonico
         }
       });
     });
@@ -416,21 +453,42 @@ app.post('/auth/reset-password', async (req, res) => {
 
 // Obtener todos los usuarios (sin contraseñas)
 app.get("/usuarios", verificarToken, autorizarRol(['admin']), (req, res) => {
-  // No incluir created_at: muchas instalaciones no tienen esa columna y el SELECT falla (tabla vacía en el cliente).
-  db.query('SELECT email, nombre, rol FROM usuarios ORDER BY nombre ASC', (err, results) => {
+  db.query(
+    `SELECT email, nombre, rol, activo, created_by, created_at, updated_by, updated_at
+       FROM usuarios
+      ORDER BY nombre ASC`,
+    (err, results) => {
     if (err) return res.status(500).json({ message: err.message || 'Error al listar usuarios' });
     res.send(results);
-  });
+    }
+  );
 });
 
 // Crear usuario (solo admin)
 app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req, res) => {
-  const { email, nombre, password, rol } = req.body;
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const nombre = String(req.body?.nombre || '').trim();
+  const password = String(req.body?.password || '');
+  const rol = normalizarRol(req.body?.rol);
+  const activo = normalizarActivo(req.body?.activo ?? 1);
+  const actorRol = normalizarRol(req.user?.rol);
+  const actorEmail = String(req.user?.email || req.user?.nombre || 'sistema').trim().toLowerCase();
+
+  if (!email || !nombre || !password || !rol) {
+    return res.status(400).json({ message: 'Email, nombre, contraseña y rol son obligatorios.' });
+  }
+  if (!emailValido(email)) return res.status(400).json({ message: 'Email inválido.' });
+  if (!rolValido(rol)) return res.status(400).json({ message: 'Rol inválido.' });
+  if (!passwordFuerte(password)) {
+    return res.status(400).json({ message: 'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.' });
+  }
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     db.query(
-      'INSERT INTO usuarios (email, nombre, password, rol) VALUES (?, ?, ?, ?)',
-      [email, nombre, hashedPassword, rol],
+      `INSERT INTO usuarios
+        (email, nombre, password, rol, activo, created_by, created_at, updated_by, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
+      [email, nombre, hashedPassword, rol, activo, actorEmail, actorEmail],
       (err, result) => {
         if (err) {
           if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: 'El email ya existe' });
@@ -449,15 +507,33 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
 // Actualizar usuario (solo admin). La contraseña es opcional.
 app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async (req, res) => {
   const emailAnterior = String(req.params.email || '').trim();
-  const nuevoEmail = String(req.body.email || '').trim().toLowerCase();
-  const { nombre, password, rol } = req.body;
+  const nuevoEmail = String(req.body?.email || '').trim().toLowerCase();
+  const nombre = String(req.body?.nombre || '').trim();
+  const password = String(req.body?.password || '');
+  const rol = normalizarRol(req.body?.rol);
+  const activo = normalizarActivo(req.body?.activo ?? 1);
+  const actorRol = normalizarRol(req.user?.rol);
+  const actorEmail = String(req.user?.email || req.user?.nombre || 'sistema').trim().toLowerCase();
 
   if (!emailAnterior || !nuevoEmail || !nombre || !rol) {
     return res.status(400).json({ message: 'Email, nombre y rol son obligatorios' });
   }
+  if (!emailValido(nuevoEmail)) return res.status(400).json({ message: 'Email inválido.' });
+  if (!rolValido(rol)) return res.status(400).json({ message: 'Rol inválido.' });
+  if (password && !passwordFuerte(password)) {
+    return res.status(400).json({ message: 'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.' });
+  }
 
-  let query = 'UPDATE usuarios SET email = TRIM(?), nombre = ?, rol = ?';
-  let params = [nuevoEmail, nombre, rol];
+  const targetRows = await dbQuery(
+    `SELECT rol
+       FROM usuarios
+      WHERE email = ? OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+      LIMIT 1`,
+    [emailAnterior, emailAnterior]
+  );
+  if (!targetRows.length) return res.status(404).json({ message: 'Usuario no encontrado' });
+  let query = 'UPDATE usuarios SET email = TRIM(?), nombre = ?, rol = ?, activo = ?, updated_by = ?, updated_at = NOW()';
+  let params = [nuevoEmail, nombre, rol, activo, actorEmail];
 
   if (password) {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -485,9 +561,13 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
 // Eliminar usuario (solo admin)
 app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (req, res) => {
   const { email } = req.params;
-  db.query('DELETE FROM usuarios WHERE email = ?', [email], (err, result) => {
-    if (err) return res.status(500).send(err);
-    res.json({ message: 'Usuario eliminado' });
+  db.query('SELECT rol FROM usuarios WHERE email = ? LIMIT 1', [email], (errTarget, rows) => {
+    if (errTarget) return res.status(500).json({ message: errTarget.message || 'Error al validar usuario' });
+    if (!rows?.length) return res.status(404).json({ message: 'Usuario no encontrado' });
+    db.query('DELETE FROM usuarios WHERE email = ?', [email], (err, result) => {
+      if (err) return res.status(500).send(err);
+      res.json({ message: 'Usuario eliminado' });
+    });
   });
 });
 
@@ -3355,7 +3435,7 @@ app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autoriza
 
 
 
-Promise.all([ensurePasswordResetTable(), ensureContratoCorreoColumn()])
+Promise.all([ensurePasswordResetTable(), ensureContratoCorreoColumn(), ensureUsuariosSecurityAuditColumns()])
   .then(async () => {
     let smtpReady = false;
     try {
