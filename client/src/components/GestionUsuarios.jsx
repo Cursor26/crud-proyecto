@@ -6,8 +6,11 @@ import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
 import AppSelect from './AppSelect';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
-import { isValidEmail, getPasswordFeedback, passwordValidationForSubmit } from '../utils/userCredentialsValidation';
+import { isValidEmail, getPasswordFeedback, passwordValidationForSubmit, passwordTrimmedForSubmit } from '../utils/userCredentialsValidation';
 import { esSoloBlancosOVacio, MSJ_OBLIGATORIO_NO_SOLO_BLANCOS } from '../utils/validation';
+
+/** Misma regla que el servidor (`passwordFuerte`). */
+const PASSWORD_FUERTE_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 /** Alineado con el servidor: esta cuenta solo la edita su titular; no se elimina. */
 const EMAIL_USUARIO_ADMIN_PERMANENTE = 'admin@admin.com';
@@ -26,13 +29,16 @@ function GestionUsuarios({ currentUser }) {
   const [userEmail, setUserEmail] = useState('');
   const [userNombre, setUserNombre] = useState('');
   const [userPassword, setUserPassword] = useState('');
+  const [userPasswordConfirm, setUserPasswordConfirm] = useState('');
   const [userRol, setUserRol] = useState('');
+  const [userActivo, setUserActivo] = useState(true);
   const [editandoUsuario, setEditandoUsuario] = useState(false);
   const [userEmailOriginal, setUserEmailOriginal] = useState('');
   const [showUsuarioModal, setShowUsuarioModal] = useState(false);
   const [verPassword, setVerPassword] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [activoTogglePending, setActivoTogglePending] = useState(null);
 
   const esCuentaAdminPermanente = (email) =>
     String(email || '')
@@ -49,6 +55,12 @@ function GestionUsuarios({ currentUser }) {
 
   const edicionPropioAdminPermanente =
     editandoUsuario && esCuentaAdminPermanente(userEmailOriginal);
+
+  const sesionEmail = useMemo(() => {
+    return String(currentUser?.email || '')
+      .trim()
+      .toLowerCase();
+  }, [currentUser?.email]);
 
   const emailTrim = String(userEmail || '').trim();
   const emailStatus = useMemo(() => {
@@ -85,6 +97,34 @@ function GestionUsuarios({ currentUser }) {
     return passwordSubmitCheck.ok;
   }, [puedeEscribir, edicionPropioAdminPermanente, userEmail, emailTrim, userNombre, userRol, passwordSubmitCheck]);
 
+  const nombrePorEmail = useMemo(() => {
+    const m = new Map();
+    usuariosList.forEach((row) => {
+      const key = String(row.email || '').trim().toLowerCase();
+      if (key && row.nombre != null && String(row.nombre).trim() !== '') {
+        m.set(key, String(row.nombre).trim());
+      }
+    });
+    return m;
+  }, [usuariosList]);
+
+  const fmtDate = (value) => {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleString('es-ES');
+  };
+
+  const fmtActor = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '—';
+    const key = raw.toLowerCase();
+    const nombre = nombrePorEmail.get(key);
+    if (nombre) return nombre;
+    if (isValidEmail(raw)) return 'Usuario no encontrado';
+    return raw;
+  };
+
   const getUsuarios = () => {
     setLoadError('');
     Axios.get('/usuarios')
@@ -118,7 +158,9 @@ function GestionUsuarios({ currentUser }) {
     setUserEmail('');
     setUserNombre('');
     setUserPassword('');
+    setUserPasswordConfirm('');
     setUserRol('');
+    setUserActivo(true);
     setUserEmailOriginal('');
     setVerPassword(false);
     setFieldErrors({});
@@ -153,6 +195,15 @@ function GestionUsuarios({ currentUser }) {
     });
     if (!pvs.ok) {
       e.password = pvs.message;
+    } else if (pvs.mode === 'set') {
+      const pt = passwordTrimmedForSubmit(userPassword);
+      if (!PASSWORD_FUERTE_RE.test(pt)) {
+        e.password = 'Mínimo 8 caracteres, con mayúscula, minúscula y número.';
+      }
+    }
+    const debeConfirmar = !editandoUsuario || String(userPassword || '').length > 0;
+    if (debeConfirmar && userPassword !== userPasswordConfirm) {
+      e.passwordConfirm = 'Las contraseñas no coinciden.';
     }
     setFieldErrors(e);
     return Object.keys(e).length === 0;
@@ -164,14 +215,13 @@ function GestionUsuarios({ currentUser }) {
     else addUsuario();
   };
 
-  const payloadForApi = () => {
-    return {
-      email: emailTrim.toLowerCase(),
-      nombre: String(userNombre || '').trim(),
-      password: String(userPassword || ''),
-      rol: String(userRol || '').trim(),
-    };
-  };
+  const payloadForApi = () => ({
+    email: emailTrim.toLowerCase(),
+    nombre: String(userNombre || '').trim(),
+    password: String(userPassword || ''),
+    rol: String(userRol || '').trim(),
+    activo: userActivo ? 1 : 0,
+  });
 
   const addUsuario = () => {
     const body = payloadForApi();
@@ -194,6 +244,7 @@ function GestionUsuarios({ currentUser }) {
       nombre: body.nombre,
       password: body.password,
       rol: body.rol,
+      activo: body.activo,
     })
       .then((res) => {
         getUsuarios();
@@ -204,6 +255,37 @@ function GestionUsuarios({ currentUser }) {
       .catch((error) => {
         const msg = error.response?.data?.message || error.message || 'No se pudo actualizar';
         Swal.fire('No se pudo guardar', msg, 'error');
+      });
+  };
+
+  const toggleUsuarioActivo = (u) => {
+    const rowEmail = String(u.email || '').trim().toLowerCase();
+    const actualmenteActivo = Number(u.activo ?? 1) === 1;
+    if (sesionEmail && sesionEmail === rowEmail && actualmenteActivo) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Acción no permitida',
+        text: 'No puedes desactivar tu propia cuenta desde aquí.',
+      });
+      return;
+    }
+    const nextActivo = actualmenteActivo ? 0 : 1;
+    setActivoTogglePending(u.email);
+    Axios.put(`/update-usuario/${encodeURIComponent(u.email)}`, {
+      email: rowEmail,
+      nombre: String(u.nombre || '').trim(),
+      password: '',
+      rol: u.rol,
+      activo: nextActivo,
+    })
+      .then(() => {
+        getUsuarios();
+      })
+      .catch((error) => {
+        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+      })
+      .finally(() => {
+        setActivoTogglePending(null);
       });
   };
 
@@ -234,7 +316,9 @@ function GestionUsuarios({ currentUser }) {
     setUserEmail(u.email);
     setUserNombre(u.nombre);
     setUserRol(u.rol);
+    setUserActivo(Number(u.activo ?? 1) !== 0);
     setUserPassword('');
+    setUserPasswordConfirm('');
     setFieldErrors({});
     setShowUsuarioModal(true);
   };
@@ -267,11 +351,7 @@ function GestionUsuarios({ currentUser }) {
 
   const emailClass =
     'minimal-input' +
-    (emailTrim
-      ? emailStatus.state === 'ok'
-        ? ' is-valid'
-        : ' is-invalid'
-      : '');
+    (emailTrim ? (emailStatus.state === 'ok' ? ' is-valid' : ' is-invalid') : '');
 
   const barsClass = (() => {
     if (passwordVisual.mode === 'omit') return 'usuario-cred-pw-bars';
@@ -280,8 +360,7 @@ function GestionUsuarios({ currentUser }) {
     return `usuario-cred-pw-bars usuario-cred-pw-bars--${st}`;
   })();
 
-  const strengthKey =
-    passwordVisual.mode === 'omit' ? 'empty' : passwordVisual.feedback.strength;
+  const strengthKey = passwordVisual.mode === 'omit' ? 'empty' : passwordVisual.feedback.strength;
 
   return (
     <div>
@@ -409,12 +488,13 @@ function GestionUsuarios({ currentUser }) {
               <input
                 id="usuario-form-password"
                 type={verPassword ? 'text' : 'password'}
-                className="minimal-input minimal-input--with-eye"
+                className={`minimal-input minimal-input--with-eye ${fieldErrors.password ? 'is-invalid' : ''}`}
                 placeholder={editandoUsuario ? 'Vacío = no cambiar' : 'Mínimo 8 caracteres'}
                 value={userPassword}
                 onChange={(e) => {
                   setUserPassword(e.target.value);
                   clearFieldError('password');
+                  clearFieldError('passwordConfirm');
                 }}
                 autoComplete="new-password"
               />
@@ -473,8 +553,8 @@ function GestionUsuarios({ currentUser }) {
                   {fieldErrors.password || passwordVisual.feedback.message}
                 </p>
                 <ul className="small text-muted mb-0 ps-3" style={{ maxWidth: 400 }}>
-                  <li>Mínimo 8 caracteres (obligatorio para crear; también si cambia al editar).</li>
-                  <li>Mezcle letras (mayúsculas y minúsculas), números y símbolos para que sea difícil de adivinar.</li>
+                  <li>Mínimo 8 caracteres con mayúscula, minúscula y número (obligatorio al crear; también si cambia al editar).</li>
+                  <li>Mezcle letras, números y símbolos para que sea difícil de adivinar.</li>
                 </ul>
               </>
             )}
@@ -488,12 +568,37 @@ function GestionUsuarios({ currentUser }) {
           </div>
 
           <div className="minimal-field">
+            <label className="minimal-label" htmlFor="usuario-form-password-confirm">
+              Confirmar contraseña:
+            </label>
+            <input
+              id="usuario-form-password-confirm"
+              type={verPassword ? 'text' : 'password'}
+              className={`minimal-input ${fieldErrors.passwordConfirm ? 'is-invalid' : ''}`}
+              placeholder="Repita la contraseña"
+              value={userPasswordConfirm}
+              onChange={(e) => {
+                setUserPasswordConfirm(e.target.value);
+                clearFieldError('passwordConfirm');
+              }}
+              autoComplete="new-password"
+            />
+            {fieldErrors.passwordConfirm ? (
+              <p className="text-danger small mb-0 mt-1">{fieldErrors.passwordConfirm}</p>
+            ) : null}
+          </div>
+
+          <div className="minimal-field">
             <label className="minimal-label" htmlFor="usuario-form-rol">
               Rol:
             </label>
             <AppSelect
               id="usuario-form-rol"
-              className={'minimal-select ' + (userRol ? 'is-selected ' : '') + (fieldErrors.rol && !userRol ? 'is-invalid' : userRol ? 'is-valid' : '')}
+              className={
+                'minimal-select ' +
+                (userRol ? 'is-selected ' : '') +
+                (fieldErrors.rol && !userRol ? 'is-invalid' : userRol ? 'is-valid' : '')
+              }
               value={userRol}
               disabled={edicionPropioAdminPermanente}
               onChange={(e) => {
@@ -517,32 +622,94 @@ function GestionUsuarios({ currentUser }) {
                   : 'El rol limita qué módulos puede ver o editar en el sistema.')}
             </p>
           </div>
+
+          <div className="minimal-field">
+            <label className="minimal-label" htmlFor="usuario-form-estado">
+              Estado:
+            </label>
+            <AppSelect
+              id="usuario-form-estado"
+              className={`minimal-select ${userActivo ? 'is-selected' : ''}`}
+              value={userActivo ? '1' : '0'}
+              disabled={edicionPropioAdminPermanente}
+              onChange={(e) => setUserActivo(e.target.value === '1')}
+            >
+              <option value="1">Activo</option>
+              <option value="0">Inactivo</option>
+            </AppSelect>
+            {edicionPropioAdminPermanente ? (
+              <p className="usuario-cred-hint text-muted small mb-0">
+                El estado de la cuenta de administrador permanente no se modifica desde este formulario.
+              </p>
+            ) : null}
+          </div>
         </div>
       </FormModal>
 
       <div className="card p-3">
         <div className="table-responsive">
-          <table className="table table-data-compact table-bordered table-striped">
+          <table className="table table-data-compact table-bordered table-striped table-gestion-usuarios">
             <thead>
               <tr>
                 <th>Email</th>
                 <th>Nombre</th>
                 <th>Rol</th>
+                <th>Estado</th>
+                <th>Auditoría</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {usuariosList.map((u) => (
-                <tr key={u.email}>
+                <tr
+                  key={u.email}
+                  className={Number(u.activo ?? 1) === 0 ? 'usuario-row-inactivo' : undefined}
+                >
                   <td>{u.email}</td>
                   <td>{u.nombre}</td>
                   <td>{u.rol}</td>
                   <td>
-                    <EditTableActionButton
-                      onClick={() => intentarEditarUsuario(u)}
-                      className="me-2"
-                    />
-                    <DeleteTableActionButton onClick={() => intentarEliminarUsuario(u.email)} />
+                    <span className={`badge ${Number(u.activo ?? 1) === 1 ? 'bg-success' : 'bg-secondary'}`}>
+                      {Number(u.activo ?? 1) === 1 ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td className="small">
+                    <div>
+                      <strong>Creado:</strong> {fmtActor(u.created_by)} · {fmtDate(u.created_at)}
+                    </div>
+                    <div>
+                      <strong>Actualizado:</strong> {fmtActor(u.updated_by)} · {fmtDate(u.updated_at)}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="usuario-acciones-cell">
+                      <EditTableActionButton onClick={() => intentarEditarUsuario(u)} className="me-2" />
+                      <DeleteTableActionButton onClick={() => intentarEliminarUsuario(u.email)} />
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Number(u.activo ?? 1) === 1}
+                        aria-label={Number(u.activo ?? 1) === 1 ? 'Desactivar usuario' : 'Activar usuario'}
+                        title={
+                          sesionEmail && sesionEmail === String(u.email || '').trim().toLowerCase() && Number(u.activo ?? 1) === 1
+                            ? 'No puedes desactivar tu propia cuenta desde aquí'
+                            : Number(u.activo ?? 1) === 1
+                              ? 'Desactivar usuario'
+                              : 'Activar usuario'
+                        }
+                        disabled={
+                          activoTogglePending === u.email ||
+                          (sesionEmail !== '' &&
+                            sesionEmail === String(u.email || '').trim().toLowerCase() &&
+                            Number(u.activo ?? 1) === 1)
+                        }
+                        className={`usuario-toggle ${Number(u.activo ?? 1) === 1 ? 'usuario-toggle--on' : 'usuario-toggle--off'}`}
+                        onClick={() => toggleUsuarioActivo(u)}
+                      >
+                        <span className="usuario-toggle__caption">{Number(u.activo ?? 1) === 1 ? 'ON' : 'OFF'}</span>
+                        <span className="usuario-toggle__thumb" aria-hidden />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

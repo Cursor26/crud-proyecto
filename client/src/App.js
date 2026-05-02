@@ -217,12 +217,16 @@ function App() {
     try {
       const response = await Axios.post('/login', { email, password });
       const { token: newToken, usuario } = response.data;
+      const usuarioNormalizado = {
+        ...usuario,
+        rol: String(usuario?.rol || '').trim().toLowerCase(),
+      };
       localStorage.setItem(TOKEN_KEY, newToken);
-      localStorage.setItem('user', JSON.stringify(usuario));
+      localStorage.setItem('user', JSON.stringify(usuarioNormalizado));
       setAuthToken(newToken);
       setToken(newToken);
-      setUser(usuario);
-      const k = getDefaultKeyForRol(usuario.rol);
+      setUser(usuarioNormalizado);
+      const k = getDefaultKeyForRol(usuarioNormalizado.rol);
       setKey(k);
       if (SIDEBAR_RRHH_KEYS.has(k)) setSidebarMenuOpen('rrhh');
       else if (SIDEBAR_CONTRATOS_KEYS.has(k)) setSidebarMenuOpen('contratos');
@@ -336,7 +340,11 @@ function App() {
               <NavDropdown.Item eventKey="contratos-lista" active={key === 'contratos-lista'}>
                 <i className="bi bi-table me-2" aria-hidden="true"></i>Contratos
               </NavDropdown.Item>
-              <NavDropdown.Item eventKey="contratos-vencimientos" active={key === 'contratos-vencimientos'}>
+              <NavDropdown.Item
+                eventKey="contratos-vencimientos"
+                active={key === 'contratos-vencimientos'}
+                className="contratos-menu-vencimientos--hidden-visual"
+              >
                 <i className="bi bi-calendar2-week me-2" aria-hidden="true"></i>Vencimientos
               </NavDropdown.Item>
               <NavDropdown.Item eventKey="contratos-renovaciones" active={key === 'contratos-renovaciones'}>

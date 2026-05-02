@@ -46,6 +46,78 @@ const authLimiter = rateLimit({
   message: { message: 'Demasiados intentos. Probá de nuevo en unos minutos.' },
 });
 
+const dbQuery = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.query(sql, params, (err, results) => {
+      if (err) return reject(err);
+      resolve(results);
+    });
+  });
+
+const ensurePasswordResetTable = async () => {
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) NOT NULL,
+      token_hash CHAR(64) NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used_at DATETIME NULL,
+      requested_ip VARCHAR(64) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_prt_email (email),
+      INDEX idx_prt_token_hash (token_hash),
+      INDEX idx_prt_expires_at (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+};
+
+const ensureContratoCorreoColumn = async () => {
+  const rows = await dbQuery(
+    `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'contratos_generales'
+        AND COLUMN_NAME = 'correo_notificacion'`
+  );
+  const exists = Number(rows?.[0]?.cnt || 0) > 0;
+  if (!exists) {
+    await dbQuery('ALTER TABLE contratos_generales ADD COLUMN correo_notificacion VARCHAR(255) NULL AFTER empresa');
+  }
+};
+
+const ensureUsuariosSecurityAuditColumns = async () => {
+  const defs = [
+    { name: 'activo', sql: 'ALTER TABLE usuarios ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1 AFTER rol' },
+    { name: 'created_by', sql: 'ALTER TABLE usuarios ADD COLUMN created_by VARCHAR(255) NULL AFTER activo' },
+    { name: 'created_at', sql: 'ALTER TABLE usuarios ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER created_by' },
+    { name: 'updated_by', sql: 'ALTER TABLE usuarios ADD COLUMN updated_by VARCHAR(255) NULL AFTER created_at' },
+    { name: 'updated_at', sql: 'ALTER TABLE usuarios ADD COLUMN updated_at DATETIME NULL AFTER updated_by' },
+  ];
+
+  for (const def of defs) {
+    const rows = await dbQuery(
+      `SELECT COUNT(*) AS cnt
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'usuarios'
+          AND COLUMN_NAME = ?`,
+      [def.name]
+    );
+    const exists = Number(rows?.[0]?.cnt || 0) > 0;
+    if (!exists) await dbQuery(def.sql);
+  }
+};
+
+const ROLES_PERMITIDOS_USUARIO = ['admin', 'rrhh', 'contratacion', 'produccion', 'estadistica', 'director'];
+
+const normalizarRol = (value) => String(value || '').trim().toLowerCase();
+const rolValido = (rol) => ROLES_PERMITIDOS_USUARIO.includes(normalizarRol(rol));
+const emailValido = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+const passwordFuerte = (value) =>
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(String(value || ''));
+const normalizarActivo = (value) =>
+  value === true || value === 1 || value === '1' || String(value || '').toLowerCase() === 'true' ? 1 : 0;
+
 // ==================== MIDDLEWARES ====================
 
 // Middleware para verificar token JWT
@@ -91,14 +163,22 @@ app.post('/login', authLimiter, async (req, res) => {
         }
 
         const usuario = results[0];
+        if (Number(usuario.activo ?? 1) === 0) {
+          if (!res.headersSent) {
+            return res.status(403).json({ message: 'Usuario inactivo. Contacta al administrador.' });
+          }
+          return;
+        }
+
         const passwordValida = await bcrypt.compare(password, usuario.password);
         if (!passwordValida) {
           if (!res.headersSent) return res.status(401).json({ message: 'Credenciales inválidas' });
           return;
         }
 
+        const rolCanonico = normalizarRol(usuario.rol);
         const token = jwt.sign(
-          { email: usuario.email, nombre: usuario.nombre, rol: usuario.rol },
+          { email: usuario.email, nombre: usuario.nombre, rol: rolCanonico },
           JWT_SECRET,
           { expiresIn: '8h' }
         );
@@ -110,8 +190,8 @@ app.post('/login', authLimiter, async (req, res) => {
             usuario: {
               email: usuario.email,
               nombre: usuario.nombre,
-              rol: usuario.rol
-            }
+              rol: rolCanonico,
+            },
           });
         }
       } catch (inner) {
@@ -140,15 +220,6 @@ function isValidEmail(s) {
 
 function hashResetToken(token) {
   return crypto.createHash('sha256').update(String(token), 'utf8').digest('hex');
-}
-
-function dbQuery(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.query(sql, params, (err, results) => {
-      if (err) return reject(err);
-      resolve(results);
-    });
-  });
 }
 
 const SMTP_HOST = process.env.SMTP_HOST;
@@ -370,16 +441,22 @@ function esCuentaAdminPermanente(email) {
 
 // Obtener todos los usuarios (sin contraseñas)
 app.get("/usuarios", verificarToken, autorizarRol(['admin']), (req, res) => {
-  // No incluir created_at: muchas instalaciones no tienen esa columna y el SELECT falla (tabla vacía en el cliente).
-  db.query('SELECT email, nombre, rol FROM usuarios ORDER BY nombre ASC', (err, results) => {
+  db.query(
+    `SELECT email, nombre, rol, activo, created_by, created_at, updated_by, updated_at
+       FROM usuarios
+      ORDER BY nombre ASC`,
+    (err, results) => {
     if (err) return res.status(500).json({ message: err.message || 'Error al listar usuarios' });
     res.send(results);
-  });
+    }
+  );
 });
 
 // Crear usuario (solo admin)
 app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req, res) => {
   const { email, nombre, password, rol } = req.body;
+  const activo = normalizarActivo(req.body?.activo ?? 1);
+  const actorEmail = String(req.user?.email || req.user?.nombre || 'sistema').trim().toLowerCase();
   const vEmail = validarEmailGestion(email);
   if (!vEmail.ok) return res.status(400).json({ message: vEmail.message });
   if (!String(nombre || "").trim()) {
@@ -390,13 +467,20 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
   if (!String(rol || "").trim()) {
     return res.status(400).json({ message: "Debe elegir un rol. No basta con enviar un valor de solo blancos." });
   }
+  const rolN = normalizarRol(rol);
+  if (!rolValido(rolN)) return res.status(400).json({ message: 'Rol inválido.' });
   const vPass = validarPasswordGestion(password, true);
   if (!vPass.ok) return res.status(400).json({ message: vPass.message });
+  if (!passwordFuerte(vPass.password)) {
+    return res.status(400).json({ message: 'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.' });
+  }
   try {
     const hashedPassword = await bcrypt.hash(vPass.password, 10);
     db.query(
-      'INSERT INTO usuarios (email, nombre, password, rol) VALUES (?, ?, ?, ?)',
-      [vEmail.email, String(nombre).trim(), hashedPassword, String(rol).trim()],
+      `INSERT INTO usuarios
+        (email, nombre, password, rol, activo, created_by, created_at, updated_by, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
+      [vEmail.email, String(nombre).trim(), hashedPassword, rolN, activo, actorEmail, actorEmail],
       (err, result) => {
         if (err) {
           if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: 'El email ya existe' });
@@ -419,6 +503,8 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
   const vEmail = validarEmailGestion(req.body.email);
   if (!vEmail.ok) return res.status(400).json({ message: vEmail.message });
   const nuevoEmail = vEmail.email;
+  const activo = normalizarActivo(req.body?.activo ?? 1);
+  const actorEmail = String(req.user?.email || req.user?.nombre || 'sistema').trim().toLowerCase();
 
   const nombreTrim = String(nombre == null ? "" : nombre).trim();
   const rolTrim = String(rol == null ? "" : rol).trim();
@@ -469,6 +555,9 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
         }
         const vPass2 = validarPasswordGestion(password, true);
         if (!vPass2.ok) return res.status(400).json({ message: vPass2.message });
+        if (!passwordFuerte(vPass2.password)) {
+          return res.status(400).json({ message: 'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.' });
+        }
         try {
           const hashedPassword = await bcrypt.hash(vPass2.password, 10);
           db.query('UPDATE usuarios SET password = ? WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))', [hashedPassword, emailAnterior], (e2, result2) => {
@@ -484,9 +573,23 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
       }
     );
   }
+  const rolN = normalizarRol(rolTrim);
+  if (!rolValido(rolN)) return res.status(400).json({ message: 'Rol inválido.' });
+  if (quiereCambiarPassword && !passwordFuerte(pwdTrim)) {
+    return res.status(400).json({ message: 'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.' });
+  }
 
-  let query = 'UPDATE usuarios SET email = TRIM(?), nombre = ?, rol = ?';
-  let params = [nuevoEmail, nombreTrim, rolTrim];
+  const targetRows = await dbQuery(
+    `SELECT rol
+       FROM usuarios
+      WHERE email = ? OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+      LIMIT 1`,
+    [emailAnterior, emailAnterior]
+  );
+  if (!targetRows.length) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+  let query = 'UPDATE usuarios SET email = TRIM(?), nombre = ?, rol = ?, activo = ?, updated_by = ?, updated_at = NOW()';
+  let params = [nuevoEmail, nombreTrim, rolN, activo, actorEmail];
 
   if (quiereCambiarPassword) {
     const vPass = validarPasswordGestion(password, true);
@@ -518,9 +621,13 @@ app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (r
   if (esCuentaAdminPermanente(email)) {
     return res.status(403).json({ message: 'La cuenta de administrador permanente no puede eliminarse.' });
   }
-  db.query('DELETE FROM usuarios WHERE email = ?', [email], (err, result) => {
-    if (err) return res.status(500).send(err);
-    res.json({ message: 'Usuario eliminado' });
+  db.query('SELECT email FROM usuarios WHERE email = ? OR LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1', [email, email], (errTarget, rows) => {
+    if (errTarget) return res.status(500).json({ message: errTarget.message || 'Error al validar usuario' });
+    if (!rows?.length) return res.status(404).json({ message: 'Usuario no encontrado' });
+    db.query('DELETE FROM usuarios WHERE email = ? OR LOWER(TRIM(email)) = LOWER(TRIM(?))', [email, email], (err, result) => {
+      if (err) return res.status(500).send(err);
+      res.json({ message: 'Usuario eliminado' });
+    });
   });
 });
 
@@ -3644,8 +3751,15 @@ app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autoriza
 
 
 const PORT = Number(process.env.PORT) || 3001;
-app.listen(PORT, () => {
-  console.log(`API en el puerto ${PORT}`);
-});
+Promise.all([ensurePasswordResetTable(), ensureContratoCorreoColumn(), ensureUsuariosSecurityAuditColumns()])
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`API en el puerto ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('No se pudo preparar la base de datos inicial (tablas/columnas):', err);
+    process.exit(1);
+  });
 
 
