@@ -1,0 +1,4990 @@
+.App {
+ display: flex;
+ flex-direction: column;
+ justify-content: center;
+}
+
+.datos {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  align-items: center;
+ }
+
+ .datos input{
+  
+  width: 300px;
+  height: 30px;
+  font-size: 20px;
+  padding-left: 10px;
+  border-radius: 5px;
+  margin: 5px;
+ }
+
+ .datos button{
+  
+  max-width: 320px;
+  max-height: 50px;
+margin-top: 15px;
+ }
+
+
+
+
+ /* Ajusta el ancho del NavItem */
+ .nav-item {
+    width: calc(50% - 10empx); /* Cambia "x" por tu valor deseado (16em es un valor aceptable)*/  
+    
+} 
+
+
+
+
+
+
+
+
+
+
+/* #prueba-dropdown .dropdown-toggle::after {
+  border-top-color: green  ;      
+  border-bottom-color: green  ;    
+
+}
+
+
+#prueba-dropdown .dropdown-menu {
+  background-color: green  ; 
+}
+
+
+#prueba-dropdown .dropdown-item {
+  color: green  ;
+}
+
+
+#prueba-dropdown .dropdown-item:hover {
+  background-color: green ;  
+  color: green  ;
+}
+ #prueba-dropdown .dropdown-toggle {
+  color: green ;
+}  */
+
+
+
+
+
+
+
+
+
+
+/* Tema corporativo pecuaria genética — paleta institucional */
+:root {
+  --dashboard-bg: #b8b8b8;
+  --dashboard-surface: #d6d6d6;
+  --dashboard-border: #9f9f9f;
+  --dashboard-text: #0f172a;
+  --dashboard-muted: #30363d;
+  --brand-black: #111111;
+  --brand-black-soft: #1c1c1c;
+  --brand-red: #b91c1c;
+  --brand-red-deep: #7f1d1d;
+  --brand-green: #1b7f3a;
+  --brand-green-deep: #12612c;
+  --brand-red-rgb: 185, 28, 28;
+  --brand-green-rgb: 27, 127, 58;
+  /* Acción principal de interfaz (azul) — semántica estándar */
+  --ui-primary: #007bff;
+  --ui-primary-deep: #0069d9;
+  --ui-primary-rgb: 0, 123, 255;
+  --dashboard-primary: var(--ui-primary);
+  --dashboard-primary-deep: var(--ui-primary-deep);
+  /* Guardar: azul claro (como antes) */
+  --accion-guardar: #bfdbfe;
+  --accion-guardar-foreground: #1e3a8a;
+  --accion-guardar-border: #60a5fa;
+  --accion-guardar-hover: #1d4ed8;
+  --accion-guardar-hover-border: #1e3a8a;
+  --accion-guardar-active: #1e3a8a;
+  --accion-guardar-rgb: 30, 64, 175;
+  --accion-aceptar: #218838;
+  --accion-aceptar-hover: #1c7430;
+  --accion-aceptar-active: #185c29;
+  --accion-anadir: #14532d;
+  --accion-anadir-hover: #0f3d24;
+  --accion-anadir-border: #0f3d24;
+  --accion-anadir-rgb: 20, 83, 45;
+  --accion-editar: #ffc107;
+  --accion-editar-hover: #e0a800;
+  --accion-editar-text: #212529;
+  --accion-buscar: #17a2b8;
+  --accion-buscar-hover: #138496;
+  /* Cancelar: gris claro (mismo criterio que .btn-contratos-limpiar-filtros) */
+  --accion-cancelar: #e5e7eb;
+  --accion-cancelar-foreground: #4b5563;
+  --accion-cancelar-border: #9ca3af;
+  --accion-cancelar-hover: #4b5563;
+  --accion-cancelar-hover-foreground: #f9fafb;
+  --accion-cancelar-hover-border: #374151;
+  --accion-cancelar-active: #3f3f46;
+  --accion-cancelar-rgb: 75, 85, 99;
+  --accion-cancelar-disabled: #d1d5db;
+  --accion-eliminar: #dc3545;
+  --accion-eliminar-hover: #c82333;
+  --accion-eliminar-active: #bd2130;
+  --accion-eliminar-disabled: #ea868f;
+  /* Modales: acento estructural (filo, titular, focus) — alineado con tablas Contratos */
+  --modal-accent: #14532d;
+  --modal-accent-deep: #0f3d24;
+  --modal-accent-rgb: 20, 83, 45;
+  /* Botones: esquinas rectas + sombras tipo Windows 11 (capas, sin “lift” fuerte) */
+  --btn-win11-radius: 0;
+  --btn-win11-shadow-neutral: 0 1px 2px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+  --btn-win11-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.12), 0 8px 18px rgba(0, 0, 0, 0.1);
+  --btn-win11-shadow-pressed: inset 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 2px 5px rgba(0, 0, 0, 0.06);
+}
+
+.dashboard-shell {
+  background: var(--dashboard-bg);
+  color: var(--dashboard-text);
+}
+
+.dashboard-sidebar {
+  --dash-pink: var(--brand-black-soft);
+  --dash-pink-deep: #2a2d31;
+  /* Altura reservada para el texto en hover (1.065rem × line-height + padding); evita que el resto de filas “salten”. */
+  --sidebar-nav-row-min-height: 2.4rem;
+  position: relative;
+  z-index: 20;
+  background: linear-gradient(180deg, #1c1c1c 0%, #141414 52%, #111111 100%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dashboard-sidebar .dashboard-sidebar-divider {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dashboard-sidebar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.dashboard-sidebar-brand-logo {
+  width: 1.95rem;
+  height: 1.95rem;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.dashboard-sidebar .nav-link.dashboard-nav-link {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  color: #f4f4f5 !important;
+  border: none !important;
+  font-size: 0.94rem;
+  line-height: 1.35;
+  text-rendering: optimizeLegibility;
+  min-height: var(--sidebar-nav-row-min-height);
+  display: flex !important;
+  align-items: center;
+  box-sizing: border-box;
+  transition: font-size 0.38s ease-out,
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.dashboard-sidebar .nav-link.dashboard-nav-link:hover,
+.dashboard-sidebar .nav-link.dashboard-nav-link:focus {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+  font-size: 1.055rem;
+}
+
+.dashboard-sidebar .nav-link.dashboard-nav-link.active {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--brand-red-rgb), 0.95) 0%,
+    rgba(138, 0, 24, 0.98) 100%
+  ) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+}
+
+.mi-dropdown-sidebar .dropdown-toggle {
+  /* Misma base que los enlaces del sidebar (coherente con submenús) */
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  color: #f4f4f5 !important;
+  border: none !important;
+  border-color: transparent !important;
+  font-size: 0.94rem;
+  line-height: 1.35;
+  text-rendering: optimizeLegibility;
+  min-height: var(--sidebar-nav-row-min-height);
+  display: flex !important;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: var(--btn-win11-radius);
+  transition: font-size 0.38s ease-out,
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.mi-dropdown-sidebar .dropdown-toggle:hover,
+.mi-dropdown-sidebar .dropdown-toggle:focus,
+.mi-dropdown-sidebar .dropdown-toggle:focus-visible {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+  font-size: 1.055rem;
+}
+
+.mi-dropdown-sidebar.show > .dropdown-toggle {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.mi-dropdown-sidebar .dropdown-toggle::after {
+  border-top-color: white !important;
+  margin-left: auto;
+}
+
+.mi-dropdown-sidebar .dropdown-menu {
+  background-color: var(--dash-pink) !important;
+  border-color: var(--dash-pink-deep) !important;
+  margin-left: 1.35rem;
+  width: calc(100% - 1.35rem);
+  min-width: 0;
+  /* Scroll interno: listas largas (p. ej. Rec. Humanos) sin salirse de la pantalla */
+  max-height: min(65vh, calc(100vh - 10rem));
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.45) rgba(255, 255, 255, 0.08);
+}
+
+.mi-dropdown-sidebar .dropdown-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.mi-dropdown-sidebar .dropdown-menu::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+}
+
+.mi-dropdown-sidebar .dropdown-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+}
+
+.mi-dropdown-sidebar .dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.mi-dropdown-sidebar .dropdown-item {
+  color: white !important;
+  background-color: transparent !important;
+  padding-left: 1.35rem;
+  font-size: 0.94rem;
+  line-height: 1.35;
+  text-rendering: optimizeLegibility;
+  min-height: var(--sidebar-nav-row-min-height);
+  display: flex !important;
+  align-items: center;
+  box-sizing: border-box;
+  transition: font-size 0.38s ease-out,
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.mi-dropdown-sidebar .dropdown-item:hover:not(.active) {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: white !important;
+  font-size: 1.055rem;
+}
+
+.mi-dropdown-sidebar .dropdown-item:focus:not(.active) {
+  font-size: 1.055rem;
+}
+
+.mi-dropdown-sidebar .dropdown-item.active,
+.mi-dropdown-sidebar .dropdown-item.active:hover,
+.mi-dropdown-sidebar .dropdown-item.active:focus {
+  background-color: rgba(var(--brand-red-rgb), 0.92) !important;
+  color: #ffffff !important;
+}
+
+.mi-dropdown-sidebar .dropdown-item.active:hover,
+.mi-dropdown-sidebar .dropdown-item.active:focus {
+  font-size: 1.055rem;
+}
+
+/* Vencimientos: oculto solo en el menú lateral; la ruta y la vista siguen activas (p. ej. “Ver todos”). */
+.dashboard-sidebar .mi-dropdown-sidebar .dropdown-item.contratos-menu-vencimientos--hidden-visual {
+  display: none !important;
+}
+
+.dashboard-main {
+  position: relative;
+  background: #b6b6b6;
+  padding-top: 0 !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  /* Escala base del módulo para que 100% se vea como antes en ~80%. */
+  zoom: 0.8;
+}
+
+/* Scroll solo del contenido: la barra empieza debajo de la ola/topbar, no detrás del listón */
+.dashboard-main-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: var(--dashboard-main-scroll-offset-top, 0.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.dashboard-main::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -120px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: none;
+  pointer-events: none;
+}
+
+.dashboard-main > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Por encima de .dashboard-topbar-wave (z-index 5): el scroll envuelve el contenido y el título fijo rojo */
+.dashboard-main .dashboard-main-scroll {
+  z-index: 6;
+}
+
+.dashboard-content-layout {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  /* Sin hueco extra: los títulos de módulo quedan alineados arriba como en Gestión de contratos */
+  padding-top: 0;
+  /*
+   * Por encima de .dashboard-topbar-wave (z-index 5): el título fijo vive dentro de este árbol;
+   * si todo el bloque queda en z-index 1, el rojo queda *debajo* del listón negro y no se ve la invasión.
+   */
+  z-index: 6;
+}
+
+.dashboard-content-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dashboard-content-main .content-wrapper {
+  min-width: 0;
+}
+
+/* Módulos con .content-wrapper.p-3: menos padding superior para que el h4 quede arriba como Contratos */
+.dashboard-content-main .content-wrapper.p-3 {
+  padding-top: 0.5rem !important;
+}
+
+.dashboard-content-main .content-wrapper.p-3 > .mb-4:first-child,
+.dashboard-content-main .content-wrapper.p-3 > .d-flex:first-child {
+  margin-top: 0 !important;
+}
+
+/* Botones de formulario: una sola línea de texto y ancho mínimo estable */
+.dashboard-main .btn-form-nowrap {
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 9rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.dashboard-main .btn-sm.btn-form-nowrap,
+.dashboard-main .btn-group-sm > .btn.btn-form-nowrap {
+  min-width: 7rem;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+}
+
+/* Área principal: evita desbordes al estrechar (flex + rejillas + tablas) */
+.dashboard-content-main .card-body {
+  min-width: 0;
+}
+
+.dashboard-content-main .table-responsive {
+  max-width: 100%;
+}
+
+/* Campos de texto que no deben colapsar a anchos ridículos */
+.dashboard-content-main .form-field-min-12 {
+  min-width: 12rem;
+}
+
+/* Tablas de listados: celdas reutilizables */
+.dashboard-content-main .table-data-compact {
+  table-layout: auto;
+}
+
+/* Bordes de tablas más finos y suaves en toda la app */
+.dashboard-content-main .table-data-compact.table-bordered > :not(caption) > * > * {
+  border-width: 0.5px;
+  border-color: #e5e7eb;
+}
+
+.dashboard-content-main .table-data-compact > :not(caption) > * > * {
+  border-color: #e5e7eb;
+}
+
+.dashboard-content-main .table-data-compact td.cell-empleado-max {
+  max-width: 14rem;
+}
+
+.dashboard-content-main .table-data-compact td.cell-nombre-wrap,
+.dashboard-content-main .table-data-compact .cell-nombre-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.dashboard-content-main .table-data-compact td.cell-id-nowrap,
+.dashboard-content-main .table-data-compact .cell-id-nowrap {
+  display: inline-block;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Modales (montados en body): mismos criterios de botón */
+.modal-premium-footer .btn,
+.modal-minimal-footer .btn {
+  white-space: nowrap;
+  border-radius: var(--btn-win11-radius);
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease;
+}
+
+.dashboard-side-info {
+  width: 190px;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  position: sticky;
+  top: 0.5rem;
+}
+
+.dashboard-side-info__card {
+  border: none;
+  border-left: 4px solid #0a8a6b;
+  border-radius: 0;
+  background: #f0f4f8;
+  padding: 0.72rem 0.76rem;
+  box-shadow: none;
+}
+
+.dashboard-side-info__pill {
+  display: inline-block;
+  background: #0c6c94;
+  color: #fff;
+  font-size: 0.69rem;
+  font-weight: 700;
+  border-radius: 0;
+  padding: 0.22rem 0.58rem;
+  margin-bottom: 0.45rem;
+  letter-spacing: 0.03em;
+}
+
+.dashboard-side-info__line {
+  margin: 0 0 0.3rem;
+  font-size: 0.76rem;
+  color: #4b5563;
+  line-height: 1.3;
+}
+
+.dashboard-side-info__date {
+  margin: 0.45rem 0 0.12rem;
+  color: #0f766e;
+  font-size: 0.77rem;
+  font-weight: 700;
+}
+
+.dashboard-side-info__time {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.04rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.dashboard-side-info__logo-wrap {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  text-align: center;
+  box-shadow: none;
+}
+
+.dashboard-side-info__logo {
+  width: 100%;
+  max-width: 152px;
+  height: auto;
+  filter: saturate(1.08) contrast(1.03);
+}
+
+.dashboard-topbar {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Panel lateral: en Contratos se mantiene visible hasta viewport más estrecho (mockup con columna derecha) */
+@media (max-width: 1400px) {
+  .dashboard-side-info {
+    display: none;
+  }
+
+  .dashboard-main.dashboard-main--contratos .dashboard-side-info {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .dashboard-main.dashboard-main--contratos .dashboard-side-info {
+    display: none !important;
+  }
+}
+
+/* Avatar + meta del usuario: misma franja vertical que la ola; horizontal a la izquierda del botón */
+.dashboard-topbar-avatar-wrap {
+  position: fixed;
+  top: 0 !important;
+  right: calc(14px + var(--dashboard-topbar-logout-slot, 10rem) + 0.625rem);
+  width: auto;
+  min-width: var(--dashboard-user-avatar-size, 3.25rem);
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  z-index: 12;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 0.55rem;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.dashboard-topbar-avatar-wrap .dashboard-user-avatar {
+  margin-top: calc(
+    var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem)) * var(--dashboard-avatar-wave-center, 0.58) -
+      (var(--dashboard-user-avatar-size, 3.25rem) * 0.5)
+  );
+  pointer-events: auto;
+  flex-shrink: 0;
+  /* Pulido premium: borde blanco sutil + sombra para destacar sobre el listón oscuro */
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.25);
+  background: #ffffff;
+}
+
+/* Nombre + rol del usuario, colocados a la izquierda del avatar */
+.dashboard-topbar-user-meta {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05rem;
+  pointer-events: auto;
+  margin-top: calc(
+    var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem)) * var(--dashboard-avatar-wave-center, 0.58) -
+      (var(--dashboard-user-avatar-size, 3.25rem) * 0.52)
+  );
+  white-space: nowrap;
+  line-height: 1.15;
+}
+
+.dashboard-topbar-user-name {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.005em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.dashboard-topbar-user-role {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 767.98px) {
+  .dashboard-topbar-user-meta {
+    display: none;
+  }
+}
+
+.dashboard-topbar-actions {
+  width: auto;
+  max-width: fit-content;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 0.65rem !important;
+  padding: 0.28rem 0.46rem;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  margin-left: auto;
+  margin-right: 0 !important;
+  display: inline-flex !important;
+  position: fixed !important;
+  right: 0 !important;
+  /* Misma caja vertical que el listón negro de la ola */
+  top: 0 !important;
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  box-sizing: border-box;
+  transform: none !important;
+  z-index: 12;
+  margin-left: 0 !important;
+  padding-right: 0 !important;
+  overflow: visible;
+}
+
+/* Botón: centrado en el medio vertical del listón negro */
+.dashboard-topbar-actions .btn-cerrar {
+  margin-top: calc(
+    var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem)) * 0.5 -
+      (var(--dashboard-topbar-logout-h, 2.38rem) * 0.5)
+  ) !important;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.dashboard-user-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  margin-right: 0.18rem;
+  padding: 0.08rem 0.28rem;
+}
+
+.dashboard-user-badge__title {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(248, 250, 252, 0.78);
+  font-weight: 700;
+}
+
+.dashboard-user-badge__name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.dashboard-user-badge__role {
+  color: rgba(226, 232, 240, 0.78);
+  font-weight: 600;
+}
+
+.dashboard-user-avatar {
+  width: var(--dashboard-user-avatar-size, 3.25rem) !important;
+  height: var(--dashboard-user-avatar-size, 3.25rem) !important;
+  border-radius: 999px;
+  border: 2px solid rgba(226, 232, 240, 0.5);
+  box-shadow: 0 2px 8px rgba(2, 6, 23, 0.22);
+}
+
+.dashboard-main .container,
+.dashboard-main .container-fluid {
+  max-width: 1320px;
+}
+
+.dashboard-main .card {
+  border: none !important;
+  border-radius: 0 !important;
+  background: #d8d8d8 !important;
+  box-shadow: none !important;
+}
+
+.dashboard-main .card.shadow-sm,
+.dashboard-main .card.shadow,
+.dashboard-main .card.shadow-lg {
+  box-shadow: none !important;
+}
+
+.dashboard-main .card-body {
+  padding: 1.1rem 1.15rem;
+}
+
+/* Fuerza una base gris en vistas que traen fondo inline */
+.dashboard-main .content-wrapper {
+  background-color: transparent !important;
+}
+
+.dashboard-main .content-wrapper > .mb-4 small.text-muted {
+  display: inline-block;
+  margin-bottom: 0.7rem;
+  border-bottom: 4px solid #1f2937;
+  padding-bottom: 0.15rem;
+}
+
+.dashboard-main h2,
+.dashboard-main h3,
+.dashboard-main h4,
+.dashboard-main h5,
+.dashboard-main h6 {
+  color: var(--dashboard-text);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.9rem;
+}
+
+/* Títulos de módulos/secciones en recuadro rojo */
+.dashboard-main h4 {
+  display: inline-block;
+  color: #ffffff !important;
+  background: #b00020;
+  border: none;
+  border-radius: 0;
+  padding: 0.36rem 0.9rem;
+  margin-bottom: 0.72rem !important;
+  margin-left: 0;
+}
+
+/*
+ * Une el subtítulo rojo con el menú: el padding de .dashboard-main (p-4) y .content-wrapper (p-3)
+ * deja una franja gris; una sombra sólida hacia la izquierda rellena sin desplazar el texto.
+ * Selectores acotados para no afectar h4 secundarios (p. ej. "Registros existentes" en tarjetas).
+ */
+.dashboard-main .content-wrapper > .mb-4 > h4,
+.dashboard-main .content-wrapper > .d-flex > div:first-child > h4,
+.dashboard-main .content-wrapper > .container-fluid > h4:first-child {
+  box-shadow: -2.5rem 0 0 0 var(--brand-red);
+}
+
+.dashboard-main .container > h4:first-child,
+.dashboard-main .container-fluid > h4:first-child,
+.dashboard-main .container > div:first-child > h4:first-child {
+  box-shadow: -2.25rem 0 0 0 var(--brand-red);
+}
+
+.dashboard-main .dashboard-content-main > .row > .col-12 > .d-flex > div:first-child > h4 {
+  box-shadow: -3rem 0 0 0 var(--brand-red);
+}
+
+/* Reserva altura en el flujo mientras el título real va en position:fixed (no lo recorta overflow-auto) */
+.dashboard-module-red-title-flow-spacer {
+  height: 2.875rem;
+  min-height: 2.875rem;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/*
+ * Recuadro rojo pegado al borde del menú / inicio del listón de la ola (z-index por encima de la ola).
+ * Extensión hacia arriba: se hace en el h4 con padding-top + margin-top negativo (mismo ancho que el recuadro);
+ * el ::before no se veía bien en todos los navegadores con width del ancla.
+ */
+.dashboard-main .dashboard-module-red-title-anchor--overlay {
+  position: fixed;
+  top: 0.58rem;
+  left: calc(var(--dashboard-sidebar-width, 280px) + 1.5rem);
+  z-index: 14;
+  margin: 0 !important;
+  padding: 0;
+  width: fit-content;
+  max-width: min(28rem, calc(100vw - var(--dashboard-sidebar-width, 280px) - 11rem));
+  overflow: visible;
+  /* Cuánto “sube” el rojo invadiendo el listón negro (mismo color que el h4) */
+  --dashboard-red-title-lip: 0.12rem;
+}
+
+@media (max-width: 991.98px) {
+  .dashboard-main .dashboard-module-red-title-anchor--overlay {
+    left: calc(var(--dashboard-sidebar-width, 280px) + 1.5rem);
+    max-width: calc(100vw - var(--dashboard-sidebar-width, 280px) - 9rem);
+  }
+}
+
+.dashboard-main .dashboard-module-red-title-anchor--overlay > h4 {
+  box-shadow: none !important;
+  /* Más área roja hacia arriba; el margen negativo compensa para que el texto no baje */
+  padding-top: calc(0.36rem + var(--dashboard-red-title-lip, 0.12rem)) !important;
+  padding-bottom: 0.36rem !important;
+  padding-left: 0.9rem !important;
+  padding-right: 0.9rem !important;
+  margin-top: calc(-1 * var(--dashboard-red-title-lip, 0.12rem)) !important;
+}
+
+/* Títulos rojos que no usen overlay (si los hubiera) mantienen extensión visual hacia la izquierda */
+.dashboard-main .dashboard-module-red-title-anchor:not(.dashboard-module-red-title-anchor--overlay) > h4 {
+  box-shadow: -3rem 0 0 0 var(--brand-red);
+}
+
+.dashboard-main .dashboard-content-main > div:not(.content-wrapper) > .d-flex > div:first-child > h4 {
+  box-shadow: -1.5rem 0 0 0 var(--brand-red);
+}
+
+.dashboard-main .card > h6 {
+  margin: 0 0 0.72rem;
+  color: #ffffff !important;
+  background: #14532d !important;
+  border: none !important;
+  border-radius: 0 !important;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 0.4rem 0.82rem;
+  box-shadow: none !important;
+}
+
+.dashboard-main h2 {
+  font-size: 1.55rem;
+}
+
+.dashboard-main h3 {
+  font-size: 1.3rem;
+}
+
+.dashboard-main .text-muted {
+  color: var(--dashboard-muted) !important;
+}
+
+.dashboard-main .form-control,
+.dashboard-main .form-select,
+.dashboard-main textarea.form-control {
+  border-color: #b0b0b0;
+  border-radius: 0 !important;
+  box-shadow: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.dashboard-main .form-control:focus,
+.dashboard-main .form-select:focus,
+.dashboard-main textarea.form-control:focus {
+  border-color: var(--brand-red-deep);
+  box-shadow: 0 0 0 0.2rem rgba(var(--brand-red-rgb), 0.14);
+}
+
+.dashboard-main .btn {
+  border-radius: var(--btn-win11-radius);
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border-width: 1px;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease;
+}
+
+/* Primario = acciones principales (verde marca, alineado con Contratos) */
+.dashboard-main .btn-primary {
+  background-color: var(--accion-anadir);
+  border-color: var(--accion-anadir-border, #0f3d24);
+  color: #ffffff;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 14px rgba(var(--accion-anadir-rgb, 20, 83, 45), 0.22);
+}
+
+.dashboard-main .btn-primary:hover {
+  background-color: var(--accion-anadir-hover);
+  border-color: var(--accion-anadir-border, #0f3d24);
+  color: #ffffff;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 20px rgba(var(--accion-anadir-rgb, 20, 83, 45), 0.28);
+  filter: brightness(1.02);
+}
+
+.dashboard-main .btn-primary:active {
+  background-color: #0c301c;
+  border-color: #082414;
+  box-shadow: var(--btn-win11-shadow-pressed);
+  filter: brightness(0.97);
+}
+
+.dashboard-main .btn-primary:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-anadir-rgb, 20, 83, 45), 0.45);
+  outline: none;
+}
+
+.dashboard-main .btn-primary:disabled {
+  opacity: 0.55;
+  filter: none;
+  box-shadow: none;
+}
+
+/* Success = Guardar / Registrar / Crear — mismo azul que Editar (tabla contratos) */
+.dashboard-main .btn-success {
+  background-color: var(--accion-guardar);
+  border-color: var(--accion-guardar-border);
+  color: var(--accion-guardar-foreground);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2);
+}
+
+.dashboard-main .btn-success:hover {
+  background-color: var(--accion-guardar-hover);
+  border-color: var(--accion-guardar-hover-border);
+  color: #ffffff;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28);
+  filter: none;
+}
+
+.dashboard-main .btn-success:active {
+  background-color: var(--accion-guardar-active);
+  border-color: #172554;
+  color: #ffffff;
+  box-shadow: var(--btn-win11-shadow-pressed);
+  filter: brightness(0.98);
+}
+
+.dashboard-main .btn-success:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-guardar-rgb), 0.45);
+  outline: none;
+}
+
+.dashboard-main .btn-success:disabled {
+  opacity: 0.55;
+  filter: none;
+  box-shadow: none;
+}
+
+/* Warning = Editar (#ffc107) */
+.dashboard-main .btn-warning {
+  background-color: var(--accion-editar);
+  border-color: #d39e00;
+  color: var(--accion-editar-text);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(200, 150, 0, 0.2);
+}
+
+.dashboard-main .btn-warning:hover {
+  background-color: var(--accion-editar-hover);
+  border-color: #c69500;
+  color: var(--accion-editar-text);
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 16px rgba(200, 150, 0, 0.22);
+  filter: brightness(1.02);
+}
+
+.dashboard-main .btn-warning:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+  filter: brightness(0.96);
+}
+
+.dashboard-main .btn-warning:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(200, 140, 0, 0.85);
+  outline: none;
+}
+
+/* Peligro / Eliminar (#dc3545) */
+.dashboard-main .btn-danger {
+  background-color: var(--accion-eliminar);
+  border-color: #bd2130;
+  color: #ffffff;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(220, 53, 69, 0.22);
+}
+
+.dashboard-main .btn-danger:hover {
+  background-color: var(--accion-eliminar-hover);
+  border-color: #a71d2a;
+  color: #ffffff;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(220, 53, 69, 0.26);
+  filter: brightness(1.02);
+}
+
+.dashboard-main .btn-danger:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+  filter: brightness(0.97);
+}
+
+.dashboard-main .btn-danger:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(220, 53, 69, 0.75);
+  outline: none;
+}
+
+/* Info / Buscar (#17a2b8) */
+.dashboard-main .btn-info {
+  background-color: var(--accion-buscar);
+  border-color: #117a8b;
+  color: #ffffff;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(23, 162, 184, 0.2);
+}
+
+.dashboard-main .btn-info:hover {
+  background-color: var(--accion-buscar-hover);
+  border-color: #0f6674;
+  color: #ffffff;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(23, 162, 184, 0.24);
+  filter: brightness(1.02);
+}
+
+.dashboard-main .btn-info:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+  filter: brightness(0.97);
+}
+
+.dashboard-main .btn-info:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(23, 162, 184, 0.75);
+  outline: none;
+}
+
+/* Cancelar: gris claro (mismo criterio que “Limpiar” en contratos) */
+.dashboard-main .btn-secondary {
+  background-color: var(--accion-cancelar);
+  border: 1px solid var(--accion-cancelar-border);
+  color: var(--accion-cancelar-foreground);
+  font-weight: 600;
+  box-shadow: var(--btn-win11-shadow-neutral);
+}
+
+.dashboard-main .btn-secondary:hover {
+  background-color: var(--accion-cancelar-hover);
+  border-color: var(--accion-cancelar-hover-border);
+  color: var(--accion-cancelar-hover-foreground);
+  box-shadow: var(--btn-win11-shadow-hover);
+  filter: none;
+}
+
+.dashboard-main .btn-secondary:active {
+  background-color: var(--accion-cancelar-active);
+  color: var(--accion-cancelar-hover-foreground);
+  border-color: #27272a;
+  box-shadow: var(--btn-win11-shadow-pressed);
+  filter: none;
+}
+
+.dashboard-main .btn-secondary:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-cancelar-rgb), 0.35);
+  outline: none;
+}
+
+/* Cancelar / volver: gris claro (mismo criterio que “Limpiar”) */
+.dashboard-main .btn-outline-secondary {
+  border: 1px solid var(--accion-cancelar-border);
+  color: var(--accion-cancelar-foreground);
+  background: var(--accion-cancelar);
+  font-weight: 600;
+  box-shadow: var(--btn-win11-shadow-neutral);
+}
+
+.dashboard-main .btn-outline-secondary:hover {
+  background: var(--accion-cancelar-hover);
+  border-color: var(--accion-cancelar-hover-border);
+  color: var(--accion-cancelar-hover-foreground);
+  box-shadow: var(--btn-win11-shadow-hover);
+}
+
+.dashboard-main .btn-outline-secondary:active {
+  background: var(--accion-cancelar-active);
+  border-color: #27272a;
+  color: var(--accion-cancelar-hover-foreground);
+  box-shadow: var(--btn-win11-shadow-pressed);
+}
+
+.dashboard-main .btn-outline-secondary:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-cancelar-rgb), 0.3);
+  outline: none;
+}
+
+/* Variantes outline semánticas */
+.dashboard-main .btn-outline-primary {
+  color: var(--ui-primary);
+  border-color: rgba(var(--ui-primary-rgb), 0.55);
+  background: #ffffff;
+  box-shadow: var(--btn-win11-shadow-neutral);
+}
+
+.dashboard-main .btn-outline-primary:hover {
+  background: rgba(var(--ui-primary-rgb), 0.1);
+  border-color: var(--ui-primary);
+  color: var(--ui-primary-deep);
+  box-shadow: var(--btn-win11-shadow-hover);
+}
+
+.dashboard-main .btn-outline-primary:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+}
+
+.dashboard-main .btn-outline-primary:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--ui-primary-rgb), 0.45);
+  outline: none;
+}
+
+/* Outline = mismo azul que Guardar sólido */
+.dashboard-main .btn-outline-success {
+  color: var(--accion-guardar-hover);
+  border-color: rgba(var(--accion-guardar-rgb), 0.45);
+  background: #ffffff;
+  box-shadow: var(--btn-win11-shadow-neutral);
+}
+
+.dashboard-main .btn-outline-success:hover {
+  background: rgba(var(--accion-guardar-rgb), 0.12);
+  border-color: var(--accion-guardar-hover);
+  color: var(--accion-guardar-hover-border);
+  box-shadow: var(--btn-win11-shadow-hover);
+}
+
+.dashboard-main .btn-outline-success:active {
+  background: rgba(var(--accion-guardar-rgb), 0.22);
+  border-color: var(--accion-guardar-active);
+  color: #172554;
+  box-shadow: var(--btn-win11-shadow-pressed);
+}
+
+.dashboard-main .btn-outline-success:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-guardar-rgb), 0.45);
+  outline: none;
+}
+
+.dashboard-main .btn-outline-danger {
+  color: #c82333;
+  border-color: rgba(220, 53, 69, 0.45);
+  background: #ffffff;
+  box-shadow: var(--btn-win11-shadow-neutral);
+}
+
+.dashboard-main .btn-outline-danger:hover {
+  background: #dc3545;
+  border-color: #dc3545;
+  color: #ffffff;
+  box-shadow: var(--btn-win11-shadow-hover), 0 4px 14px rgba(220, 53, 69, 0.25);
+}
+
+.dashboard-main .btn-outline-danger:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+}
+
+.dashboard-main .btn-outline-danger:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(220, 53, 69, 0.45);
+  outline: none;
+}
+
+/* Buscar / filtros (outline, #17a2b8) */
+.dashboard-main .btn-outline-info {
+  color: var(--accion-buscar);
+  border-color: rgba(23, 162, 184, 0.65);
+  background: #ffffff;
+  box-shadow: var(--btn-win11-shadow-neutral);
+}
+
+.dashboard-main .btn-outline-info:hover {
+  background: rgba(23, 162, 184, 0.12);
+  border-color: var(--accion-buscar);
+  color: var(--accion-buscar-hover);
+  box-shadow: var(--btn-win11-shadow-hover);
+}
+
+.dashboard-main .btn-outline-info:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+}
+
+.dashboard-main .btn-outline-info:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(23, 162, 184, 0.4);
+  outline: none;
+}
+
+/* Editar (outline, #ffc107) */
+.dashboard-main .btn-outline-warning {
+  color: #856404;
+  border-color: rgba(255, 193, 7, 0.85);
+  background: #ffffff;
+  box-shadow: var(--btn-win11-shadow-neutral);
+}
+
+.dashboard-main .btn-outline-warning:hover {
+  background: rgba(255, 193, 7, 0.15);
+  border-color: var(--accion-editar);
+  color: #533f03;
+  box-shadow: var(--btn-win11-shadow-hover);
+}
+
+.dashboard-main .btn-outline-warning:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+}
+
+.dashboard-main .btn-outline-warning:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(200, 140, 0, 0.55);
+  outline: none;
+}
+
+
+/* Badges Bootstrap — verde institucional */
+.dashboard-main .badge,
+.dashboard-main .badge.rounded-pill {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+}
+
+.dashboard-main .badge.bg-success {
+  background-color: var(--brand-green) !important;
+}
+
+.dashboard-main .badge.bg-secondary {
+  background-color: #5c636a !important;
+}
+
+/* Tablas: rectas, sin marco perimetral ni rejilla — color sólido y uniforme */
+.dashboard-main .table-responsive {
+  border: none;
+  border-radius: 0;
+  background: #d4d4d4;
+  box-shadow: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.dashboard-main .table.table-data-compact {
+  --bs-table-bg: #d9d9d9;
+  --bs-table-accent-bg: #d9d9d9;
+  --bs-table-striped-bg: #d9d9d9;
+  --bs-table-striped-color: #111827;
+  --bs-table-hover-bg: #cfcfcf;
+  --bs-table-hover-color: #111827;
+  --bs-table-border-color: transparent;
+  --bs-border-color: transparent;
+  margin-bottom: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: 100%;
+  border-collapse: collapse;
+  border: none;
+  border-radius: 0;
+  background-color: #d4d4d4;
+}
+
+.dashboard-main .table-responsive > .table.table-data-compact {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Quitar líneas de table-bordered y rayas de table-striped */
+.dashboard-main .table.table-data-compact.table-bordered > :not(caption) > * {
+  border-width: 0 !important;
+}
+
+.dashboard-main .table.table-data-compact.table-bordered > :not(caption) > * > * {
+  border-width: 0 !important;
+  border-color: transparent !important;
+}
+
+.dashboard-main .table.table-data-compact.table-striped > tbody > tr:nth-of-type(odd) > *,
+.dashboard-main .table.table-data-compact.table-striped > tbody > tr:nth-of-type(even) > * {
+  --bs-table-accent-bg: #d9d9d9;
+  background-color: #d9d9d9 !important;
+  color: inherit;
+}
+
+.dashboard-main .table.table-data-compact thead th,
+.dashboard-main .table.table-data-compact thead.table-light th {
+  background-color: #0b9b43 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: none !important;
+  padding: 0.82rem 0.78rem;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.dashboard-main .table.table-data-compact > :not(caption) > * > * {
+  box-shadow: none !important;
+}
+
+.dashboard-main .table.table-data-compact tbody td {
+  color: #111827;
+  border: none !important;
+  padding: 0.8rem 0.78rem;
+  vertical-align: middle;
+  background-color: #d9d9d9 !important;
+}
+
+.dashboard-main .table.table-data-compact tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.dashboard-main .table.table-data-compact.table-hover tbody tr:hover td,
+.dashboard-main .table.table-data-compact tbody tr:hover td {
+  background-color: #cfcfcf !important;
+}
+
+/* Filas de usuario inactivo: todas las celdas en gris muy claro */
+.dashboard-main .table.table-data-compact tbody tr.usuario-row-inactivo > td,
+.dashboard-main .table.table-data-compact.table-striped > tbody > tr.usuario-row-inactivo:nth-of-type(odd) > td,
+.dashboard-main .table.table-data-compact.table-striped > tbody > tr.usuario-row-inactivo:nth-of-type(even) > td {
+  background-color: #f5f6f8 !important;
+  color: #6b7280;
+}
+
+.dashboard-main .table.table-data-compact.table-hover tbody tr.usuario-row-inactivo:hover > td,
+.dashboard-main .table.table-data-compact tbody tr.usuario-row-inactivo:hover > td {
+  background-color: #eef0f3 !important;
+}
+
+/* Interruptor activar/desactivar usuario (columna Acciones) */
+.dashboard-main .usuario-acciones-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+}
+
+.dashboard-main .usuario-toggle {
+  position: relative;
+  flex: 0 0 auto;
+  width: 4.35rem;
+  height: 1.72rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.dashboard-main .usuario-toggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.dashboard-main .usuario-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ON: fondo oscuro, texto ON a la izquierda del knob */
+.dashboard-main .usuario-toggle--on {
+  background-color: #111827;
+}
+
+.dashboard-main .usuario-toggle--on .usuario-toggle__caption {
+  left: 0.42rem;
+  color: #ffffff;
+}
+
+.dashboard-main .usuario-toggle--on .usuario-toggle__thumb {
+  left: calc(100% - 1.38rem - 3px);
+  background-color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* OFF: fondo blanco con borde, knob oscuro, texto OFF */
+.dashboard-main .usuario-toggle--off {
+  background-color: #ffffff;
+  border: 2px solid #111827;
+  box-shadow: none;
+}
+
+.dashboard-main .usuario-toggle--off .usuario-toggle__caption {
+  right: 0.38rem;
+  color: #111827;
+}
+
+.dashboard-main .usuario-toggle--off .usuario-toggle__thumb {
+  left: 3px;
+  background-color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.dashboard-main .usuario-toggle__thumb {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.38rem;
+  height: 1.38rem;
+  border-radius: 50%;
+  transition: left 0.22s ease;
+  pointer-events: none;
+}
+
+.dashboard-main .usuario-toggle__caption {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* Columna Acciones: solo el ancho del contenido (sin franja vacía a la derecha) */
+.dashboard-main .table.table-gestion-usuarios thead th:last-child,
+.dashboard-main .table.table-gestion-usuarios tbody td:last-child {
+  width: 0.01%;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.dashboard-main .table.table-data-compact tbody tr > td:last-child {
+  white-space: nowrap;
+}
+
+.btn-table-icon-action {
+  box-shadow: var(--btn-win11-shadow-neutral);
+}
+
+.btn-table-icon-action:hover {
+  box-shadow: var(--btn-win11-shadow-hover);
+}
+
+.btn-table-icon-action:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+}
+
+/* Iconos Editar / Eliminar en tablas (Bootstrap Icons) */
+.btn-table-icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.375rem;
+  height: 2.375rem;
+  padding: 0;
+  border-radius: var(--btn-win11-radius);
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 1.05rem;
+  line-height: 1;
+  vertical-align: middle;
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease,
+    filter 0.15s ease;
+}
+
+.btn-table-icon-action:focus {
+  outline: none;
+}
+
+.btn-table-icon-action--edit {
+  color: #856404;
+  border-color: rgba(255, 193, 7, 0.55);
+  background-color: rgba(255, 193, 7, 0.12);
+}
+
+.btn-table-icon-action--edit:hover {
+  color: var(--accion-editar-text);
+  background-color: var(--accion-editar);
+  border-color: var(--accion-editar-hover);
+  filter: brightness(1.02);
+}
+
+.btn-table-icon-action--edit:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(200, 140, 0, 0.65);
+  outline: none;
+}
+
+.btn-table-icon-action--delete {
+  color: var(--accion-eliminar);
+  border-color: rgba(220, 53, 69, 0.35);
+  background-color: rgba(220, 53, 69, 0.08);
+}
+
+.btn-table-icon-action--delete:hover {
+  color: #fff;
+  background-color: var(--accion-eliminar);
+  border-color: var(--accion-eliminar-hover);
+}
+
+.btn-table-icon-action--delete:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(220, 53, 69, 0.55);
+  outline: none;
+}
+
+/* Ventanas emergentes de formulario (alta/edición) — patrón unificado */
+.modal-premium-dialog {
+  max-width: 920px;
+}
+
+.modal-premium-content {
+  border: none !important;
+  border-radius: 0 !important;
+  overflow: hidden;
+  box-shadow: none !important;
+  border-left: 6px solid var(--modal-accent) !important;
+  background: #fff !important;
+}
+
+.modal-premium-header {
+  padding: 1.25rem 1.5rem 0.5rem !important;
+  background: #ffffff !important;
+}
+
+.modal-premium-header-inner {
+  padding-right: 2rem;
+}
+
+.modal-premium-badge {
+  display: inline-block;
+  padding: 0.4rem 1rem;
+  border-radius: 0;
+  background: var(--modal-accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.modal-premium-subtitle {
+  font-size: 0.875rem;
+  color: #5f6670;
+  margin-top: 0.5rem;
+  line-height: 1.4;
+}
+
+.modal-premium-body {
+  padding: 0.75rem 1.5rem 1.25rem !important;
+}
+
+.modal-premium-body .form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #3c4655;
+  margin-bottom: 0.25rem;
+}
+
+.modal-premium-footer {
+  padding: 1rem 1.5rem 1.25rem !important;
+  background: #e8e8e8 !important;
+  border-top: none !important;
+  gap: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.modal-premium-btn-cancel {
+  min-width: 112px;
+  border-radius: var(--btn-win11-radius);
+  font-weight: 600;
+}
+
+.modal-premium-btn-save {
+  min-width: 112px;
+  border-radius: var(--btn-win11-radius);
+  font-weight: 600;
+}
+
+.modal-premium-dialog .btn-close {
+  opacity: 0.55;
+}
+
+.modal-premium-dialog .btn-close:hover {
+  opacity: 1;
+}
+
+/* Formularios dentro del modal (el modal se monta en body, fuera de .dashboard-main) */
+.modal-premium-dialog .form-control,
+.modal-premium-dialog .form-select,
+.modal-premium-dialog textarea.form-control {
+  border-color: #b0b0b0;
+  border-radius: 0 !important;
+  box-shadow: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.modal-premium-dialog .form-control:focus,
+.modal-premium-dialog .form-select:focus,
+.modal-premium-dialog textarea.form-control:focus {
+  border-color: var(--modal-accent-deep);
+  box-shadow: 0 0 0 0.2rem rgba(var(--modal-accent-rgb), 0.14);
+}
+
+/* Modales: Guardar = mismo azul que Editar / .dashboard-main .btn-success */
+.modal-premium-footer .btn-success,
+.modal-minimal-footer .btn-success {
+  background-color: var(--accion-guardar) !important;
+  border-color: var(--accion-guardar-border) !important;
+  color: var(--accion-guardar-foreground) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2) !important;
+}
+
+.modal-premium-footer .btn-success:hover,
+.modal-minimal-footer .btn-success:hover {
+  background-color: var(--accion-guardar-hover) !important;
+  border-color: var(--accion-guardar-hover-border) !important;
+  color: #ffffff !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28) !important;
+  filter: none;
+}
+
+.modal-premium-footer .btn-success:active,
+.modal-minimal-footer .btn-success:active {
+  background-color: var(--accion-guardar-active) !important;
+  border-color: #172554 !important;
+  color: #ffffff !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+  filter: brightness(0.98);
+}
+
+.modal-premium-footer .btn-success:focus-visible,
+.modal-minimal-footer .btn-success:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-guardar-rgb), 0.45) !important;
+  outline: none !important;
+}
+
+.modal-premium-footer .btn-success:disabled,
+.modal-minimal-footer .btn-success:disabled {
+  opacity: 0.55 !important;
+}
+
+.modal-premium-footer .btn-outline-secondary,
+.modal-minimal-footer .btn-outline-secondary {
+  border: 1px solid var(--accion-cancelar-border) !important;
+  color: var(--accion-cancelar-foreground) !important;
+  background: var(--accion-cancelar) !important;
+  font-weight: 600 !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+  filter: none !important;
+}
+
+.modal-premium-footer .btn-outline-secondary:hover,
+.modal-minimal-footer .btn-outline-secondary:hover {
+  background: var(--accion-cancelar-hover) !important;
+  border-color: var(--accion-cancelar-hover-border) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
+  filter: none !important;
+}
+
+.modal-premium-footer .btn-outline-secondary:active,
+.modal-minimal-footer .btn-outline-secondary:active {
+  background: var(--accion-cancelar-active) !important;
+  border-color: #27272a !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+  filter: none !important;
+}
+
+/* Variante minimalista como referencia visual entregada */
+.modal-minimal-dialog {
+  width: calc(100% - 1.1rem);
+  max-width: 500px !important;
+}
+
+.modal-minimal-content {
+  border-left: 8px solid var(--modal-accent) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.modal-minimal-header {
+  padding: 0.9rem 1rem 0.55rem !important;
+  background: #fff !important;
+}
+
+.modal-minimal-header-inner {
+  width: 100%;
+}
+
+.modal-minimal-badge {
+  border-radius: 0;
+  background: var(--modal-accent);
+  color: #ffffff;
+  font-size: 1.03rem;
+  padding: 0.25rem 0.95rem;
+}
+
+.modal-minimal-body {
+  padding: 0.35rem 1rem 0.65rem !important;
+}
+
+.modal-minimal-footer {
+  background: #fff !important;
+  border-top: none !important;
+  padding: 0.85rem 1rem 0.95rem !important;
+  justify-content: space-between;
+}
+
+.modal-minimal-btn {
+  min-width: 88px;
+  border-radius: var(--btn-win11-radius);
+  font-weight: 700;
+  padding: 0.3rem 0.8rem;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease !important;
+}
+
+.modal-minimal-btn.btn-success {
+  background-color: var(--accion-guardar) !important;
+  color: var(--accion-guardar-foreground) !important;
+  border-color: var(--accion-guardar-border) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2) !important;
+}
+
+.modal-minimal-btn.btn-success:hover {
+  background-color: var(--accion-guardar-hover) !important;
+  border-color: var(--accion-guardar-hover-border) !important;
+  color: #ffffff !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28) !important;
+  filter: none;
+}
+
+.modal-minimal-btn.btn-success:active {
+  background-color: var(--accion-guardar-active) !important;
+  border-color: #172554 !important;
+  color: #ffffff !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+  filter: brightness(0.98);
+}
+
+.modal-minimal-btn.btn-outline-secondary {
+  color: var(--accion-cancelar-foreground) !important;
+  border: 1px solid var(--accion-cancelar-border) !important;
+  background: var(--accion-cancelar) !important;
+  font-weight: 600 !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+  filter: none !important;
+}
+
+.modal-minimal-btn.btn-outline-secondary:hover {
+  background: var(--accion-cancelar-hover) !important;
+  border-color: var(--accion-cancelar-hover-border) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
+  filter: none !important;
+}
+
+.modal-minimal-btn.btn-outline-secondary:active {
+  background: var(--accion-cancelar-active) !important;
+  border-color: #27272a !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+  filter: none !important;
+}
+
+/* Modales con solo Bootstrap (p. ej. Cerrar con variant="secondary") — cancelar = gris claro */
+.modal .btn.btn-secondary:not(.btn-link) {
+  background-color: var(--accion-cancelar) !important;
+  color: var(--accion-cancelar-foreground) !important;
+  border: 1px solid var(--accion-cancelar-border) !important;
+  font-weight: 600;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+}
+.modal .btn.btn-secondary:not(.btn-link):hover {
+  background-color: var(--accion-cancelar-hover) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  border-color: var(--accion-cancelar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
+}
+.modal .btn.btn-secondary:not(.btn-link):active {
+  background-color: var(--accion-cancelar-active) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  border-color: #27272a !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+}
+
+/* Modales sin FormModal (estructura Bootstrap clásica): filo y cabecera con acento verde */
+.modal-dialog:not(.modal-premium-dialog) .modal-content {
+  border: none;
+  border-left: 5px solid var(--modal-accent) !important;
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .modal-header {
+  background: var(--modal-accent);
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.9rem 1rem;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .modal-title {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .btn-close {
+  filter: invert(1) grayscale(1);
+  opacity: 0.88;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .btn-close:hover,
+.modal-dialog:not(.modal-premium-dialog) .btn-close:focus {
+  opacity: 1;
+}
+
+.modal-dialog:not(.modal-premium-dialog) .form-control:focus,
+.modal-dialog:not(.modal-premium-dialog) .form-select:focus,
+.modal-dialog:not(.modal-premium-dialog) textarea.form-control:focus {
+  border-color: var(--modal-accent-deep);
+  box-shadow: 0 0 0 0.2rem rgba(var(--modal-accent-rgb), 0.14);
+}
+
+/* AppSelect (react-select) en cualquier modal: anula azul #1e3a5f al acento modal */
+.modal .app-select__menu {
+  z-index: 2000 !important;
+}
+.modal .app-select__indicators-container {
+  background-color: var(--modal-accent) !important;
+}
+.modal .app-select__control--is-focused {
+  border-color: var(--modal-accent) !important;
+  box-shadow: 0 0 0 0.2rem rgba(var(--modal-accent-rgb), 0.2) !important;
+}
+.modal .app-select__control:hover {
+  border-color: var(--modal-accent) !important;
+}
+.modal .app-select__option--is-focused,
+.modal .app-select__option--is-focused:active {
+  background-color: var(--modal-accent) !important;
+  color: #ffffff !important;
+}
+.modal .app-select__option--is-selected {
+  background-color: #ecfdf5 !important;
+  color: var(--modal-accent) !important;
+}
+
+/* Ojito de contraseña en formularios minimal del modal: sin navy */
+.modal-premium-dialog .minimal-eye-btn:hover,
+.modal-minimal-dialog .minimal-eye-btn:hover {
+  color: var(--modal-accent) !important;
+}
+.modal-premium-dialog .minimal-eye-btn:focus-visible,
+.modal-minimal-dialog .minimal-eye-btn:focus-visible {
+  outline: 2px solid var(--modal-accent) !important;
+  outline-offset: 1px;
+}
+
+.minimal-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.minimal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+}
+
+.minimal-label {
+  margin: 0;
+  font-size: 1.01rem;
+  font-weight: 700;
+  color: var(--dashboard-text);
+}
+
+.minimal-input,
+.minimal-select {
+  border: none;
+  border-bottom: 1px dashed #9ca3af;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none !important;
+  color: var(--dashboard-text);
+  font-weight: 700;
+  padding: 0 0 0.12rem 0;
+  min-height: 1.8rem;
+  max-width: 335px;
+}
+
+.minimal-input::placeholder {
+  color: #9ca3af;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.minimal-input:focus,
+.minimal-select:focus {
+  border-bottom-color: var(--brand-red);
+}
+
+/* Misma línea de acento de marca en formularios minimal dentro de modales (FormModal) */
+.modal-premium-dialog .minimal-input:focus,
+.modal-premium-dialog .minimal-select:focus {
+  border-bottom-color: var(--modal-accent);
+}
+
+/* Campo contraseña con ojito (Gestión de usuarios, etc.) */
+.minimal-password-wrap {
+  position: relative;
+  max-width: 335px;
+  width: 100%;
+}
+
+.minimal-password-wrap .minimal-input--with-eye {
+  padding-right: 2.25rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.minimal-eye-btn {
+  position: absolute;
+  right: 0;
+  bottom: 0.1rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 0.3rem;
+  padding: 0;
+  line-height: 1;
+}
+
+.minimal-eye-btn:hover {
+  color: #1e3a5f;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.minimal-eye-btn:focus-visible {
+  outline: 2px solid #1e3a5f;
+  outline-offset: 1px;
+}
+
+.minimal-select {
+  margin-left: 1.15rem;
+  width: calc(100% - 1.15rem);
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.minimal-select.is-selected {
+  color: var(--brand-green-deep);
+  font-weight: 700;
+}
+
+.minimal-select option {
+  color: #111111;
+  background-color: #ffffff;
+  font-weight: 600;
+}
+
+.minimal-inline-group {
+  display: flex;
+  gap: 1.15rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.minimal-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  font-weight: 700;
+  color: #151515;
+}
+
+.minimal-divider {
+  border-top: 1px solid var(--dashboard-border);
+  margin: 0.55rem 0 0.25rem;
+}
+
+.minimal-date-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Cerrar sesión: neutro (no confundir con peligro ni con acción principal) */
+.btn-cerrar {
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: linear-gradient(180deg, #fafafa 0%, #e8eaef 100%) !important;
+  border: 1px solid #c4c9d1 !important;
+  color: #111827 !important;
+  border-radius: var(--btn-win11-radius) !important;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.btn-cerrar:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #eef0f4 100%) !important;
+  border-color: #9ca3af !important;
+  color: #111827 !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 4px 14px rgba(15, 23, 42, 0.1) !important;
+}
+
+.btn-cerrar:focus,
+.btn-cerrar.focus {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(0, 103, 192, 0.55) !important;
+  outline: none !important;
+}
+
+.btn-cerrar:active,
+.btn-cerrar.active {
+  background: #d8dce3 !important;
+  border-color: #6b7280 !important;
+  color: #111827 !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+}
+
+/* Login — identidad corporativa */
+.login-page {
+  --login-brand: #b00020;
+  --login-brand-deep: #8a0018;
+  --login-primary: #2563eb;
+  --login-primary-deep: #1d4ed8;
+  --login-accent-green: #1b7f3a;
+  --login-border: #e5e5e5;
+  --login-muted: #6c757d;
+  --login-forgot: #6c757d;
+
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 72px 16px 48px;
+  box-sizing: border-box;
+  background-color: #0f0f0f;
+  background-image: url('./images/login-bg-cows.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page::before,
+.login-page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.login-page::before {
+  background: inherit;
+  filter: blur(5px) saturate(1.05);
+  transform: scale(1.06);
+  z-index: 0;
+}
+
+.login-page::after {
+  background: radial-gradient(circle at center, rgba(13, 18, 26, 0.18) 0%, rgba(8, 12, 19, 0.42) 100%);
+  z-index: 0;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  background: rgba(21, 31, 42, 0.46);
+  border-radius: 15px;
+  border: 1px solid rgba(226, 232, 240, 0.28);
+  box-shadow: 0 18px 45px rgba(5, 9, 16, 0.44), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  padding: 52px 32px 28px;
+  position: relative;
+  text-align: center;
+  z-index: 1;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.login-logo-wrap {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -52%);
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  border: 5px solid #ffffff;
+}
+
+.login-logo-img {
+  width: 122px;
+  height: 122px;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.login-title {
+  margin: 8px 0 24px;
+  color: #f3f4f6;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.login-form {
+  text-align: left;
+}
+
+.login-field-row {
+  position: relative;
+  margin-bottom: 14px;
+}
+
+.login-field-row--verify {
+  margin-bottom: 20px;
+}
+
+.login-field-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(203, 213, 225, 0.72);
+  font-size: 1.25rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.login-form > .login-field-row:nth-of-type(1) .login-field-icon,
+.login-form > .login-field-row:nth-of-type(2) .login-field-icon {
+  color: rgba(30, 41, 59, 0.9);
+}
+
+.login-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px 0 42px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.42);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-input::placeholder {
+  color: rgba(203, 213, 225, 0.55);
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: rgba(248, 250, 252, 0.62);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  background: rgba(15, 23, 42, 0.56);
+}
+
+.login-input--has-trailing {
+  padding-right: 44px;
+}
+
+.login-eye-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(226, 232, 240, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: var(--btn-win11-radius);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.login-eye-btn:hover {
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.42);
+  border-color: rgba(148, 163, 184, 0.32);
+  box-shadow: var(--btn-win11-shadow-neutral);
+}
+
+.login-eye-btn:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+}
+
+.login-captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.login-captcha-code {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background:
+    repeating-linear-gradient(
+      12deg,
+      rgba(148, 163, 184, 0.16) 0px,
+      rgba(148, 163, 184, 0.16) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    radial-gradient(circle at 12% 22%, rgba(148, 163, 184, 0.24) 0 1.1px, transparent 1.1px),
+    radial-gradient(circle at 78% 64%, rgba(226, 232, 240, 0.2) 0 1px, transparent 1px),
+    rgba(17, 24, 39, 0.44);
+  color: #f8fafc;
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 0.35em;
+  font-family: ui-monospace, 'Cascadia Code', 'Segoe UI', system-ui, sans-serif;
+  position: relative;
+  overflow: hidden;
+  text-shadow:
+    0.4px 0 rgba(239, 68, 68, 0.28),
+    -0.4px 0 rgba(34, 197, 94, 0.25);
+  isolation: isolate;
+}
+
+.login-captcha-code::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.62;
+  background:
+    repeating-linear-gradient(
+      -18deg,
+      transparent 0 8px,
+      rgba(148, 163, 184, 0.16) 8px 9px
+    ),
+    repeating-linear-gradient(
+      78deg,
+      transparent 0 10px,
+      rgba(248, 250, 252, 0.12) 10px 11px
+    ),
+    radial-gradient(circle at 22% 75%, rgba(248, 250, 252, 0.22) 0 1px, transparent 1px),
+    radial-gradient(circle at 54% 36%, rgba(148, 163, 184, 0.24) 0 1px, transparent 1px),
+    radial-gradient(circle at 84% 44%, rgba(248, 250, 252, 0.2) 0 1px, transparent 1px);
+}
+
+.login-captcha-code::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.55;
+  background:
+    linear-gradient(16deg, transparent 0 46%, rgba(239, 68, 68, 0.28) 47% 49%, transparent 50% 100%),
+    linear-gradient(-12deg, transparent 0 28%, rgba(34, 197, 94, 0.24) 29% 31%, transparent 32% 100%);
+}
+
+.login-captcha-code__glyph {
+  display: inline-block;
+  position: relative;
+  z-index: 3;
+  min-width: 0.62em;
+  text-align: center;
+  font-weight: 800;
+  filter: drop-shadow(0 1px 0 rgba(15, 23, 42, 0.5));
+}
+
+.login-captcha-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.login-timer {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: conic-gradient(#16a34a var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: background 0.28s ease;
+}
+
+.login-timer.login-timer--safe {
+  background: conic-gradient(#22c55e var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+}
+
+.login-timer.login-timer--warn {
+  background: conic-gradient(#f59e0b var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+}
+
+.login-timer.login-timer--danger {
+  background: conic-gradient(#ef4444 var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+}
+
+.login-timer-inner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-timer-text {
+  font-size: 10px;
+  font-weight: 700;
+  color: #f8fafc;
+  line-height: 1;
+  transition: color 0.28s ease, text-shadow 0.28s ease;
+}
+
+.login-timer-text.login-timer-text--safe {
+  color: #86efac;
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.45);
+}
+
+.login-timer-text.login-timer-text--warn {
+  color: #fcd34d;
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.42);
+}
+
+.login-timer-text.login-timer-text--danger {
+  color: #ef4444 !important;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+}
+
+.login-timer.login-timer--safe .login-timer-text {
+  color: #86efac !important;
+}
+
+.login-timer.login-timer--warn .login-timer-text {
+  color: #f59e0b !important;
+}
+
+.login-timer.login-timer--danger .login-timer-text {
+  color: #ef4444 !important;
+}
+
+.login-refresh {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background: rgba(15, 23, 42, 0.46);
+  color: rgba(226, 232, 240, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.login-refresh:hover {
+  background: rgba(15, 23, 42, 0.62);
+  color: #93c5fd;
+}
+
+.login-submit {
+  width: 100%;
+  height: 50px;
+  margin-top: 4px;
+  border: 1px solid #0f3d24;
+  border-radius: var(--btn-win11-radius);
+  background: linear-gradient(180deg, #1b6a3a 0%, #14532d 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 6px 18px rgba(20, 83, 45, 0.38);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease;
+}
+
+.login-submit:hover {
+  background: linear-gradient(180deg, #23884b 0%, #166534 100%);
+  border-color: #14532d;
+  box-shadow: var(--btn-win11-shadow-hover), 0 10px 24px rgba(20, 83, 45, 0.44);
+  filter: brightness(1.02);
+}
+
+.login-submit:active {
+  box-shadow: var(--btn-win11-shadow-pressed);
+  filter: brightness(0.96);
+}
+
+.login-submit:focus-visible {
+  outline: none;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(20, 83, 45, 0.42);
+}
+
+.login-forgot {
+  margin: 18px 0 0;
+  text-align: center;
+}
+
+.login-forgot-link {
+  font-size: 0.8125rem;
+  color: rgba(226, 232, 240, 0.82);
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.login-forgot-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.login-forgot-link--btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* SweetAlert2 — diálogos corporativos (sin cambiar textos en JS) */
+.swal2-popup {
+  border-radius: 0 !important;
+  padding: 1.75rem 1.5rem 1.5rem !important;
+  box-shadow: none !important;
+  border: none !important;
+  background: #f3f3f3 !important;
+}
+
+.swal2-popup .swal2-title {
+  font-weight: 700 !important;
+  color: var(--dashboard-text) !important;
+  letter-spacing: 0.01em !important;
+}
+
+.swal2-popup .swal2-html-container,
+.swal2-popup .swal2-content {
+  color: var(--dashboard-muted) !important;
+  font-weight: 500 !important;
+}
+
+.swal2-actions {
+  gap: 0.65rem !important;
+  margin-top: 0.25rem !important;
+}
+
+.swal2-popup .swal2-styled {
+  border-radius: var(--btn-win11-radius) !important;
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+  font-weight: 600 !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+  padding: 0.55rem 1.15rem !important;
+  min-height: 2.55rem !important;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease !important;
+}
+
+/* Secundario: Cancel / Cancelar / Cerrar / No — gris claro (mismo criterio que “Limpiar”) */
+.swal2-popup .swal2-cancel {
+  background-color: var(--accion-cancelar) !important;
+  color: var(--accion-cancelar-foreground) !important;
+  border: 1px solid var(--accion-cancelar-border) !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+  font-weight: 600 !important;
+}
+
+.swal2-popup .swal2-cancel:hover {
+  background-color: var(--accion-cancelar-hover) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  border-color: var(--accion-cancelar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
+  filter: none !important;
+}
+
+.swal2-popup .swal2-cancel:active {
+  background-color: var(--accion-cancelar-active) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+  filter: none !important;
+}
+
+.swal2-popup .swal2-cancel:focus-visible {
+  outline: none !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--accion-cancelar-rgb), 0.3) !important;
+}
+
+.swal2-popup .swal2-cancel:disabled {
+  background-color: var(--accion-cancelar-disabled) !important;
+  color: #6b7280 !important;
+  border-color: #d1d5db !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+  filter: none !important;
+}
+
+/* Confirmación por defecto (aceptar genérico) */
+.swal2-popup .swal2-confirm {
+  background-color: var(--accion-aceptar) !important;
+  color: #ffffff !important;
+  border: 1px solid #19692c !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(40, 167, 69, 0.22) !important;
+}
+
+.swal2-popup .swal2-confirm:hover {
+  background-color: var(--accion-aceptar-hover) !important;
+  border-color: #155d28 !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(40, 167, 69, 0.26) !important;
+  filter: brightness(1.02);
+}
+
+.swal2-popup .swal2-confirm:active {
+  background-color: var(--accion-aceptar-active) !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+  filter: brightness(0.97);
+}
+
+.swal2-popup .swal2-confirm:focus-visible {
+  outline: none !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(40, 167, 69, 0.75) !important;
+}
+
+.swal2-popup .swal2-confirm:disabled {
+  background-color: #8ccf9a !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+}
+
+/* Destructivo: icono advertencia + cancelar (¿Eliminar…?, Sí eliminar, etc.) */
+.swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) .swal2-confirm {
+  background-color: var(--accion-eliminar) !important;
+  color: #ffffff !important;
+  border: 1px solid #a71d2a !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(220, 53, 69, 0.22) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) .swal2-confirm:hover {
+  background-color: var(--accion-eliminar-hover) !important;
+  border-color: #8b1520 !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(220, 53, 69, 0.28) !important;
+  filter: brightness(1.02);
+}
+
+.swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) .swal2-confirm:active {
+  background-color: var(--accion-eliminar-active) !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+  filter: brightness(0.97);
+}
+
+.swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) .swal2-confirm:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(220, 53, 69, 0.75) !important;
+  outline: none !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) .swal2-confirm:disabled {
+  background-color: var(--accion-eliminar-disabled) !important;
+  color: #ffffff !important;
+  filter: none !important;
+}
+
+/* Icono: círculo rojo intenso + “!” blanca (confirmaciones con cancelar) */
+.swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) div.swal2-icon.swal2-warning {
+  border: none !important;
+  background: linear-gradient(155deg, #e74c3c 0%, var(--accion-eliminar) 45%, #c82333 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 22px rgba(220, 53, 69, 0.38) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) div.swal2-icon.swal2-warning .swal2-icon-content {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+
+/* Aviso sin cancelar — botón de cierre (atención / validación) */
+.swal2-popup:has(.swal2-icon.swal2-warning):not(:has(.swal2-cancel)) .swal2-confirm {
+  background-color: var(--accion-editar) !important;
+  color: var(--accion-editar-text) !important;
+  border: 1px solid #c69500 !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(200, 150, 0, 0.22) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-warning):not(:has(.swal2-cancel)) .swal2-confirm:hover {
+  background-color: var(--accion-editar-hover) !important;
+  border-color: #b8860b !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 16px rgba(200, 150, 0, 0.22) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-success) .swal2-confirm {
+  background-color: var(--accion-guardar) !important;
+  color: var(--accion-guardar-foreground) !important;
+  border: 1px solid var(--accion-guardar-border) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-success) .swal2-confirm:hover {
+  background-color: var(--accion-guardar-hover) !important;
+  color: #ffffff !important;
+  border-color: var(--accion-guardar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-error) .swal2-confirm {
+  background-color: var(--accion-cancelar) !important;
+  color: var(--accion-cancelar-foreground) !important;
+  border: 1px solid var(--accion-cancelar-border) !important;
+  font-weight: 600 !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-error) .swal2-confirm:hover {
+  background-color: var(--accion-cancelar-hover) !important;
+  color: var(--accion-cancelar-hover-foreground) !important;
+  border-color: var(--accion-cancelar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-error) .swal2-confirm:active {
+  background-color: var(--accion-cancelar-active) !important;
+  box-shadow: var(--btn-win11-shadow-pressed) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-question) .swal2-confirm {
+  background-color: var(--accion-guardar) !important;
+  color: var(--accion-guardar-foreground) !important;
+  border: 1px solid var(--accion-guardar-border) !important;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(var(--accion-guardar-rgb), 0.2) !important;
+}
+
+.swal2-popup:has(.swal2-icon.swal2-question) .swal2-confirm:hover {
+  background-color: var(--accion-guardar-hover) !important;
+  color: #ffffff !important;
+  border-color: var(--accion-guardar-hover-border) !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28) !important;
+}
+
+/* Portales / vistas sin .dashboard-main: mismo radio cuadrado */
+body .btn:not(.btn-link) {
+  border-radius: var(--btn-win11-radius);
+}
+
+/* Estados deshabilitados — misma lógica que primarios/success */
+.dashboard-main .btn-info:disabled,
+.dashboard-main .btn-secondary:disabled,
+.dashboard-main .btn-danger:disabled,
+.dashboard-main .btn-warning:disabled,
+.dashboard-main .btn-outline-success:disabled {
+  opacity: 0.55;
+  filter: none;
+}
+
+/* Ajuste visual solicitado: fondo blanco + paneles gris claro + logo abajo */
+.dashboard-shell {
+  /* Rellena huecos residuales (por zoom) con el mismo tono del menú lateral. */
+  background: linear-gradient(180deg, #1c1c1c 0%, #141414 52%, #111111 100%);
+  /* Sidebar real = 280px + padding horizontal (p-4: 1.5rem por lado). */
+  --dashboard-sidebar-width: calc(280px + 3rem);
+  /* Misma altura que .dashboard-topbar-wave: sirve para centrar avatar en el borde negro/blanco */
+  --dashboard-topbar-wave-h: clamp(3.65rem, 5.6vw, 5rem);
+  --dashboard-user-avatar-size: 3.25rem;
+  /* Altura aproximada del botón cerrar sesión (para centrarlo en el listón) */
+  --dashboard-topbar-logout-h: 2.38rem;
+  /* Espacio reservado a la derecha para botón + separación (el avatar va a la izquierda de esto) */
+  --dashboard-topbar-logout-slot: 10rem;
+  /* Fracción de la altura de la ola donde centramos el avatar (tramo de descenso del borde inferior del SVG) */
+  --dashboard-avatar-wave-center: 0.58;
+  /* Separa un poco el inicio de la barra de scroll del bloque superior */
+  --dashboard-main-scroll-offset-top: 0.5rem;
+}
+
+/* Franja decorativa tipo “ola”: continúa el bloque oscuro del menú hasta el borde derecho; la zona ancha queda detrás del avatar y cerrar sesión */
+.dashboard-topbar-wave {
+  position: fixed;
+  top: 0;
+  left: var(--dashboard-sidebar-width);
+  right: 0;
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  z-index: 5;
+  pointer-events: none;
+  background-image: url('./assets/dashboard-topbar-wave.svg');
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: left top;
+  filter: drop-shadow(0 5px 14px rgba(0, 0, 0, 0.28));
+}
+
+.dashboard-main {
+  background: #ffffff;
+}
+
+.dashboard-main .card,
+.dashboard-main .table-responsive {
+  background: #ececec !important;
+}
+
+.dashboard-main .table.table-data-compact {
+  --bs-table-bg: #efefef;
+  --bs-table-accent-bg: #efefef;
+  --bs-table-striped-bg: #efefef;
+  --bs-table-hover-bg: #e5e5e5;
+  background-color: #efefef;
+}
+
+.dashboard-main .table.table-data-compact tbody td,
+.dashboard-main .table.table-data-compact.table-striped > tbody > tr:nth-of-type(odd) > *,
+.dashboard-main .table.table-data-compact.table-striped > tbody > tr:nth-of-type(even) > * {
+  background-color: #efefef !important;
+}
+
+.dashboard-main .table.table-data-compact.table-hover tbody tr:hover td,
+.dashboard-main .table.table-data-compact tbody tr:hover td {
+  background-color: #e5e5e5 !important;
+}
+
+.dashboard-side-info {
+  min-height: calc(100vh - 3.2rem);
+  justify-content: space-between;
+}
+
+.dashboard-side-info__logo-wrap {
+  margin-top: 0;
+  background: transparent;
+  padding: 0;
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1rem;
+  width: 190px;
+  z-index: 3;
+}
+
+.dashboard-side-info__dna {
+  position: fixed;
+  right: 1.2rem;
+  top: 14.8rem;
+  width: 190px;
+  height: clamp(320px, 58vh, 590px);
+  z-index: 3;
+  background: transparent !important;
+}
+
+.dashboard-side-info__dna-canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background: transparent !important;
+}
+
+.dashboard-side-info__logo {
+  max-width: 165px;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* Fijos sin alterar ubicacion visual */
+.dashboard-side-info__card {
+  position: fixed;
+  right: 1.2rem;
+  top: 5.35rem;
+  width: 190px;
+  z-index: 4;
+}
+
+.dashboard-topbar-actions {
+  position: fixed !important;
+  top: 0 !important;
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  right: 0 !important;
+  left: auto !important;
+  margin: 0 !important;
+  transform: none !important;
+  z-index: 12;
+}
+
+.dashboard-main--contratos .contratos-top-header__right {
+  position: fixed !important;
+  right: 1rem;
+  top: 0.45rem;
+  z-index: 7;
+}
+
+/* Widget fijo derecho al estilo mockup (solo vista Contratos) */
+.dashboard-main.dashboard-main--contratos .dashboard-side-info__card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid var(--contratos-navy);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-side-info__pill {
+  background: var(--contratos-navy);
+  border-radius: 4px;
+}
+
+/* Logotipo sin caja: solo el gris del área principal detrás */
+.dashboard-main.dashboard-main--contratos .dashboard-side-info__logo-wrap {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0;
+  box-shadow: none !important;
+  padding: 0;
+}
+
+/* Reserva espacio para el bloque fijo y evita que suba/mueva el contenido */
+.dashboard-topbar {
+  min-height: 3.65rem;
+}
+
+.dashboard-topbar .navbar-collapse {
+  min-height: 2.2rem;
+}
+
+@media (max-width: 992px) {
+  .dashboard-side-info__card,
+  .dashboard-side-info__dna,
+  .dashboard-side-info__logo-wrap,
+  .dashboard-main--contratos .contratos-top-header__right {
+    position: static;
+    width: auto;
+    top: auto;
+    right: auto;
+    bottom: auto;
+  }
+}
+
+/* Ajuste fino: compensa el ancho del scrollbar para evitar recorte del bloque fijo */
+.dashboard-main .dashboard-topbar-actions {
+  right: 14px !important;
+  top: 0 !important;
+  height: var(--dashboard-topbar-wave-h, clamp(3.65rem, 5.6vw, 5rem));
+  transform: none !important;
+}
+
+/* ============================================================
+ * Tema de superficie del panel (antes solo Contratos): fondo #eceef2, tablas verde #14532d,
+ * tarjetas blancas. La clase .dashboard-main--contratos va siempre en el main del dashboard.
+ * ============================================================ */
+
+.dashboard-main.dashboard-main--contratos {
+  /* Mismo verde que el thead de la tabla .table-data-compact */
+  --contratos-navy: #14532d;
+  --contratos-navy-hover: #0f3d24;
+  --contratos-navy-rgb: 20, 83, 45;
+  --contratos-bg: #eceef2;
+  --contratos-green: #28a745;
+  background: var(--contratos-bg) !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+/* Misma piel en todos los módulos: quita el gris/azul inline de .content-wrapper y alinea títulos/focus al verde */
+.dashboard-main.dashboard-main--contratos .content-wrapper {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+.dashboard-main.dashboard-main--contratos h4 {
+  background: var(--contratos-navy, #14532d) !important;
+  color: #ffffff !important;
+}
+
+.dashboard-main.dashboard-main--contratos .content-wrapper > .mb-4 > h4,
+.dashboard-main.dashboard-main--contratos .content-wrapper > .d-flex > div:first-child > h4,
+.dashboard-main.dashboard-main--contratos .content-wrapper > .container-fluid > h4:first-child {
+  box-shadow: -2.5rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .container > h4:first-child,
+.dashboard-main.dashboard-main--contratos .container-fluid > h4:first-child,
+.dashboard-main.dashboard-main--contratos .container > div:first-child > h4:first-child {
+  box-shadow: -2.25rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-content-main > .row > .col-12 > .d-flex > div:first-child > h4 {
+  box-shadow: -3rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-module-red-title-anchor:not(.dashboard-module-red-title-anchor--overlay) > h4 {
+  box-shadow: -3rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-content-main > div:not(.content-wrapper) > .d-flex > div:first-child > h4 {
+  box-shadow: -1.5rem 0 0 0 var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .form-control:focus,
+.dashboard-main.dashboard-main--contratos .form-select:focus,
+.dashboard-main.dashboard-main--contratos textarea.form-control:focus {
+  border-color: var(--contratos-navy, #14532d);
+  box-shadow: 0 0 0 0.2rem rgba(var(--contratos-navy-rgb, 20, 83, 45), 0.2);
+}
+
+.dashboard-main.dashboard-main--contratos .content-wrapper > .mb-4 small.text-muted {
+  border-bottom-color: var(--contratos-navy, #14532d);
+}
+
+.dashboard-main.dashboard-main--contratos .card,
+.dashboard-main.dashboard-main--contratos .table-responsive {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
+}
+
+.dashboard-main.dashboard-main--contratos .card:hover {
+  box-shadow: 0 4px 12px rgba(17, 24, 39, 0.07);
+}
+
+/* ---- Listón superior: blanco en todo el panel (misma línea que Contratos) ---- */
+.dashboard-main--contratos .dashboard-topbar-wave {
+  background-image: none !important;
+  background: #ffffff !important;
+  filter: none !important;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.03);
+}
+
+/* Nombre/rol del usuario en el topbar: texto oscuro sobre fondo blanco */
+.dashboard-main--contratos .dashboard-topbar-user-name {
+  color: #111827 !important;
+  text-shadow: none !important;
+}
+
+.dashboard-main--contratos .dashboard-topbar-user-role {
+  color: #6b7280 !important;
+  text-shadow: none !important;
+}
+
+/* El avatar pierde el borde de contraste negro: ahora va con sombra suave */
+.dashboard-main--contratos .dashboard-topbar-avatar-wrap .dashboard-user-avatar {
+  border-color: #ffffff;
+  box-shadow: 0 2px 6px rgba(17, 24, 39, 0.12), 0 0 0 1px rgba(17, 24, 39, 0.04) !important;
+}
+
+.dashboard-main--contratos .contratos-page {
+  padding-top: 0.25rem;
+  padding-right: 0.75rem;
+  max-width: 100%;
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-main-scroll {
+  margin-top: 0 !important;
+  padding-top: 0.2rem;
+  border-top: 1px solid #e5e7eb;
+  background: var(--contratos-bg, #eceef2);
+}
+
+/* Rejilla global contratos: compacta; la de renovaciones usa clase propia */
+.dashboard-main--contratos .row.g-3 {
+  --bs-gutter-x: 1.25rem;
+  --bs-gutter-y: 1.25rem;
+}
+
+.dashboard-main--contratos .renovaciones-dashboard__grid {
+  --bs-gutter-x: 1rem;
+  --bs-gutter-y: 1rem;
+}
+
+.dashboard-main--contratos .card-body {
+  padding: 1.25rem !important;
+}
+
+.dashboard-main--contratos .renovaciones-dashboard .card-body {
+  padding: 1rem 1.1rem !important;
+}
+
+.dashboard-main--contratos .renov-kpi-card .card-body.renov-kpi-card__body {
+  padding: 0.75rem 0.85rem !important;
+}
+
+/* Padding generoso para tarjetas sin card-body (stepper superior y buscador) */
+.dashboard-main--contratos .renov-stepper-card.p-3,
+.dashboard-main--contratos .renov-stepper-card {
+  padding: 1.5rem !important;
+}
+
+.dashboard-main--contratos .renov-search-card.p-2,
+.dashboard-main--contratos .renov-search-card {
+  padding: 1rem 1.15rem !important;
+}
+
+/* Sombras de hover para todas las tarjetas principales */
+.dashboard-main--contratos .card {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* Títulos de bloques renovación (mockup) */
+.dashboard-main--contratos h6.fw-bold.renov-card-title,
+.dashboard-main--contratos .renov-kpi-card h6,
+.dashboard-main--contratos .renov-alerts-card h6,
+.dashboard-main--contratos .renov-cola-card h6,
+.dashboard-main--contratos .renov-stats-card h6 {
+  color: #000000 !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem !important;
+}
+
+/* ---- Título + acciones (sin caja blanca; título sobre gris claro) ---- */
+.contratos-page__header {
+  margin-bottom: 0.5rem;
+  margin-top: 0;
+}
+
+.contratos-page__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.contratos-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #000000;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.dashboard-main--contratos .contratos-page__title {
+  color: var(--contratos-navy, #14532d);
+}
+
+.contratos-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Botón primario (Agregar contrato) — verde alineado con thead de tabla */
+.contratos-btn-primary.btn,
+.dashboard-main--contratos .btn.contratos-btn-primary {
+  background: var(--contratos-navy, #14532d) !important;
+  border-color: var(--contratos-navy, #14532d) !important;
+  color: #ffffff !important;
+  border-radius: 8px !important;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.875rem;
+  box-shadow: 0 1px 2px rgba(var(--contratos-navy-rgb), 0.22) !important;
+}
+
+.contratos-btn-primary.btn:hover,
+.dashboard-main--contratos .btn.contratos-btn-primary:hover {
+  background: var(--contratos-navy-hover, #0f3d24) !important;
+  border-color: var(--contratos-navy-hover, #0f3d24) !important;
+}
+
+/* Botón secundario (Renovación Masiva) */
+.contratos-btn-secondary {
+  background: #ffffff;
+  color: #212529;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.875rem;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.2s ease;
+}
+
+.contratos-btn-secondary:hover {
+  background: #f8f9fa;
+  border-color: #ced4da;
+  box-shadow: 0 2px 6px rgba(17, 24, 39, 0.08);
+}
+
+.contratos-btn-secondary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
+}
+
+/* ---- Stepper visual en encabezado (Renovación Masiva) ---- */
+.contratos-masiva {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.3rem 0.5rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.contratos-masiva__stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.contratos-masiva__step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-right: 0.35rem;
+}
+
+.contratos-masiva__dot {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 2px solid #dee2e6;
+  background: #f1f3f5;
+  color: #6c757d;
+  font-weight: 700;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  padding: 0;
+}
+
+.contratos-masiva__step.is-active .contratos-masiva__dot {
+  background: var(--contratos-navy, #14532d);
+  border-color: var(--contratos-navy, #14532d);
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(var(--contratos-navy-rgb), 0.2);
+}
+
+.contratos-masiva__step.is-done .contratos-masiva__dot {
+  background: #e9ecef;
+  border-color: #ced4da;
+  color: var(--contratos-navy, #14532d);
+}
+
+.contratos-masiva__label {
+  font-size: 0.72rem;
+  color: #495057;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.contratos-masiva__step.is-active .contratos-masiva__label {
+  color: var(--contratos-navy, #14532d);
+}
+
+.contratos-masiva__step.is-done .contratos-masiva__label {
+  color: #6c757d;
+}
+
+.contratos-masiva__link {
+  display: inline-block;
+  width: 1.4rem;
+  height: 2px;
+  background: #dee2e6;
+  margin: 0 0.25rem;
+  border-radius: 2px;
+}
+
+.contratos-masiva__step.is-done .contratos-masiva__link {
+  background: #adb5bd;
+}
+
+/* ---- Pestañas: sin caja; línea inferior visible (border:none !important anulaba el bottom) ---- */
+.contratos-tabs-card {
+  padding: 0.35rem 0 0;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 2px solid #16a34a !important;
+}
+
+.dashboard-main--contratos .contratos-tabs-card {
+  margin-top: 0.4rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.contratos-tabs-row {
+  margin-bottom: 0;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+
+.contratos-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0;
+}
+
+.contratos-tab {
+  background: transparent;
+  color: #000000;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem 0.45rem;
+}
+
+.contratos-tab:hover {
+  background: transparent;
+  color: #000000;
+}
+
+.contratos-tab--active {
+  background: var(--contratos-navy, #14532d);
+  color: #ffffff !important;
+  border-radius: 999px;
+  box-shadow: inset 0 -6px 0 #16a34a;
+}
+
+.contratos-tab--active:hover {
+  background: var(--contratos-navy-hover, #0f3d24);
+  color: #ffffff !important;
+}
+
+/* Responsivo del encabezado */
+@media (max-width: 991.98px) {
+  .contratos-masiva__label {
+    display: none;
+  }
+  .contratos-page__title-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .contratos-topbar {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .contratos-masiva {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .contratos-masiva__link {
+    width: 0.8rem;
+  }
+}
+
+/* ============================================================
+ * Renovaciones dashboard (sección Contratos > Renovaciones)
+ * - Paleta y layout inspirados en el mockup del cliente.
+ * - Apilado en móvil gracias a col-12 + col-xl-* del JSX.
+ * ============================================================ */
+
+.renovaciones-dashboard .card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+}
+
+/* ---- Stepper Renovación Masiva ---- */
+.renov-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 0.25rem 0.25rem 0.5rem;
+}
+
+.renov-step {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.renov-step__circle {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid #d1d5db;
+  background: #ffffff;
+  color: #6b7280;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.renov-step__circle:hover {
+  border-color: #0d6efd;
+  color: #0d6efd;
+}
+
+.renov-step.is-active .renov-step__circle {
+  background: #0d6efd;
+  border-color: #0d6efd;
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.15);
+}
+
+.renov-step.is-done .renov-step__circle {
+  background: #0a8a6b;
+  border-color: #0a8a6b;
+  color: #ffffff;
+}
+
+.renov-step__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.renov-step.is-active .renov-step__label {
+  color: #0d6efd;
+}
+
+.renov-step.is-done .renov-step__label {
+  color: #0a8a6b;
+}
+
+.renov-step__bar {
+  flex: 1 1 auto;
+  height: 2px;
+  min-width: 2.2rem;
+  background: #e5e7eb;
+  margin: 0 0.75rem;
+  border-radius: 2px;
+}
+
+.renov-step.is-done + .renov-step .renov-step__bar,
+.renov-step.is-done .renov-step__bar {
+  background: #0a8a6b;
+}
+
+/* ---- Buscador contextual ---- */
+.renov-search-card .input-group-text {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  color: #6b7280;
+}
+
+.renov-search-card .form-control {
+  border-color: #e5e7eb;
+}
+
+.dashboard-main--contratos .renov-search-card .form-control:focus {
+  border-color: rgba(20, 83, 45, 0.45);
+  box-shadow: 0 0 0 0.12rem rgba(20, 83, 45, 0.12);
+}
+
+.dashboard-main--contratos .renov-search-card {
+  border-radius: 12px !important;
+}
+
+.dashboard-main--contratos .renov-search-card__main .form-control {
+  font-size: 0.8125rem;
+}
+
+.dashboard-main--contratos .renov-search-card .input-group-text {
+  border-radius: 8px 0 0 8px;
+}
+
+.dashboard-main--contratos .renov-search-card__main .form-control {
+  border-radius: 0 8px 8px 0;
+}
+
+/* ---- Panel de renovaciones: dos subtarjetas + barras ---- */
+.renov-kpi-subcard {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.65rem 0.75rem 0.7rem;
+  margin-bottom: 0.6rem;
+}
+
+.renov-kpi-subcard:last-of-type {
+  margin-bottom: 0;
+}
+
+.renov-kpi-subcard__head {
+  margin-bottom: 0.25rem;
+}
+
+/* Título del panel + “Ver todos”: misma línea que bar-row de las subtarjetas (botón alineado) */
+.dashboard-main--contratos .renov-kpi-panel-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding-right: 0.75rem;
+}
+
+.dashboard-main--contratos .renov-kpi-panel-title-bar__title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-bottom: 0 !important;
+}
+
+.dashboard-main--contratos .renov-kpi-panel-title-bar__actions {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Barra al máximo ancho hasta el botón (sin hueco vacío a la derecha de la barra) */
+.renov-kpi-subcard__bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.renov-kpi-subcard__bar-row .renov-progress-track-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.renov-kpi-item__title {
+  font-weight: 700;
+  color: #2d3748;
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+/* "Ver todos" — recuadro azul oscuro (mockup) */
+.renov-kpi-btn-todos {
+  flex-shrink: 0;
+  background: #1a365d !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 0.7rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 6px;
+  line-height: 1.2;
+  box-shadow: 0 1px 2px rgba(26, 54, 93, 0.25);
+}
+
+.renov-kpi-btn-todos:hover {
+  background: #153e75 !important;
+  color: #ffffff !important;
+}
+
+.renov-kpi-btn-todos:focus-visible {
+  outline: 2px solid rgba(26, 54, 93, 0.45);
+  outline-offset: 1px;
+}
+
+/* Pista: ocupa el espacio horizontal disponible (junto al botón en la misma fila) */
+.renov-progress-track-wrap {
+  width: 100%;
+  max-width: 100%;
+}
+
+.renov-progress__pct-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.2rem;
+  min-height: 1rem;
+}
+
+.renov-progress__pct {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1a202c;
+  line-height: 1;
+}
+
+.renov-progress {
+  position: relative;
+  width: 100%;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: #e9ecef;
+  box-shadow: inset 0 1px 2px rgba(17, 24, 39, 0.05);
+  overflow: hidden;
+}
+
+.renov-progress--thick {
+  height: 0.85rem;
+}
+
+/* Subtarjetas: grosor vertical restaurado; el acortamiento es solo en ancho (.renov-progress-track-wrap) */
+.renov-progress--panel {
+  width: 100%;
+  height: 0.65rem;
+  background: #edf2f7;
+  box-shadow: inset 0 1px 1px rgba(45, 55, 72, 0.06);
+}
+
+.renov-progress__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.renov-progress__bar--warning {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.renov-progress__bar--danger {
+  background: linear-gradient(90deg, #f87171, #dc2626);
+}
+
+/* Inmediatos: teal vivo */
+.renov-progress__bar--teal {
+  background: linear-gradient(90deg, #facc15, #f59e0b);
+}
+
+/* Vencidos: rojo más saturado */
+.renov-progress__bar--vencidos {
+  background: linear-gradient(90deg, #e53e3e, #c53030);
+}
+
+.renov-progress__bar--navy {
+  background: #14532d;
+}
+
+.renov-progress__bar--burgundy {
+  background: #8b1538;
+}
+
+/* ---- Alertas Críticas ---- */
+.renov-alert-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid #fee2e2;
+  background: #fef2f2;
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+}
+
+.renov-alert-item:last-child {
+  margin-bottom: 0;
+}
+
+.renov-alert-item__icon {
+  color: #dc2626;
+  font-size: 1.05rem;
+  margin-top: 0.1rem;
+}
+
+.renov-alert-item__title {
+  font-weight: 600;
+  font-size: 0.86rem;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.renov-alert-item__sub {
+  color: #991b1b;
+  display: block;
+  margin-top: 0.1rem;
+}
+
+.dashboard-main--contratos .renov-alerts-card .card-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-main--contratos .renov-alerts-list {
+  max-height: 18.9rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.2rem;
+}
+
+.dashboard-main--contratos .renov-alerts-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-main--contratos .renov-alerts-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+
+.dashboard-main--contratos .renov-alerts-list::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+/* ---- Cola de renovación priorizada (tabla): sin scroll interno ---- */
+.dashboard-main--contratos .renov-cola-table-wrap {
+  max-height: 24.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid #edf2f7;
+}
+
+.dashboard-main--contratos .renov-cola-table-wrap::-webkit-scrollbar {
+  width: 8px;
+  height: 10px;
+}
+
+.dashboard-main--contratos .renov-cola-table-wrap::-webkit-scrollbar-thumb {
+  background: #b9c2cf;
+  border-radius: 999px;
+}
+
+.dashboard-main--contratos .renov-cola-table-wrap::-webkit-scrollbar-track {
+  background: #eef2f7;
+}
+
+/* Solo listado Contratos: columna "N° Contrato" centrada (no afectar otras tablas del panel) */
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact thead th:first-child,
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact tbody td:first-child {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact thead th:first-child {
+  width: 1%;
+}
+
+/* Ajuste automático sin hueco blanco al final */
+.dashboard-main--contratos .table.table-data-compact {
+  table-layout: auto !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  border-radius: 0 !important;
+}
+
+.dashboard-main--contratos .table-responsive > .table.table-data-compact {
+  width: 100% !important;
+  border-radius: 0 !important;
+}
+
+/* Reduce el "marco blanco" alrededor de las tablas */
+.dashboard-main--contratos .contratos-table-card {
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.dashboard-main--contratos .contratos-table-card.table-responsive,
+.dashboard-main--contratos .contratos-table-card .table-responsive,
+.dashboard-main.dashboard-main--contratos .contratos-table-card .table-responsive {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* Quitar por completo el filo exterior de la tabla (manteniendo líneas internas) */
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact,
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact.table-bordered {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact thead tr:first-child > th {
+  border-top: 0 !important;
+}
+
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact tbody tr:last-child > td {
+  border-bottom: 0 !important;
+}
+
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact tr > *:first-child {
+  border-left: 0 !important;
+}
+
+.dashboard-main--contratos .contratos-table-card .table.table-data-compact tr > *:last-child {
+  border-right: 0 !important;
+}
+
+.dashboard-main--contratos .contratos-filter-card {
+  padding: 0.5rem 0.9rem 0.5rem 0.5rem !important;
+}
+
+.dashboard-main--contratos .contratos-search-input-wrap {
+  position: relative;
+}
+
+.dashboard-main--contratos .contratos-search-input-icon {
+  position: absolute;
+  left: 0.62rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  font-size: 0.8rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.dashboard-main--contratos .contratos-search-input {
+  padding-left: 1.9rem !important;
+}
+
+/* Tipografia compacta en buscadores/filtros (igual a pestaña "Resumen") */
+.dashboard-main--contratos .contratos-filter-card .form-control,
+.dashboard-main--contratos .contratos-filter-card .btn,
+.dashboard-main--contratos .contratos-filter-card .app-select__single-value,
+.dashboard-main--contratos .contratos-filter-card .app-select__option,
+.dashboard-main--contratos .contratos-filter-card .app-select__placeholder,
+.dashboard-main--contratos .contratos-filter-card .app-select__input-container,
+.dashboard-main--contratos .contratos-filter-card .app-select__control {
+  font-size: 0.8125rem !important;
+}
+
+/* Mismo verde que thead; anula estilos inline de react-select (AppSelect) */
+.dashboard-main--contratos .contratos-filter-card .app-select__indicators-container {
+  background-color: var(--contratos-navy, #14532d) !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__control {
+  min-height: 36px;
+  border-color: #cfd5dd !important;
+  box-shadow: none !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__control:hover {
+  border-color: var(--contratos-navy, #14532d) !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__control--is-focused {
+  border-color: var(--contratos-navy, #14532d) !important;
+  box-shadow: 0 0 0 0.2rem rgba(var(--contratos-navy-rgb), 0.2) !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__option--is-focused,
+.dashboard-main--contratos .contratos-filter-card .app-select__option--is-focused:active {
+  background-color: var(--contratos-navy, #14532d) !important;
+  color: #ffffff !important;
+}
+.dashboard-main--contratos .contratos-filter-card .app-select__option--is-selected {
+  background-color: #ecfdf5 !important;
+  color: #14532d !important;
+}
+
+.dashboard-main--contratos .btn-contratos-limpiar-filtros {
+  color: var(--accion-cancelar-foreground);
+  border: 1px solid var(--accion-cancelar-border);
+  background-color: var(--accion-cancelar);
+  font-weight: 600;
+}
+
+.dashboard-main--contratos .btn-contratos-limpiar-filtros:hover {
+  color: var(--accion-cancelar-hover-foreground);
+  border-color: var(--accion-cancelar-hover-border);
+  background-color: var(--accion-cancelar-hover);
+}
+
+.dashboard-main--contratos .table.table-data-compact thead th,
+.dashboard-main--contratos .table.table-data-compact thead.table-light th {
+  padding: 0.72rem 0.85rem;
+  white-space: nowrap;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.02em !important;
+  /* Encabezado: verde oscuro (un tono más claro que #0d2818) */
+  background-color: #14532d !important;
+  background-image: none !important;
+  color: #ecfdf5 !important;
+}
+
+.dashboard-main--contratos .table.table-data-compact tbody td {
+  padding: 0.68rem 0.85rem;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  background-color: #ffffff !important;
+}
+
+.dashboard-main--contratos .contratos-row-check {
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid #9ca3af;
+  background: #ffffff;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  padding: 0;
+}
+
+.dashboard-main--contratos .contratos-row-check i {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.dashboard-main--contratos .contratos-row-check.is-selected {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #ffffff;
+}
+
+.dashboard-main--contratos .table.table-data-compact tbody tr.contratos-row-selected > td {
+  background-color: #dcfce7 !important;
+}
+
+.dashboard-main--contratos .contratos-numero-wrap {
+  gap: 0.45rem;
+  padding-left: 0.2rem;
+}
+
+.dashboard-main--contratos .table.table-data-compact.table-striped > tbody > tr:nth-of-type(odd) > *,
+.dashboard-main--contratos .table.table-data-compact.table-striped > tbody > tr:nth-of-type(even) > * {
+  background-color: #ffffff !important;
+}
+
+.dashboard-main--contratos .table.table-data-compact.table-hover tbody tr:hover td,
+.dashboard-main--contratos .table.table-data-compact tbody tr:hover td {
+  background-color: #ffffff !important;
+}
+
+/* Selección de contrato: debe prevalecer sobre striped/hover */
+.dashboard-main--contratos .table.table-data-compact tbody tr.contratos-row-selected > td,
+.dashboard-main--contratos .table.table-data-compact.table-striped > tbody > tr.contratos-row-selected > *,
+.dashboard-main--contratos .table.table-data-compact.table-hover tbody tr.contratos-row-selected:hover td {
+  background-color: #dcfce7 !important;
+}
+
+.dashboard-main--contratos .contratos-numero-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  min-width: 3.4rem;
+  width: 100%;
+  padding-left: 0.9rem;
+}
+
+.dashboard-main--contratos .contratos-numero-wrap__num {
+  display: inline-block;
+  min-width: 1.6rem;
+  text-align: left;
+}
+
+.dashboard-main--contratos .contratos-pdf-inline {
+  font-size: 1.5rem;
+  color: #b4232a;
+  text-decoration: none;
+  border: none;
+  border-radius: 0.3rem;
+  padding: 0.02rem 0.24rem;
+  line-height: 1.1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.2rem;
+}
+
+.dashboard-main--contratos .contratos-pdf-inline:hover {
+  color: #8f1b22;
+  background: transparent;
+  text-decoration: none;
+}
+
+.dashboard-main--contratos .contratos-pdf-inline.contratos-pdf-inline--active,
+.dashboard-main--contratos .contratos-pdf-inline.contratos-pdf-inline--active:hover {
+  color: #0d6efd;
+}
+
+/* Contratos: acciones de tabla — editar azul, renovar verde, eliminar rojo (tono base un poco más oscuro) */
+.dashboard-main--contratos .btn-table-icon-action--edit {
+  color: #1e3a8a;
+  border-color: #60a5fa;
+  background-color: #bfdbfe;
+  filter: none;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--edit:hover {
+  color: #ffffff;
+  background-color: #1d4ed8;
+  border-color: #1e3a8a;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--edit:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(30, 64, 175, 0.45);
+}
+
+.dashboard-main--contratos .btn-table-icon-action--renew {
+  color: #14532d;
+  border-color: #4ade80;
+  background-color: #bbf7d0;
+  filter: none;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--renew:hover {
+  color: #ffffff;
+  background-color: #15803d;
+  border-color: #14532d;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--renew:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(22, 101, 52, 0.45);
+}
+
+.dashboard-main--contratos .btn-contrato-renovar-text {
+  color: #14532d;
+  border-color: #4ade80;
+  background-color: #bbf7d0;
+  font-weight: 600;
+}
+
+.dashboard-main--contratos .btn-contrato-renovar-text:hover {
+  color: #ffffff;
+  background-color: #15803d;
+  border-color: #14532d;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--delete {
+  color: #991b1b;
+  border-color: rgba(220, 38, 38, 0.45);
+  background-color: rgba(254, 202, 202, 0.75);
+}
+
+.dashboard-main--contratos .btn-table-icon-action--delete:hover {
+  color: #ffffff;
+  background-color: #b91c1c;
+  border-color: #991b1b;
+}
+
+.dashboard-main--contratos .btn-table-icon-action--delete:focus-visible {
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(185, 28, 28, 0.45);
+  outline: none;
+}
+
+/* Columna Acciones: ancho mínimo (sin hueco a la derecha) y botones un poco más chicos */
+.dashboard-main--contratos .contratos-th-actions,
+.dashboard-main--contratos .contratos-td-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+}
+
+.dashboard-main--contratos .contratos-td-actions .d-inline-flex {
+  justify-content: center;
+}
+
+.dashboard-main--contratos .btn-table-icon-action {
+  width: 1.95rem;
+  height: 1.95rem;
+  font-size: 0.88rem;
+  border-radius: 6px;
+}
+
+.contrato-pdf-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.contrato-pdf-preview-modal {
+  width: min(35vw, 37rem);
+  min-width: 20rem;
+  height: 50vh;
+  background: #ffffff;
+  border-left: 1px solid #d1d5db;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  z-index: 10001;
+}
+
+.contrato-pdf-preview-modal.is-maximized {
+  width: min(90vw, 92rem);
+  height: min(92vh, 60rem);
+}
+
+.contrato-pdf-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.9rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+  cursor: move;
+  user-select: none;
+}
+
+.contrato-pdf-preview-title-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.contrato-pdf-preview-title {
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.contrato-pdf-preview-name {
+  font-size: 0.8rem;
+  color: #4b5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contrato-pdf-preview-close {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #1f2937;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 0.35rem;
+}
+
+.contrato-pdf-preview-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.contrato-pdf-preview-maximize {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #93c5fd;
+  background: #dbeafe;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 0.35rem;
+}
+
+.contrato-pdf-preview-maximize:hover {
+  border-color: #3b82f6;
+  background: #60a5fa;
+  color: #ffffff;
+}
+
+.contrato-pdf-preview-modal.is-dragging {
+  transition: none;
+}
+
+.contrato-pdf-preview-actions .contrato-pdf-preview-maximize,
+.contrato-pdf-preview-actions .contrato-pdf-preview-close {
+  cursor: pointer;
+}
+
+.contrato-pdf-preview-close {
+  border-color: #fca5a5;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.contrato-pdf-preview-close:hover {
+  border-color: #ef4444;
+  background: #f87171;
+  color: #ffffff;
+}
+
+.contrato-pdf-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #e5e7eb;
+}
+
+.contrato-pdf-preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+  background: #ffffff;
+}
+
+/* Bordes finos visibles (evita separadores blancos gruesos) */
+.dashboard-main .table.table-data-compact.table-bordered > :not(caption) > * > * {
+  border: 0.5px solid #d9dee5 !important;
+}
+
+
+.renov-cola-table {
+  margin-bottom: 0;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.renov-cola-table > thead > tr > th {
+  background: #f8f9fa;
+  color: #212529;
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid #dee2e6 !important;
+  border-radius: 0 !important;
+}
+
+.renov-cola-table > tbody > tr > td {
+  border-bottom: 1px solid #f1f3f5;
+  vertical-align: middle;
+  font-size: 0.8125rem;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  color: #212529;
+  border-radius: 0 !important;
+}
+
+.dashboard-main--contratos .table-responsive,
+.dashboard-main--contratos .renov-cola-table-wrap,
+.dashboard-main--contratos .renov-cola-table {
+  border-radius: 0 !important;
+}
+
+.renov-cola-th-num {
+  width: 4.5rem;
+}
+
+.renov-cola-table > thead > tr > th:nth-child(2),
+.renov-cola-table > tbody > tr > td:nth-child(2) {
+  width: 6.5rem;
+  min-width: 6.5rem;
+}
+
+.renov-cola-table > thead > tr > th:nth-child(3),
+.renov-cola-table > tbody > tr > td:nth-child(3) {
+  width: 13.5rem;
+}
+
+.renov-cola-table > thead > tr > th:nth-child(4),
+.renov-cola-table > tbody > tr > td:nth-child(4) {
+  width: 13.5rem;
+}
+
+.renov-cola-th-estado {
+  width: 7rem;
+}
+
+.renov-cola-th-accion {
+  width: 8.5rem;
+  min-width: 7.5rem;
+}
+
+.renov-cola-td-num {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.renov-cola-table > thead > tr > th {
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+}
+
+.renov-empresa-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #495057;
+  font-weight: 700;
+  font-size: 0.8rem;
+  line-height: 1;
+  flex-shrink: 0;
+  border: 1px solid #dee2e6;
+  text-align: center;
+  overflow: hidden;
+}
+
+.renov-empresa-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+button.renov-empresa-avatar {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.renov-empresa-avatar:focus {
+  outline: none;
+}
+
+button.renov-empresa-avatar:focus-visible {
+  outline: 2px solid #4b5563;
+  outline-offset: 2px;
+}
+
+.renov-empresa-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  animation: renov-empresa-preview-fade 0.2s ease;
+}
+
+@keyframes renov-empresa-preview-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.renov-empresa-preview-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 90vw;
+}
+
+.renov-empresa-preview-bubble {
+  position: relative;
+  width: auto;
+  max-width: min(22rem, 92vw);
+  min-width: 12rem;
+  border-radius: 1.5rem;
+  background: #fff;
+  box-shadow: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.18);
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.15rem 1.25rem 1.35rem;
+}
+
+.renov-empresa-preview-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  z-index: 1;
+  transition: background 0.15s ease;
+}
+
+.renov-empresa-preview-close:hover {
+  background: rgba(15, 23, 42, 0.14);
+}
+
+.renov-empresa-preview-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 5rem;
+  max-height: min(60vh, 24rem);
+  max-width: 100%;
+  border-radius: 0.9rem;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  padding: 0.4rem;
+  box-sizing: border-box;
+}
+
+.renov-empresa-preview-inner:has(.renov-empresa-preview-img) {
+  padding: 0.5rem;
+}
+
+.renov-empresa-preview-inner:has(.renov-empresa-preview-initial) {
+  min-width: 7.5rem;
+  min-height: 7.5rem;
+  border-radius: 50%;
+  max-height: none;
+  padding: 0;
+}
+
+.renov-empresa-preview-img {
+  max-width: 100%;
+  max-height: min(55vh, 22rem);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border-radius: 0.35rem;
+}
+
+.renov-empresa-preview-initial {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #4b5563;
+  line-height: 1;
+  user-select: none;
+}
+
+.renov-empresa-preview-nombre {
+  text-align: center;
+  color: #f9fafb;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  max-width: 20rem;
+  word-break: break-word;
+}
+
+.renov-empresa-name {
+  font-weight: 500;
+  color: #111827;
+}
+
+/* ---- Barra tricolor del estado de tiempo ---- */
+.renov-time-wrap {
+  min-width: 12rem;
+  max-width: 18rem;
+}
+
+.renov-time-bar {
+  position: relative;
+  height: 0.5rem;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #16a34a 0%, #facc15 50%, #dc2626 100%);
+}
+
+.renov-time-bar__marker {
+  position: absolute;
+  top: 50%;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #111827;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.renov-time-label {
+  display: block;
+  margin-top: 0.35rem;
+  color: #6b7280;
+  font-size: 0.74rem;
+}
+
+.renov-time-label.is-danger {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.renov-time-label.is-ok {
+  color: #28a745;
+  font-weight: 600;
+}
+
+/* ---- Badges de estado (Activo / Revisión / Vencido) ---- */
+.renov-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.renov-badge--activo {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #15803d;
+}
+
+.renov-badge--revision {
+  background: #eab308;
+  color: #1f2937;
+  border-color: #ca8a04;
+}
+
+.renov-badge--vencido {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #b91c1c;
+}
+
+.renov-badge--neutro {
+  background: #e5e7eb;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+/* ---- Botonera de acciones por fila ---- */
+.renov-actions {
+  gap: 0.35rem !important;
+  min-width: 0;
+  max-width: none;
+}
+
+.renov-actions__row-renovar {
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.renov-actions .renov-actions__row-reminder {
+  width: auto;
+  align-self: flex-start;
+  justify-content: center;
+}
+
+.renov-actions .btn {
+  border-radius: 6px;
+  font-size: 0.75rem;
+  padding: 0.28rem 0.45rem;
+  white-space: nowrap;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: none;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+/* Mismo verde que botones primarios del módulo Contratos */
+.renov-actions .renov-actions__eye {
+  flex-shrink: 0;
+  width: 2.05rem;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  background: #14532d !important;
+  border: 1px solid #14532d !important;
+  color: #ffffff !important;
+  font-size: 1rem;
+}
+
+.renov-actions .renov-actions__eye:hover {
+  background: #0f3d24 !important;
+  border-color: #0f3d24 !important;
+  color: #ffffff !important;
+}
+
+.renov-actions .renov-actions__eye:focus-visible {
+  box-shadow: 0 0 0 0.2rem rgba(20, 83, 45, 0.4);
+}
+
+/* Contorno negro fuerte sobre el glifo del ojo para que se lea bien */
+.renov-actions .renov-actions__eye i {
+  color: #ffffff;
+  -webkit-text-stroke: 1.15px #0a0a0a;
+  paint-order: stroke fill;
+  text-shadow:
+    0.35px 0 0 #000000,
+    -0.35px 0 0 #000000,
+    0 0.35px 0 #000000,
+    0 -0.35px 0 #000000;
+}
+
+.renov-actions .btn.btn-outline-secondary {
+  border-color: #ced4da;
+  color: #495057;
+  background: #ffffff;
+}
+
+.renov-actions .btn.btn-outline-secondary:hover {
+  background: #f8f9fa;
+  border-color: #adb5bd;
+  color: #212529;
+  box-shadow: none;
+}
+
+/* Botón "Renovar" — verde mockup #28a745 */
+.renov-actions .btn.btn-primary,
+.dashboard-main--contratos .renov-actions .btn.btn-primary {
+  background: #28a745 !important;
+  border-color: #28a745 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(40, 167, 69, 0.25) !important;
+  padding: 0.22rem 0.3rem !important;
+  min-width: 0;
+}
+
+.renov-actions .btn.btn-primary:hover,
+.dashboard-main--contratos .renov-actions .btn.btn-primary:hover {
+  background: #218838 !important;
+  border-color: #1e7e34 !important;
+  box-shadow: 0 4px 10px rgba(40, 167, 69, 0.28) !important;
+}
+
+.renov-actions .btn.btn-primary:active {
+  background: #1c7430 !important;
+  border-color: #1c7430 !important;
+}
+
+/* ---- Gráfico de barras (Contratos por Mes) ---- */
+.renov-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+  height: 160px;
+  padding: 0.4rem 0.25rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.renov-bar-col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+}
+
+.renov-bar {
+  width: 100%;
+  max-width: 10px;
+  min-height: 4px;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.4s ease;
+}
+
+.renov-bar-pair {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+}
+
+.renov-bar--red {
+  background: #dc2626;
+}
+
+.renov-bar--green {
+  background: #16a34a;
+}
+
+.renov-bar-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.7rem;
+  color: #4b5563;
+}
+
+.renov-bar-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.renov-bar-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.renov-bar-legend__dot--red {
+  background: #dc2626;
+}
+
+.renov-bar-legend__dot--green {
+  background: #16a34a;
+}
+
+.renov-chart-caption {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-bottom: 0.45rem;
+}
+
+.renov-bar-label {
+  margin-top: 0.35rem;
+  color: #6b7280;
+  font-size: 0.7rem;
+}
+
+/* ---- Donut SVG ---- */
+.renov-donut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.renov-donut__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem 0.8rem;
+  width: 100%;
+  max-width: 240px;
+}
+
+.renov-donut__legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #374151;
+}
+
+.renov-donut__chip {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.renov-donut__label {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.renov-donut__val {
+  font-weight: 700;
+  color: #111827;
+}
+
+.contrato-empresa-icon-preview {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #ced4da;
+}
+
+/* ---- Responsivo ---- */
+@media (max-width: 767.98px) {
+  .renov-step__label {
+    display: none;
+  }
+
+  .renov-step__bar {
+    min-width: 1rem;
+    margin: 0 0.3rem;
+  }
+
+  .renov-bar-chart {
+    height: 130px;
+  }
+
+  .renov-actions .btn {
+    font-size: 0.72rem;
+  }
+}
+
+/* ---- Reportes de contratación (vista premium, filtros propios) ---- */
+.dashboard-main--contratos .reportes-dashboard {
+  margin-bottom: 1rem;
+}
+
+.dashboard-main--contratos .reportes-export-btn-csv {
+  background-color: #2563eb;
+  border: 1px solid #1d4ed8;
+  color: #ffffff !important;
+}
+
+.dashboard-main--contratos .reportes-export-btn-csv:hover {
+  background-color: #1d4ed8;
+  border-color: #1e40af;
+  color: #ffffff !important;
+}
+
+.dashboard-main--contratos .reportes-export-btn-csv:focus-visible {
+  outline: none;
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(37, 99, 235, 0.45);
+}
+
+.dashboard-main--contratos .reportes-export-btn-csv:active {
+  background-color: #1e40af;
+  border-color: #1e3a8a;
+}
+
+.reportes-hero {
+  border-radius: 14px !important;
+  background: linear-gradient(165deg, #ffffff 0%, #f4f6f8 100%);
+  border: 1px solid #e5e7eb !important;
+}
+
+.reportes-hero__title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--contratos-navy, #14532d);
+}
+
+.reportes-hero__subtitle {
+  max-width: 42rem;
+  line-height: 1.45;
+}
+
+.reportes-kpi-inline .reportes-kpi-pill {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.4rem 0.75rem;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05);
+}
+
+.reportes-kpi-pill__label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6c757d;
+}
+
+.reportes-kpi-pill strong {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  color: #111827;
+}
+
+.reportes-kpi-pill--warn strong {
+  color: #b45309;
+}
+
+.reportes-filter-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  margin-bottom: 0.25rem;
+}
+
+.dashboard-main--contratos .reportes-app-select .app-select__control {
+  min-height: 31px !important;
+  font-size: 0.875rem;
+}
+
+.reportes-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  color: #374151;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.reportes-hbar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.reportes-hbar-row {
+  display: grid;
+  grid-template-columns: minmax(4rem, 1fr) minmax(4rem, 3fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reportes-hbar-label {
+  font-size: 0.8125rem;
+  color: #374151;
+}
+
+.reportes-hbar-track {
+  height: 10px;
+  border-radius: 6px;
+  background: #eef0f3;
+  overflow: hidden;
+}
+
+.reportes-hbar-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--contratos-navy, #14532d), #22c55e);
+  min-width: 4px;
+  transition: width 0.2s ease;
+}
+
+.reportes-hbar-val {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #111827;
+  min-width: 1.5rem;
+  text-align: right;
+}
+
+.reportes-split-bar {
+  display: flex;
+  width: 100%;
+  height: 22px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.reportes-split-bar__seg {
+  min-width: 4px;
+  transition: flex 0.2s ease;
+}
+
+.reportes-split-bar__seg--prov {
+  background: linear-gradient(180deg, #14532d, #166534);
+}
+
+.reportes-split-bar__seg--cli {
+  background: linear-gradient(180deg, #0e7490, #06b6d4);
+}
+
+.reportes-split-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.reportes-split-dot--prov {
+  background: #14532d;
+}
+
+.reportes-split-dot--cli {
+  background: #0e7490;
+}
+
+.reportes-preview-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.reportes-side-card {
+  border-radius: 12px !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.reportes-card-title {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: #111827;
+  letter-spacing: -0.01em;
+}
+
+.reportes-quality-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.reportes-quality-item {
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.reportes-quality-item__val {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--contratos-navy, #14532d);
+  line-height: 1.2;
+}
+
+.reportes-quality-item__lab {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+.reportes-ranking {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.reportes-ranking-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #eef0f3;
+  background: #fafbfc;
+}
+
+.reportes-ranking-rank {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 6px;
+  background: var(--contratos-navy, #14532d);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reportes-ranking-count {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: #111827;
+}
