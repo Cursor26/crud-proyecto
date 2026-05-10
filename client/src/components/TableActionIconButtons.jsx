@@ -1,12 +1,8 @@
-import { usePuedeEscribir } from '../context/PuedeEscribirContext';
-
 function joinClass(...parts) {
   return parts.filter(Boolean).join(' ');
 }
 
-export function EditTableActionButton({ onClick, className = '', title = 'Editar', disabled: disabledProp, ...rest }) {
-  const puedeEscribir = usePuedeEscribir();
-  const disabled = disabledProp === true || !puedeEscribir;
+export function EditTableActionButton({ onClick, className = '', title = 'Editar', ...rest }) {
   return (
     <button
       type="button"
@@ -14,7 +10,6 @@ export function EditTableActionButton({ onClick, className = '', title = 'Editar
       onClick={onClick}
       title={title}
       aria-label={title}
-      disabled={disabled}
       {...rest}
     >
       <i className="bi bi-pencil-square" aria-hidden="true" />
@@ -22,9 +17,7 @@ export function EditTableActionButton({ onClick, className = '', title = 'Editar
   );
 }
 
-export function DeleteTableActionButton({ onClick, className = '', title = 'Eliminar', disabled: disabledProp, ...rest }) {
-  const puedeEscribir = usePuedeEscribir();
-  const disabled = disabledProp === true || !puedeEscribir;
+export function DeleteTableActionButton({ onClick, className = '', title = 'Eliminar', ...rest }) {
   return (
     <button
       type="button"
@@ -32,7 +25,6 @@ export function DeleteTableActionButton({ onClick, className = '', title = 'Elim
       onClick={onClick}
       title={title}
       aria-label={title}
-      disabled={disabled}
       {...rest}
     >
       <i className="bi bi-trash3" aria-hidden="true" />
@@ -40,9 +32,7 @@ export function DeleteTableActionButton({ onClick, className = '', title = 'Elim
   );
 }
 
-export function RenewTableActionButton({ onClick, className = '', title = 'Renovar contrato', disabled: disabledProp, ...rest }) {
-  const puedeEscribir = usePuedeEscribir();
-  const disabled = disabledProp === true || !puedeEscribir;
+export function RenewTableActionButton({ onClick, className = '', title = 'Renovar contrato', ...rest }) {
   return (
     <button
       type="button"
@@ -50,7 +40,6 @@ export function RenewTableActionButton({ onClick, className = '', title = 'Renov
       onClick={onClick}
       title={title}
       aria-label={title}
-      disabled={disabled}
       {...rest}
     >
       <i className="bi bi-arrow-repeat" aria-hidden="true" />

@@ -15,7 +15,7 @@ const Usuarios = () => {
   const [emailOriginal, setEmailOriginal] = useState('');
 
   const getUsuarios = () => {
-    Axios.get('/usuarios')
+    Axios.get('http://localhost:3001/usuarios')
       .then((res) => setUsuarios(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error(err));
   };
@@ -25,14 +25,8 @@ const Usuarios = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (editando) {
-      // Actualizar (email puede cambiar; la URL usa el correo previo)
-      const emailNorm = String(email || '').trim().toLowerCase();
-      Axios.put(`/update-usuario/${encodeURIComponent(emailOriginal)}`, {
-        email: emailNorm,
-        nombre,
-        password,
-        rol,
-      })
+      // Actualizar
+      Axios.put(`http://localhost:3001/update-usuario/${emailOriginal}`, { nombre, password, rol })
         .then(() => {
           Swal.fire('Actualizado', 'Usuario actualizado', 'success');
           limpiar();
@@ -40,8 +34,8 @@ const Usuarios = () => {
         })
         .catch(err => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     } else {
-      const emailNorm = String(email || '').trim().toLowerCase();
-      Axios.post('/create-usuario', { email: emailNorm, nombre, password, rol })
+      // Crear
+      Axios.post('http://localhost:3001/create-usuario', { email, nombre, password, rol })
         .then(() => {
           Swal.fire('Creado', 'Usuario creado', 'success');
           limpiar();
@@ -60,7 +54,7 @@ const Usuarios = () => {
       confirmButtonText: 'Sí'
     }).then(result => {
       if (result.isConfirmed) {
-        Axios.delete(`/delete-usuario/${email}`)
+        Axios.delete(`http://localhost:3001/delete-usuario/${email}`)
           .then(() => {
             Swal.fire('Eliminado', 'Usuario eliminado', 'success');
             getUsuarios();
@@ -94,7 +88,7 @@ const Usuarios = () => {
       <form onSubmit={handleSubmit}>
         <div className="row">
           <div className="col-md-3">
-            <input type="email" className="form-control" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input type="email" className="form-control" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required={!editando} disabled={editando} />
           </div>
           <div className="col-md-3">
             <input type="text" className="form-control" placeholder="Nombre" value={nombre} onChange={e => setNombre(e.target.value)} required />

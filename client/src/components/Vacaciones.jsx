@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
@@ -8,11 +8,8 @@ import { FormModal } from './FormModal';
 import { fmtFechaTabla } from '../utils/formatDates';
 import ModuleTitleBar from './ModuleTitleBar';
 import AppSelect from './AppSelect';
-import { usePuedeEscribir } from '../context/PuedeEscribirContext';
-import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 
 const Vacaciones = () => {
-    const puedeEscribir = usePuedeEscribir();
     const [registros, setRegistros] = useState([]);
     const [idTabla, setIdTabla] = useState('');
     const [fechaInicio, setFechaInicio] = useState('');
@@ -26,23 +23,8 @@ const Vacaciones = () => {
     const [showVacacionesModal, setShowVacacionesModal] = useState(false);
     const { empleados, nombrePorCarnet } = useEmpleadosOptions();
 
-    const vacacionesExportAepg = useMemo(() => {
-        const headers = ['Carnet', 'Empleado', 'Fecha inicio', 'Fecha fin', 'Días', 'Motivo', 'Aprobado', 'Observaciones'];
-        const dataRows = registros.map((reg) => [
-            reg.id_tabla,
-            nombrePorCarnet(reg.id_tabla) || '—',
-            reg.fecha_inicio || '—',
-            reg.fecha_fin || '—',
-            reg.dias_totales != null ? reg.dias_totales : '—',
-            reg.motivo || '—',
-            reg.aprobado ? 'Sí' : 'No',
-            reg.observaciones || '—',
-        ]);
-        return { headers, dataRows };
-    }, [registros, nombrePorCarnet]);
-
     const getRegistros = () => {
-        Axios.get('/vacaciones')
+        Axios.get('http://localhost:3001/vacaciones')
             .then(res => {
                 const datos = res.data.map(item => ({
                     ...item,
@@ -101,7 +83,7 @@ const Vacaciones = () => {
         };
 
         if (editando) {
-            Axios.put(`/update-vacacion/${idOriginal}`, data)
+            Axios.put(`http://localhost:3001/update-vacacion/${idOriginal}`, data)
                 .then(() => {
                     Swal.fire('Actualizado', 'Registro actualizado', 'success');
                     getRegistros();
@@ -116,7 +98,7 @@ const Vacaciones = () => {
                     )
                 );
         } else {
-            Axios.post('/create-vacacion', data)
+            Axios.post('http://localhost:3001/create-vacacion', data)
                 .then(() => {
                     Swal.fire('Creado', 'Registro creado', 'success');
                     getRegistros();
@@ -154,7 +136,7 @@ const eliminarRegistro = (id) => {
             confirmButtonText: 'Sí'
         }).then(result => {
             if (result.isConfirmed) {
-                Axios.delete(`/delete-vacacion/${id}`)
+                Axios.delete(`http://localhost:3001/delete-vacacion/${id}`)
                     .then(() => {
                         Swal.fire('Eliminado', 'Registro eliminado', 'success');
                         getRegistros();
@@ -175,21 +157,10 @@ const eliminarRegistro = (id) => {
             <ModuleTitleBar
                 title="Gestión de Vacaciones"
                 actions={
-                    <>
-                        <ExportacionAepgGrupo
-                            subtitulo="Reporte: periodos de vacaciones y aprobación. Módulo Vacaciones AEPG."
-                            descripcion="Listado actual de la tabla: empleado, rango, días, motivo y aprobación."
-                            nombreBaseArchivo={`AEPG_vacaciones_${new Date().toISOString().slice(0, 10)}`}
-                            sheetName="Vacaciones"
-                            headers={vacacionesExportAepg.headers}
-                            dataRows={vacacionesExportAepg.dataRows}
-                            disabled={!registros.length}
-                        />
-                        <button type="button" className="btn btn-primary btn-form-nowrap" disabled={!puedeEscribir} onClick={() => { limpiarForm(); setShowVacacionesModal(true); }}>
-                            <i className="bi bi-calendar-plus me-2" aria-hidden="true" />
-                            Agregar vacaciones
-                        </button>
-                    </>
+                    <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowVacacionesModal(true); }}>
+                        <i className="bi bi-calendar-plus me-2" aria-hidden="true" />
+                        Agregar vacaciones
+                    </button>
                 }
             />
 
@@ -200,7 +171,6 @@ const eliminarRegistro = (id) => {
                 subtitle=""
                 onPrimary={(e) => handleSubmit(e || { preventDefault: () => {} })}
                 primaryLabel={editando ? 'Actualizar' : 'Guardar'}
-                primaryDisabled={!puedeEscribir}
             >
                 <div className="minimal-form-stack">
                     <div className="minimal-field">
