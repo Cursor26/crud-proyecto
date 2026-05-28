@@ -42,6 +42,30 @@ import DnaThreeWidget from './components/DnaThreeWidget';
 
 const TOKEN_KEY = 'token';
 
+function parseJwtPayload(token) {
+  try {
+    const part = String(token || '').split('.')[1];
+    if (!part) return null;
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+}
+
+function normalizarUsuarioGuardado(raw, authToken) {
+  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  const payload = authToken ? parseJwtPayload(authToken) : null;
+  const rol = String(parsed?.rol || payload?.rol || '')
+    .trim()
+    .toLowerCase();
+  return {
+    email: parsed?.email || payload?.email || '',
+    nombre: parsed?.nombre || payload?.nombre || '',
+    rol,
+  };
+}
+
 /** Vista inicial al entrar o al cambiar de rol */
 function getDefaultKeyForRol(rol) {
   if (rol === 'admin') return 'usuarios';
@@ -192,7 +216,15 @@ function App() {
     if (token) {
       const userData = localStorage.getItem('user');
       if (userData) {
-        setUser(JSON.parse(userData));
+        try {
+          const usuario = normalizarUsuarioGuardado(userData, token);
+          if (usuario.rol) {
+            localStorage.setItem('user', JSON.stringify(usuario));
+          }
+          setUser(usuario.rol ? usuario : null);
+        } catch {
+          setUser(null);
+        }
       }
     }
     setLoading(false);

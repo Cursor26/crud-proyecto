@@ -26,13 +26,21 @@ app.use((req, res, next) => {
 app.use(cookieParser());
 
 const { validarSacrificio, validarMatadero, validarLeche } = require('./validateProduccion');
+const {
+  SQL_USUARIO_AUTH,
+  SQL_USUARIO_LIST,
+  idRolDesdeCodigo,
+} = require('./db/queryHelpers');
 
 const db = mysql.createConnection({
-host:"localhost",
-user:"root",
-password:"",
-database:"bd_crud"
-
+  /* 127.0.0.1 evita ::1 con XAMPP en Windows (ECONNREFUSED en localhost) */
+  host: process.env.DB_HOST || '127.0.0.1',
+  user: process.env.DB_USER || 'root',
+  password:
+    process.env.DB_PASSWORD !== undefined && process.env.DB_PASSWORD !== null
+      ? String(process.env.DB_PASSWORD)
+      : '',
+  database: process.env.DB_NAME || 'bd_crud',
 });
 
 const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
@@ -286,9 +294,13 @@ const autorizarRol = (rolesPermitidos) => (req, res, next) => {
 // LOGIN (público)
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  const sqlLogin = `${SQL_USUARIO_AUTH} WHERE u.email = ?`;
   try {
-    db.query('SELECT * FROM usuarios WHERE email = ?', [email], async (err, results) => {
-      if (err) return res.status(500).json({ message: 'Error en BD' });
+    db.query(sqlLogin, [email], async (err, results) => {
+      if (err) {
+        console.error('Error en /login (BD):', err.message || err);
+        return res.status(500).json({ message: 'Error en BD' });
+      }
       if (results.length === 0) return res.status(401).json({ message: 'Credenciales inválidas' });
 
       const usuario = results[0];
@@ -299,6 +311,9 @@ app.post('/login', async (req, res) => {
       if (!passwordValida) return res.status(401).json({ message: 'Credenciales inválidas' });
 
       const rolCanonico = normalizarRol(usuario.rol);
+      if (!rolCanonico || !rolValido(rolCanonico)) {
+        return res.status(500).json({ message: 'Usuario sin rol válido en la base de datos' });
+      }
       // Generar token (incluimos el rol)
       const token = jwt.sign(
         { email: usuario.email, nombre: usuario.nombre, rol: rolCanonico },
@@ -457,15 +472,10 @@ app.post('/auth/reset-password', async (req, res) => {
 
 // Obtener todos los usuarios (sin contraseñas)
 app.get("/usuarios", verificarToken, autorizarRol(['admin']), (req, res) => {
-  db.query(
-    `SELECT email, nombre, rol, activo, created_by, created_at, updated_by, updated_at
-       FROM usuarios
-      ORDER BY nombre ASC`,
-    (err, results) => {
+  db.query(`${SQL_USUARIO_LIST} ORDER BY u.nombre ASC`, (err, results) => {
     if (err) return res.status(500).json({ message: err.message || 'Error al listar usuarios' });
     res.send(results);
-    }
-  );
+  });
 });
 
 // Crear usuario (solo admin)
@@ -487,12 +497,14 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
     return res.status(400).json({ message: 'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.' });
   }
   try {
+    const idRol = await idRolDesdeCodigo(dbQuery, rol);
+    if (!idRol) return res.status(400).json({ message: 'Rol inválido en catálogo.' });
     const hashedPassword = await bcrypt.hash(password, 10);
     db.query(
       `INSERT INTO usuarios
-        (email, nombre, password, rol, activo, created_by, created_at, updated_by, updated_at)
+        (email, nombre, password, id_rol, activo, created_by, created_at, updated_by, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
-      [email, nombre, hashedPassword, rol, activo, actorEmail, actorEmail],
+      [email, nombre, hashedPassword, idRol, activo, actorEmail, actorEmail],
       (err, result) => {
         if (err) {
           if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: 'El email ya existe' });
@@ -528,16 +540,20 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
     return res.status(400).json({ message: 'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.' });
   }
 
+  const idRol = await idRolDesdeCodigo(dbQuery, rol);
+  if (!idRol) return res.status(400).json({ message: 'Rol inválido en catálogo.' });
+
   const targetRows = await dbQuery(
-    `SELECT rol
-       FROM usuarios
-      WHERE email = ? OR LOWER(TRIM(email)) = LOWER(TRIM(?))
+    `SELECT u.email
+       FROM usuarios u
+      WHERE u.email = ? OR LOWER(TRIM(u.email)) = LOWER(TRIM(?))
       LIMIT 1`,
     [emailAnterior, emailAnterior]
   );
   if (!targetRows.length) return res.status(404).json({ message: 'Usuario no encontrado' });
-  let query = 'UPDATE usuarios SET email = TRIM(?), nombre = ?, rol = ?, activo = ?, updated_by = ?, updated_at = NOW()';
-  let params = [nuevoEmail, nombre, rol, activo, actorEmail];
+  let query =
+    'UPDATE usuarios SET email = TRIM(?), nombre = ?, id_rol = ?, activo = ?, updated_by = ?, updated_at = NOW()';
+  let params = [nuevoEmail, nombre, idRol, activo, actorEmail];
 
   if (password) {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -565,7 +581,10 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
 // Eliminar usuario (solo admin)
 app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (req, res) => {
   const { email } = req.params;
-  db.query('SELECT rol FROM usuarios WHERE email = ? LIMIT 1', [email], (errTarget, rows) => {
+  db.query(
+    `${SQL_USUARIO_AUTH} WHERE u.email = ? LIMIT 1`,
+    [email],
+    (errTarget, rows) => {
     if (errTarget) return res.status(500).json({ message: errTarget.message || 'Error al validar usuario' });
     if (!rows?.length) return res.status(404).json({ message: 'Usuario no encontrado' });
     db.query('DELETE FROM usuarios WHERE email = ?', [email], (err, result) => {
@@ -3697,8 +3716,9 @@ Promise.all([ensurePasswordResetTable(), ensureContratoCorreoColumn(), ensureUsu
       console.warn('SMTP no disponible al iniciar. La app continuará sin bloquearse:', err?.message || err);
     }
 
-    app.listen(3001, () => {
-      console.log('Corriendo en el puerto 3001');
+    const port = Number(process.env.PORT) || 3001;
+    app.listen(port, () => {
+      console.log(`Corriendo en el puerto ${port}`);
       if (mailer.mode === 'dev') {
         console.log('Recuperación de contraseña: modo desarrollo (sin SMTP real).');
       } else if (smtpReady) {
@@ -3710,5 +3730,10 @@ Promise.all([ensurePasswordResetTable(), ensureContratoCorreoColumn(), ensureUsu
   })
   .catch((err) => {
     console.error('No se pudo preparar la base de datos inicial (tablas/columnas):', err);
+    if (err?.code === 'ECONNREFUSED') {
+      console.error(
+        'MySQL no responde. En XAMPP: inicia MySQL, importa bd_crud y usa DB_HOST=127.0.0.1 en server/.env'
+      );
+    }
     process.exit(1);
   });

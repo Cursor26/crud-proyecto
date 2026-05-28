@@ -132,7 +132,7 @@ function Login({ onLogin }) {
     if (!email) return;
 
     try {
-      const response = await Axios.post('http://localhost:3001/auth/forgot-password', { email });
+      const response = await Axios.post('/auth/forgot-password', { email });
       const { message, devResetUrl, deliveryWarning } = response.data || {};
       if (devResetUrl) {
         const result = await Swal.fire({
@@ -181,7 +181,7 @@ function Login({ onLogin }) {
 
     try {
       setSubmittingReset(true);
-      const response = await Axios.post('http://localhost:3001/auth/reset-password', {
+      const response = await Axios.post('/auth/reset-password', {
         email: resetEmail,
         token: resetToken,
         newPassword: resetPassword,
