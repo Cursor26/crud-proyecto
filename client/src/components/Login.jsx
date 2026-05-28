@@ -30,7 +30,7 @@ function Login({ onLogin }) {
   };
 
   const generateCaptcha = () => {
-    const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const letters = 'abcdefghijkmnopqrstuvwxyz';
     const numbers = '23456789';
     const targetLength = 6;
     const half = targetLength / 2;

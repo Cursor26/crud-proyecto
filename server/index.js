@@ -26,31 +26,11 @@ app.use((req, res, next) => {
 app.use(cookieParser());
 
 const { validarSacrificio, validarMatadero, validarLeche } = require('./validateProduccion');
-const {
-  listWideFromDb,
-  wideRowFromDb,
-  saveWideToDb,
-  deleteRegistroByFecha,
-  insertHistorico,
-  listHistorico,
-  historicoDatosSnapshot,
-} = require('./db/produccionNorm');
-const {
-  SQL_USUARIO_AUTH,
-  SQL_USUARIO_LIST,
-  SQL_CONTRATO_SELECT,
-  SQL_SEGSEG_LIST,
-  normalizarCarnetApi,
-  idRolDesdeCodigo,
-  idsContratoDesdeBody,
-  guardarSegseguridad,
-  sqlRrhhList,
-} = require('./db/queryHelpers');
 
 const db = mysql.createConnection({
 host:"localhost",
 user:"root",
-password:"M3GS3NJUN1",
+password:"",
 database:"bd_crud"
 
 });
@@ -295,6 +275,7 @@ const rolEfectivo = (rol) => (rol === 'produccion' ? 'estadistica' : rol);
 const autorizarRol = (rolesPermitidos) => (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: 'No autenticado' });
   const r0 = String(req.user.rol || '');
+  if (r0 === 'admin') return next();
   const r1 = rolEfectivo(r0);
   if (rolesPermitidos.includes(r0) || rolesPermitidos.includes(r1)) return next();
   if (r0 === 'produccion' && rolesPermitidos.includes('estadistica')) return next();
@@ -306,7 +287,7 @@ const autorizarRol = (rolesPermitidos) => (req, res, next) => {
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    db.query(`${SQL_USUARIO_AUTH} WHERE u.email = ?`, [email], async (err, results) => {
+    db.query('SELECT * FROM usuarios WHERE email = ?', [email], async (err, results) => {
       if (err) return res.status(500).json({ message: 'Error en BD' });
       if (results.length === 0) return res.status(401).json({ message: 'Credenciales inválidas' });
 
@@ -477,8 +458,10 @@ app.post('/auth/reset-password', async (req, res) => {
 // Obtener todos los usuarios (sin contraseñas)
 app.get("/usuarios", verificarToken, autorizarRol(['admin']), (req, res) => {
   db.query(
-    `${SQL_USUARIO_LIST} ORDER BY u.nombre ASC`,
-          (err, results) => {
+    `SELECT email, nombre, rol, activo, created_by, created_at, updated_by, updated_at
+       FROM usuarios
+      ORDER BY nombre ASC`,
+    (err, results) => {
     if (err) return res.status(500).json({ message: err.message || 'Error al listar usuarios' });
     res.send(results);
     }
@@ -505,13 +488,11 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
   }
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const idRol = await idRolDesdeCodigo(dbQuery, rol);
-    if (!idRol) return res.status(400).json({ message: 'Rol inválido.' });
     db.query(
       `INSERT INTO usuarios
-        (email, nombre, password, id_rol, activo, created_by, created_at, updated_by, updated_at)
+        (email, nombre, password, rol, activo, created_by, created_at, updated_by, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
-      [email, nombre, hashedPassword, idRol, activo, actorEmail, actorEmail],
+      [email, nombre, hashedPassword, rol, activo, actorEmail, actorEmail],
       (err, result) => {
         if (err) {
           if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: 'El email ya existe' });
@@ -548,18 +529,15 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
   }
 
   const targetRows = await dbQuery(
-    `SELECT r.codigo AS rol
-       FROM usuarios u
-       INNER JOIN roles r ON r.id_rol = u.id_rol
-      WHERE u.email = ? OR LOWER(TRIM(u.email)) = LOWER(TRIM(?))
+    `SELECT rol
+       FROM usuarios
+      WHERE email = ? OR LOWER(TRIM(email)) = LOWER(TRIM(?))
       LIMIT 1`,
     [emailAnterior, emailAnterior]
   );
   if (!targetRows.length) return res.status(404).json({ message: 'Usuario no encontrado' });
-  const idRol = await idRolDesdeCodigo(dbQuery, rol);
-  if (!idRol) return res.status(400).json({ message: 'Rol inválido.' });
-  let query = 'UPDATE usuarios SET email = TRIM(?), nombre = ?, id_rol = ?, activo = ?, updated_by = ?, updated_at = NOW()';
-  let params = [nuevoEmail, nombre, idRol, activo, actorEmail];
+  let query = 'UPDATE usuarios SET email = TRIM(?), nombre = ?, rol = ?, activo = ?, updated_by = ?, updated_at = NOW()';
+  let params = [nuevoEmail, nombre, rol, activo, actorEmail];
 
   if (password) {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -587,10 +565,7 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
 // Eliminar usuario (solo admin)
 app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (req, res) => {
   const { email } = req.params;
-  db.query(
-    `SELECT r.codigo AS rol FROM usuarios u INNER JOIN roles r ON r.id_rol = u.id_rol WHERE u.email = ? LIMIT 1`,
-    [email],
-    (errTarget, rows) => {
+  db.query('SELECT rol FROM usuarios WHERE email = ? LIMIT 1', [email], (errTarget, rows) => {
     if (errTarget) return res.status(500).json({ message: errTarget.message || 'Error al validar usuario' });
     if (!rows?.length) return res.status(404).json({ message: 'Usuario no encontrado' });
     db.query('DELETE FROM usuarios WHERE email = ?', [email], (err, result) => {
@@ -629,6 +604,87 @@ app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (r
 
 
 
+app.post("/create", (req, res)=>{
+    const nombre = req.body.nombre;
+    const edad = req.body.edad;
+    const pais = req.body.pais;
+    const cargo = req.body.cargo;
+    const anios = req.body.anios;
+    
+    db.query('INSERT INTO tabla1 (nombre,edad,pais,cargo,anios) VALUES(?,?,?,?,?)', [nombre, edad, pais, cargo, anios],
+        (err, result)=>{
+            if(err){
+                console.log(err);
+             }else{
+            res.send(result);
+            }
+            }
+        
+    );
+});
+
+
+
+
+
+app.put("/update", (req, res)=>{
+    const id = req.body.id;
+    const nombre = req.body.nombre;
+    const edad = req.body.edad;
+    const pais = req.body.pais;
+    const cargo = req.body.cargo;
+    const anios = req.body.anios;
+    
+    db.query('UPDATE tabla1 SET nombre=?,edad=?,pais=?,cargo=?,anios=? WHERE id=?', [nombre, edad, pais, cargo, anios,id],
+        (err, result)=>{
+            if(err){
+                console.log(err);
+             }else{
+            res.send(result);
+            }
+            }
+        
+    );
+});
+
+
+
+app.delete("/delete/:id", (req, res)=>{
+    const id = req.params.id;
+
+    
+    db.query('DELETE FROM tabla1  WHERE id=?', id,
+        (err, result)=>{
+            if(err){
+                console.log(err);
+             }else{
+            res.send(result);
+            }
+            }
+        
+    );
+});
+
+
+
+app.get("/tabla1", (req, res)=>{
+
+    
+    db.query('SELECT * FROM tabla1',
+        (err, result)=>{
+            if(err){
+                console.log(err);
+             }else{
+            res.send(result);
+            }
+            }
+        
+    );
+});
+
+
+
+
 
 
 
@@ -644,22 +700,21 @@ app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (r
 //Contratos:
 
 // ==================== RUTAS PARA CONTRATOS ====================
-app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacion']), async (req, res) => {
-  const { numero_contrato, proveedor_cliente, empresa, correo_notificacion, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin } = req.body;
-  try {
-    const { idContraparte, idTipo } = await idsContratoDesdeBody(dbQuery, req.body);
-    db.query(
-    'INSERT INTO contratos_generales (numero_contrato, id_contraparte, empresa, correo_notificacion, suplementos, vigencia, id_tipo_contrato, fecha_inicio, fecha_fin) VALUES (?,?,?,?,?,?,?,?,?)',
+app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacion']), (req, res) => {
+  const { numero_contrato, proveedor_cliente, empresa, correo_notificacion, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido } = req.body;
+  db.query(
+    'INSERT INTO contratos_generales (numero_contrato, proveedor_cliente, empresa, correo_notificacion, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido) VALUES (?,?,?,?,?,?,?,?,?,?)',
     [
       numero_contrato,
-      idContraparte,
+      proveedor_cliente,
       empresa,
       correo_notificacion ? String(correo_notificacion).trim() : null,
       suplementos,
       vigencia,
-      idTipo,
+      tipo_contrato,
       fecha_inicio,
       fecha_fin,
+      vencido,
     ],
     (err, result) => {
       if (err) {
@@ -670,12 +725,9 @@ app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacio
       }
     }
   );
-  } catch (e) {
-    res.status(500).json({ message: e.message || String(e) });
-  }
 });
 
-app.put("/update-contrato", async (req, res) => {
+app.put("/update-contrato", (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const {
     numero_contrato,
@@ -702,25 +754,19 @@ app.put("/update-contrato", async (req, res) => {
     return res.status(400).json({ message: 'El número de contrato no puede estar vacío.' });
   }
 
-  let idContraparte;
-  let idTipo;
-  try {
-    ({ idContraparte, idTipo } = await idsContratoDesdeBody(dbQuery, body));
-  } catch (e) {
-    return res.status(500).json({ message: e.message || String(e) });
-  }
   const sql =
-    'UPDATE contratos_generales SET numero_contrato=?, id_contraparte=?, empresa=?, correo_notificacion=?, suplementos=?, vigencia=?, id_tipo_contrato=?, fecha_inicio=?, fecha_fin=? WHERE numero_contrato=?';
+    'UPDATE contratos_generales SET numero_contrato=?, proveedor_cliente=?, empresa=?, correo_notificacion=?, suplementos=?, vigencia=?, tipo_contrato=?, fecha_inicio=?, fecha_fin=?, vencido=? WHERE numero_contrato=?';
   const params = [
     numeroNuevo,
-    idContraparte,
+    proveedor_cliente,
     empresa,
     correo_notificacion ? String(correo_notificacion).trim() : null,
     suplementos,
     vigencia,
-    idTipo,
+    tipo_contrato,
     fecha_inicio,
     fecha_fin,
+    vencido,
     numeroContratoWhere,
   ];
 
@@ -776,7 +822,7 @@ app.delete("/delete-contrato/:numero_contrato", (req, res) => {
 });
 
 app.get("/contratos", (req, res) => {
-  db.query(`${SQL_CONTRATO_SELECT} ORDER BY c.fecha_fin ASC`,
+  db.query('SELECT * FROM contratos_generales',
     (err, result) => {
       if (err) {
         console.log(err);
@@ -798,7 +844,7 @@ app.post("/send-contrato-reminder", async (req, res) => {
   try {
     const rows = await dbQuery(
       `SELECT numero_contrato, empresa, tipo_contrato, vigencia, fecha_inicio, fecha_fin, correo_notificacion
-         FROM (${SQL_CONTRATO_SELECT}) AS contratos_v
+         FROM contratos_generales
         WHERE numero_contrato = ?
         LIMIT 1`,
       [numeroContrato]
@@ -906,7 +952,7 @@ const SQL_EMPLEADOS_LISTADO_BASE = `SELECT e.*,
   s.salario_neto AS salario_normal
   FROM empleados e
   LEFT JOIN departamentos d ON d.id_departamento = e.id_departamento
-  LEFT JOIN salarios s ON s.carnet_identidad = e.carnet_identidad`;
+  LEFT JOIN salarios s ON s.id_tabla = e.carnet_identidad`;
 
 app.post("/create-empleado", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const { carnet_identidad, nombre, apellidos, puesto, telefono, beneficios, resultados_auditorias, nivel_escolar, superacion_en_proceso } = req.body;
@@ -1419,30 +1465,56 @@ function fechaDatoProduccion(row) {
 function archivarProduccion(fuente, accion, req, fila, callback) {
   const fd = fechaDatoProduccion(fila);
   if (!fd) return callback(new Error('Sin fecha en registro'));
-  insertHistorico(dbQuery, fuente, fd, accion, fila, emailUsuario(req))
-    .then(() => callback(null))
-    .catch((e) => callback(e));
+  let datosJson;
+  try {
+    datosJson = JSON.stringify(fila, (k, v) => {
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      return v;
+    });
+  } catch (e) {
+    datosJson = '{}';
+  }
+  db.query(
+    'INSERT INTO produccion_historico (fuente, fecha_dato, accion, datos_json, usuario_email) VALUES (?, ?, ?, ?, ?)',
+    [fuente, fd, accion, datosJson, emailUsuario(req)],
+    callback
+  );
 }
 
 // RF21 — Consulta de histórico archivado (actualización / eliminación)
-app.get('/produccion-historico', verificarToken, autorizarRol(['estadistica', 'director']), async (req, res) => {
-  try {
-    const rows = await listHistorico(dbQuery, {
-      fuente: req.query.fuente,
-      desde: req.query.desde,
-      hasta: req.query.hasta,
-    });
-    const out = await Promise.all(
-      rows.map(async (r) => {
-        const datos = await historicoDatosSnapshot(dbQuery, r.id, r.fuente);
-        return { ...r, datos };
-      })
-    );
-    res.send(out);
-  } catch (err) {
-    console.log(err);
-    res.status(500).send(err);
+app.get('/produccion-historico', verificarToken, autorizarRol(['estadistica', 'director']), (req, res) => {
+  let sql = `SELECT id, fuente, fecha_dato, accion, usuario_email,
+    DATE_FORMAT(creado_en, '%Y-%m-%d %H:%i:%s') AS creado_en,
+    datos_json
+    FROM produccion_historico WHERE 1=1`;
+  const params = [];
+  if (req.query.fuente) {
+    sql += ' AND fuente = ?';
+    params.push(req.query.fuente);
   }
+  if (req.query.desde) {
+    sql += ' AND fecha_dato >= ?';
+    params.push(req.query.desde);
+  }
+  if (req.query.hasta) {
+    sql += ' AND fecha_dato <= ?';
+    params.push(req.query.hasta);
+  }
+  sql += ' ORDER BY creado_en DESC, id DESC LIMIT 500';
+  db.query(sql, params, (err, rows) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).send(err);
+    }
+    const out = rows.map((r) => {
+      let datos = null;
+      try {
+        datos = JSON.parse(r.datos_json);
+      } catch (_) {}
+      return { ...r, datos };
+    });
+    res.send(out);
+  });
 });
 
 // RF23 — Totales de personal agrupados por departamento (vista global RRHH)
@@ -1455,7 +1527,7 @@ app.get('/reporte-consolidado-departamentos', verificarToken, autorizarRol(['rrh
       SUM(CASE WHEN COALESCE(e.activo, 1) = 1 THEN IFNULL(s.salario_neto + 0, 0) ELSE 0 END) AS masa_salarial_activos
     FROM empleados e
     LEFT JOIN departamentos d ON d.id_departamento = e.id_departamento
-    LEFT JOIN salarios s ON s.carnet_identidad = e.carnet_identidad
+    LEFT JOIN salarios s ON s.id_tabla = e.carnet_identidad
     GROUP BY COALESCE(NULLIF(TRIM(d.nombre), ''), '(Sin departamento)')
     ORDER BY departamento`;
   db.query(sql, (err, result) => {
@@ -1478,25 +1550,502 @@ app.get('/reporte-consolidado-departamentos', verificarToken, autorizarRol(['rrh
 
 
 
-// Produccion normalizada (sacrificio, matadero, leche)
-const { registerProduccionRoutes } = require('./db/registerProduccionRoutes');
-registerProduccionRoutes(app, {
-  verificarToken,
-  autorizarRol,
-  validarSacrificio,
-  validarMatadero,
-  validarLeche,
-  dbQuery,
-  emailUsuario,
-  archivarProduccion,
+//Sacrificio vacuno:
+
+// ==================== RUTAS PARA SACRIFICIO VACUNO ====================
+// (protegidas: solo admin y produccion)
+
+
+// ==================== RUTAS PARA SACRIFICIO VACUNO ====================
+// (protegidas: solo admin y produccion)
+
+// Obtener todos los registros (ordenados por fecha) formateando la fecha como YYYY-MM-DD
+app.get("/sacrificio", verificarToken, autorizarRol(['estadistica', 'director']), (req, res) => {
+    // Usamos DATE_FORMAT para que la fecha venga como string sin hora
+    db.query(
+        `SELECT DATE_FORMAT(fecha, '%Y-%m-%d') as fecha, 
+                terneras_Cbz_sal, terneras_Kg_sal, terneras_Cbz_tur, terneras_Kg_tur,
+                terneras_Cbz_in, terneras_Kg_in, terneras_Cbz_p, terneras_Kg_p,
+                terneras_Cbz_t, terneras_Kg_t, terneras_Cbz_m, terneras_Kg_m,
+                terneras_Cab_se, terneras_Kg_se, terneras_Cbz_sc, terneras_Kg_sc,
+                terneras_Cbz_st, terneras_Tm_st,
+                aniojas_Cbz_sal, aniojas_Kg_sal, aniojas_Cbz_tur, aniojas_Kg_tur,
+                aniojas_Cbz_in, aniojas_Kg_in, aniojas_Cbz_p, aniojas_Kg_p,
+                aniojas_Cbz_t, aniojas_Kg_t, aniojas_Cbz_m, aniojas_Kg_m,
+                aniojas_Cab_se, aniojas_Kg_se, aniojas_Cbz_sc, aniojas_Kg_sc,
+                aniojas_Cbz_st, aniojas_Tm_st,
+                novillas_Cbz_sal, novillas_Kg_sal, novillas_Cbz_tur, novillas_Kg_tur,
+                novillas_Cbz_in, novillas_Kg_in, novillas_Cbz_p, novillas_Kg_p,
+                novillas_Cbz_t, novillas_Kg_t, novillas_Cbz_m, novillas_Kg_m,
+                novillas_Cab_se, novillas_Kg_se, novillas_Cbz_sc, novillas_Kg_sc,
+                novillas_Cbz_st, novillas_Tm_st,
+                vacas_Cbz_sal, vacas_Kg_sal, vacas_Cbz_tur, vacas_Kg_tur,
+                vacas_Cbz_in, vacas_Kg_in, vacas_Cbz_p, vacas_Kg_p,
+                vacas_Cbz_t, vacas_Kg_t, vacas_Cbz_m, vacas_Kg_m,
+                vacas_Cab_se, vacas_Kg_se, vacas_Cbz_sc, vacas_Kg_sc,
+                vacas_Cbz_st, vacas_Tm_st,
+                total1_Cbz_sal, total1_Kg_sal, total1_Cbz_tur, total1_Kg_tur,
+                total1_Cbz_in, total1_Kg_in, total1_Cbz_p, total1_Kg_p,
+                total1_Cbz_t, total1_Kg_t, total1_Cbz_m, total1_Kg_m,
+                total1_Cab_se, total1_Kg_se, total1_Cbz_sc, total1_Kg_sc,
+                total1_Cbz_st, total1_Tm_st,
+                terneros_Cbz_sal, terneros_Kg_sal, terneros_Cbz_tur, terneros_Kg_tur,
+                terneros_Cbz_in, terneros_Kg_in, terneros_Cbz_p, terneros_Kg_p,
+                terneros_Cbz_t, terneros_Kg_t, terneros_Cbz_m, terneros_Kg_m,
+                terneros_Cab_se, terneros_Kg_se, terneros_Cbz_sc, terneros_Kg_sc,
+                terneros_Cbz_st, terneros_Tm_st,
+                aniojos_Cbz_sal, aniojos_Kg_sal, aniojos_Cbz_tur, aniojos_Kg_tur,
+                aniojos_Cbz_in, aniojos_Kg_in, aniojos_Cbz_p, aniojos_Kg_p,
+                aniojos_Cbz_t, aniojos_Kg_t, aniojos_Cbz_m, aniojos_Kg_m,
+                aniojos_Cab_se, aniojos_Kg_se, aniojos_Cbz_sc, aniojos_Kg_sc,
+                aniojos_Cbz_st, aniojos_Tm_st,
+                novillos_Cbz_sal, novillos_Kg_sal, novillos_Cbz_tur, novillos_Kg_tur,
+                novillos_Cbz_in, novillos_Kg_in, novillos_Cbz_p, novillos_Kg_p,
+                novillos_Cbz_t, novillos_Kg_t, novillos_Cbz_m, novillos_Kg_m,
+                novillos_Cab_se, novillos_Kg_se, novillos_Cbz_sc, novillos_Kg_sc,
+                novillos_Cbz_st, novillos_Tm_st,
+                bueyes_Cbz_sal, bueyes_Kg_sal, bueyes_Cbz_tur, bueyes_Kg_tur,
+                bueyes_Cbz_in, bueyes_Kg_in, bueyes_Cbz_p, bueyes_Kg_p,
+                bueyes_Cbz_t, bueyes_Kg_t, bueyes_Cbz_m, bueyes_Kg_m,
+                bueyes_Cab_se, bueyes_Kg_se, bueyes_Cbz_sc, bueyes_Kg_sc,
+                bueyes_Cbz_st, bueyes_Tm_st,
+                total2_Cbz_sal, total2_Kg_sal, total2_Cbz_tur, total2_Kg_tur,
+                total2_Cbz_in, total2_Kg_in, total2_Cbz_p, total2_Kg_p,
+
+
+                total2_Cbz_t, total2_Kg_t, total2_Cbz_m, total2_Kg_m,
+                total2_Cab_se, total2_Kg_se, total2_Cbz_sc, total2_Kg_sc,
+                total2_Cbz_st, total2_Tm_st,
+                creado_por, actualizado_por
+         FROM sacrificio_vacuno 
+         ORDER BY fecha DESC`,
+        (err, result) => {
+            if (err) return res.status(500).send(err);
+            res.send(result);
+        }
+    );
 });
+
+// Crear un nuevo registro (fecha única) — RF22 responsables
+app.post("/create-sacrificio", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const v = validarSacrificio(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
+    const email = emailUsuario(req);
+    const fields = { ...v.data };
+    delete fields.creado_por;
+    delete fields.actualizado_por;
+    if (email) {
+        fields.creado_por = email;
+        fields.actualizado_por = email;
+    }
+    const columns = Object.keys(fields).join(', ');
+    const values = Object.values(fields);
+    const placeholders = values.map(() => '?').join(', ');
+
+    db.query(
+        `INSERT INTO sacrificio_vacuno (${columns}) VALUES (${placeholders})`,
+        values,
+        (err, result) => {
+            if (err) {
+                console.log(err);
+                if (err.code === 'ER_DUP_ENTRY') {
+                    return res.status(400).json({ message: 'Ya existe un registro con esa fecha' });
+                }
+                return res.status(500).send(err);
+            }
+            res.send(result);
+        }
+    );
+});
+
+// Actualizar — RF21 archiva versión anterior; RF22 actualiza responsable
+app.put("/update-sacrificio/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const fecha = req.params.fecha;
+    const v = validarSacrificio(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
+    const email = emailUsuario(req);
+
+    db.query('SELECT * FROM sacrificio_vacuno WHERE fecha = ?', [fecha], (selErr, rows) => {
+        if (selErr) {
+            console.log(selErr);
+            return res.status(500).send(selErr);
+        }
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ message: 'Registro no encontrado' });
+        }
+        const anterior = rows[0];
+        archivarProduccion('sacrificio', 'actualizacion', req, anterior, (archErr) => {
+            if (archErr) {
+                console.log(archErr);
+                return res.status(500).send(archErr);
+            }
+            const fields = { ...v.data };
+            delete fields.fecha;
+            delete fields.creado_por;
+            if (anterior.creado_por != null && anterior.creado_por !== '') {
+                fields.creado_por = anterior.creado_por;
+            } else if (email) {
+                fields.creado_por = email;
+            }
+            if (email) fields.actualizado_por = email;
+
+            const updates = Object.keys(fields).map((key) => `${key} = ?`).join(', ');
+            const values = [...Object.values(fields), fecha];
+
+            db.query(
+                `UPDATE sacrificio_vacuno SET ${updates} WHERE fecha = ?`,
+                values,
+                (err, result) => {
+                    if (err) {
+                        console.log(err);
+                        return res.status(500).send(err);
+                    }
+                    res.send(result);
+                }
+            );
+        });
+    });
+});
+
+// Eliminar — RF21 archiva antes de borrar
+app.delete("/delete-sacrificio/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const fecha = req.params.fecha;
+    db.query('SELECT * FROM sacrificio_vacuno WHERE fecha = ?', [fecha], (selErr, rows) => {
+        if (selErr) {
+            console.log(selErr);
+            return res.status(500).send(selErr);
+        }
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ message: 'Registro no encontrado' });
+        }
+        const anterior = rows[0];
+        archivarProduccion('sacrificio', 'eliminacion', req, anterior, (archErr) => {
+            if (archErr) {
+                console.log(archErr);
+                return res.status(500).send(archErr);
+            }
+            db.query(
+                `DELETE FROM sacrificio_vacuno WHERE fecha = ?`,
+                [fecha],
+                (err, result) => {
+                    if (err) {
+                        console.log(err);
+                        return res.status(500).send(err);
+                    }
+                    res.send(result);
+                }
+            );
+        });
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ==================== RUTAS PARA MATADERO VIVO ====================
+// (protegidas: solo admin y produccion)
+
+// Obtener todos los registros (ordenados por fecha)
+app.get("/matadero", verificarToken, autorizarRol(['estadistica', 'director']), (req, res) => {
+    db.query('SELECT *, DATE_FORMAT(fecha, "%Y-%m-%d") as fecha FROM matadero_vivo ORDER BY fecha DESC', (err, result) => {
+        if (err) return res.status(500).send(err);
+        res.send(result);
+    });
+});
+
+// Crear un nuevo registro — RF22
+app.post("/create-matadero", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const v = validarMatadero(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
+    const email = emailUsuario(req);
+    const fields = { ...v.data };
+    delete fields.creado_por;
+    delete fields.actualizado_por;
+    if (email) {
+        fields.creado_por = email;
+        fields.actualizado_por = email;
+    }
+    const columns = Object.keys(fields).join(', ');
+    const values = Object.values(fields);
+    const placeholders = values.map(() => '?').join(', ');
+
+    db.query(
+        `INSERT INTO matadero_vivo (${columns}) VALUES (${placeholders})`,
+        values,
+        (err, result) => {
+            if (err) {
+                console.log(err);
+                if (err.code === 'ER_DUP_ENTRY') {
+                    return res.status(400).json({ message: 'Ya existe un registro con esa fecha' });
+                }
+                return res.status(500).send(err);
+            }
+            res.send(result);
+        }
+    );
+});
+
+// Actualizar — RF21 + RF22
+app.put("/update-matadero/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const fecha = req.params.fecha;
+    const v = validarMatadero(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
+    const email = emailUsuario(req);
+
+    db.query('SELECT * FROM matadero_vivo WHERE fecha = ?', [fecha], (selErr, rows) => {
+        if (selErr) {
+            console.log(selErr);
+            return res.status(500).send(selErr);
+        }
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ message: 'Registro no encontrado' });
+        }
+        const anterior = rows[0];
+        archivarProduccion('matadero', 'actualizacion', req, anterior, (archErr) => {
+            if (archErr) {
+                console.log(archErr);
+                return res.status(500).send(archErr);
+            }
+            const fields = { ...v.data };
+            delete fields.fecha;
+            delete fields.creado_por;
+            if (anterior.creado_por != null && anterior.creado_por !== '') {
+                fields.creado_por = anterior.creado_por;
+            } else if (email) {
+                fields.creado_por = email;
+            }
+            if (email) fields.actualizado_por = email;
+
+            const updates = Object.keys(fields).map((key) => `${key} = ?`).join(', ');
+            const values = [...Object.values(fields), fecha];
+
+            db.query(
+                `UPDATE matadero_vivo SET ${updates} WHERE fecha = ?`,
+                values,
+                (err, result) => {
+                    if (err) {
+                        console.log(err);
+                        return res.status(500).send(err);
+                    }
+                    res.send(result);
+                }
+            );
+        });
+    });
+});
+
+// Eliminar — RF21
+app.delete("/delete-matadero/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const fecha = req.params.fecha;
+    db.query('SELECT * FROM matadero_vivo WHERE fecha = ?', [fecha], (selErr, rows) => {
+        if (selErr) {
+            console.log(selErr);
+            return res.status(500).send(selErr);
+        }
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ message: 'Registro no encontrado' });
+        }
+        const anterior = rows[0];
+        archivarProduccion('matadero', 'eliminacion', req, anterior, (archErr) => {
+            if (archErr) {
+                console.log(archErr);
+                return res.status(500).send(archErr);
+            }
+            db.query(
+                `DELETE FROM matadero_vivo WHERE fecha = ?`,
+                [fecha],
+                (err, result) => {
+                    if (err) {
+                        console.log(err);
+                        return res.status(500).send(err);
+                    }
+                    res.send(result);
+                }
+            );
+        });
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ==================== RUTAS PARA LECHE ====================
+// (protegidas: solo admin y produccion)
+
+// Obtener todos los registros (ordenados por fecha)
+app.get("/leche", verificarToken, autorizarRol(['estadistica', 'director']), (req, res) => {
+    db.query('SELECT *, DATE_FORMAT(fecha, "%Y-%m-%d") as fecha FROM leche ORDER BY fecha DESC', (err, result) => {
+        if (err) return res.status(500).send(err);
+        res.send(result);
+    });
+});
+
+// Crear un nuevo registro — RF22
+app.post("/create-leche", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const v = validarLeche(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
+    const email = emailUsuario(req);
+    const fields = { ...v.data };
+    delete fields.creado_por;
+    delete fields.actualizado_por;
+    if (email) {
+        fields.creado_por = email;
+        fields.actualizado_por = email;
+    }
+    const columns = Object.keys(fields).join(', ');
+    const values = Object.values(fields);
+    const placeholders = values.map(() => '?').join(', ');
+
+    db.query(
+        `INSERT INTO leche (${columns}) VALUES (${placeholders})`,
+        values,
+        (err, result) => {
+            if (err) {
+                console.log(err);
+                if (err.code === 'ER_DUP_ENTRY') {
+                    return res.status(400).json({ message: 'Ya existe un registro con esa fecha' });
+                }
+                return res.status(500).send(err);
+            }
+            res.send(result);
+        }
+    );
+});
+
+// Actualizar — RF21 + RF22
+app.put("/update-leche/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const fecha = req.params.fecha;
+    const v = validarLeche(req.body);
+    if (!v.ok) {
+        return res.status(400).json({ message: v.message, campo: v.campo });
+    }
+    const email = emailUsuario(req);
+
+    db.query('SELECT * FROM leche WHERE fecha = ?', [fecha], (selErr, rows) => {
+        if (selErr) {
+            console.log(selErr);
+            return res.status(500).send(selErr);
+        }
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ message: 'Registro no encontrado' });
+        }
+        const anterior = rows[0];
+        archivarProduccion('leche', 'actualizacion', req, anterior, (archErr) => {
+            if (archErr) {
+                console.log(archErr);
+                return res.status(500).send(archErr);
+            }
+            const fields = { ...v.data };
+            delete fields.fecha;
+            delete fields.creado_por;
+            if (anterior.creado_por != null && anterior.creado_por !== '') {
+                fields.creado_por = anterior.creado_por;
+            } else if (email) {
+                fields.creado_por = email;
+            }
+            if (email) fields.actualizado_por = email;
+
+            const updates = Object.keys(fields).map((key) => `${key} = ?`).join(', ');
+            const values = [...Object.values(fields), fecha];
+
+            db.query(
+                `UPDATE leche SET ${updates} WHERE fecha = ?`,
+                values,
+                (err, result) => {
+                    if (err) {
+                        console.log(err);
+                        return res.status(500).send(err);
+                    }
+                    res.send(result);
+                }
+            );
+        });
+    });
+});
+
+// Eliminar — RF21
+app.delete("/delete-leche/:fecha", verificarToken, autorizarRol(['estadistica']), (req, res) => {
+    const fecha = req.params.fecha;
+    db.query('SELECT * FROM leche WHERE fecha = ?', [fecha], (selErr, rows) => {
+        if (selErr) {
+            console.log(selErr);
+            return res.status(500).send(selErr);
+        }
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ message: 'Registro no encontrado' });
+        }
+        const anterior = rows[0];
+        archivarProduccion('leche', 'eliminacion', req, anterior, (archErr) => {
+            if (archErr) {
+                console.log(archErr);
+                return res.status(500).send(archErr);
+            }
+            db.query(
+                `DELETE FROM leche WHERE fecha = ?`,
+                [fecha],
+                (err, result) => {
+                    if (err) {
+                        console.log(err);
+                        return res.status(500).send(err);
+                    }
+                    res.send(result);
+                }
+            );
+        });
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ==================== RUTAS PARA ASISTENCIAS ====================
 // (protegidas: solo admin y produccion)
 
 // Obtener todos los registros
 app.get("/asistencias", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT t.*, t.carnet_identidad AS id_tabla FROM asistencias t ORDER BY t.carnet_identidad', (err, result) => {
+    db.query('SELECT * FROM asistencias ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
@@ -1506,8 +2055,8 @@ app.get("/asistencias", verificarToken, autorizarRol(['rrhh', 'director']), (req
 app.post("/create-asistencia", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, codigo_asistencia, desc_causas, horas_trabajadas } = req.body;
     db.query(
-        'INSERT INTO asistencias (carnet_identidad, codigo_asistencia, desc_causas, horas_trabajadas) VALUES (?, ?, ?, ?)',
-        [normalizarCarnetApi(id_tabla) || id_tabla, codigo_asistencia, desc_causas, horas_trabajadas],
+        'INSERT INTO asistencias (id_tabla, codigo_asistencia, desc_causas, horas_trabajadas) VALUES (?, ?, ?, ?)',
+        [id_tabla, codigo_asistencia, desc_causas, horas_trabajadas],
         (err, result) => {
             if (err) {
                 console.log(err);
@@ -1523,10 +2072,10 @@ app.post("/create-asistencia", verificarToken, autorizarRol(['rrhh']), (req, res
 
 // Actualizar un registro por id_tabla
 app.put("/update-asistencia/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     const { codigo_asistencia, desc_causas, horas_trabajadas } = req.body;
     db.query(
-        'UPDATE asistencias SET codigo_asistencia = ?, desc_causas = ?, horas_trabajadas = ? WHERE carnet_identidad = ?',
+        'UPDATE asistencias SET codigo_asistencia = ?, desc_causas = ?, horas_trabajadas = ? WHERE id_tabla = ?',
         [codigo_asistencia, desc_causas, horas_trabajadas, id_tabla],
         (err, result) => {
             if (err) {
@@ -1540,9 +2089,9 @@ app.put("/update-asistencia/:id_tabla", verificarToken, autorizarRol(['rrhh']), 
 
 // Eliminar un registro por id_tabla
 app.delete("/delete-asistencia/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     db.query(
-        'DELETE FROM asistencias WHERE carnet_identidad = ?',
+        'DELETE FROM asistencias WHERE id_tabla = ?',
         [id_tabla],
         (err, result) => {
             if (err) {
@@ -1571,7 +2120,7 @@ app.delete("/delete-asistencia/:id_tabla", verificarToken, autorizarRol(['rrhh']
 
 // Obtener todos los registros
 app.get("/certificaciones", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT t.*, t.carnet_identidad AS id_tabla FROM certificaciones t ORDER BY t.carnet_identidad', (err, result) => {
+    db.query('SELECT * FROM certificaciones ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
@@ -1581,8 +2130,8 @@ app.get("/certificaciones", verificarToken, autorizarRol(['rrhh', 'director']), 
 app.post("/create-certificacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, certificacion } = req.body;
     db.query(
-        'INSERT INTO certificaciones (carnet_identidad, certificacion) VALUES (?, ?)',
-        [normalizarCarnetApi(id_tabla) || id_tabla, certificacion],
+        'INSERT INTO certificaciones (id_tabla, certificacion) VALUES (?, ?)',
+        [id_tabla, certificacion],
         (err, result) => {
             if (err) {
                 console.log(err);
@@ -1598,10 +2147,10 @@ app.post("/create-certificacion", verificarToken, autorizarRol(['rrhh']), (req, 
 
 // Actualizar un registro por id_tabla
 app.put("/update-certificacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     const { certificacion } = req.body;
     db.query(
-        'UPDATE certificaciones SET certificacion = ? WHERE carnet_identidad = ?',
+        'UPDATE certificaciones SET certificacion = ? WHERE id_tabla = ?',
         [certificacion, id_tabla],
         (err, result) => {
             if (err) {
@@ -1615,9 +2164,9 @@ app.put("/update-certificacion/:id_tabla", verificarToken, autorizarRol(['rrhh']
 
 // Eliminar un registro por id_tabla
 app.delete("/delete-certificacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     db.query(
-        'DELETE FROM certificaciones WHERE carnet_identidad = ?',
+        'DELETE FROM certificaciones WHERE id_tabla = ?',
         [id_tabla],
         (err, result) => {
             if (err) {
@@ -1639,7 +2188,7 @@ app.delete("/delete-certificacion/:id_tabla", verificarToken, autorizarRol(['rrh
 
 // Obtener todos los registros
 app.get("/cursos", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT t.*, DATE_FORMAT(t.fech_fin_curso, "%Y-%m-%d") as fech_fin_curso, t.carnet_identidad AS id_tabla FROM cursos t ORDER BY t.carnet_identidad', (err, result) => {
+    db.query('SELECT *, DATE_FORMAT(fech_fin_curso, "%Y-%m-%d") as fech_fin_curso FROM cursos ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
@@ -1649,8 +2198,8 @@ app.get("/cursos", verificarToken, autorizarRol(['rrhh', 'director']), (req, res
 app.post("/create-curso", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, curso, descr, logrado, fech_fin_curso } = req.body;
     db.query(
-        'INSERT INTO cursos (carnet_identidad, curso, descr, logrado, fech_fin_curso) VALUES (?, ?, ?, ?, ?)',
-        [normalizarCarnetApi(id_tabla) || id_tabla, curso, descr, logrado ? 1 : 0, fech_fin_curso],
+        'INSERT INTO cursos (id_tabla, curso, descr, logrado, fech_fin_curso) VALUES (?, ?, ?, ?, ?)',
+        [id_tabla, curso, descr, logrado ? 1 : 0, fech_fin_curso],
         (err, result) => {
             if (err) {
                 console.log(err);
@@ -1666,10 +2215,10 @@ app.post("/create-curso", verificarToken, autorizarRol(['rrhh']), (req, res) => 
 
 // Actualizar un registro por id_tabla
 app.put("/update-curso/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     const { curso, descr, logrado, fech_fin_curso } = req.body;
     db.query(
-        'UPDATE cursos SET curso = ?, descr = ?, logrado = ?, fech_fin_curso = ? WHERE carnet_identidad = ?',
+        'UPDATE cursos SET curso = ?, descr = ?, logrado = ?, fech_fin_curso = ? WHERE id_tabla = ?',
         [curso, descr, logrado ? 1 : 0, fech_fin_curso, id_tabla],
         (err, result) => {
             if (err) {
@@ -1683,9 +2232,9 @@ app.put("/update-curso/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req,
 
 // Eliminar un registro por id_tabla
 app.delete("/delete-curso/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     db.query(
-        'DELETE FROM cursos WHERE carnet_identidad = ?',
+        'DELETE FROM cursos WHERE id_tabla = ?',
         [id_tabla],
         (err, result) => {
             if (err) {
@@ -1704,7 +2253,7 @@ app.delete("/delete-curso/:id_tabla", verificarToken, autorizarRol(['rrhh']), (r
 
 // Obtener todos los registros
 app.get("/evalcapacitacion", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT t.*, t.carnet_identidad AS id_tabla FROM evalcapacitacion t ORDER BY t.carnet_identidad', (err, result) => {
+    db.query('SELECT * FROM evalcapacitacion ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
@@ -1714,8 +2263,8 @@ app.get("/evalcapacitacion", verificarToken, autorizarRol(['rrhh', 'director']),
 app.post("/create-evalcapacitacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, evaluacion, descr } = req.body;
     db.query(
-        'INSERT INTO evalcapacitacion (carnet_identidad, evaluacion, descr) VALUES (?, ?, ?)',
-        [normalizarCarnetApi(id_tabla) || id_tabla, evaluacion, descr],
+        'INSERT INTO evalcapacitacion (id_tabla, evaluacion, descr) VALUES (?, ?, ?)',
+        [id_tabla, evaluacion, descr],
         (err, result) => {
             if (err) {
                 console.log(err);
@@ -1731,10 +2280,10 @@ app.post("/create-evalcapacitacion", verificarToken, autorizarRol(['rrhh']), (re
 
 // Actualizar un registro por id_tabla
 app.put("/update-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     const { evaluacion, descr } = req.body;
     db.query(
-        'UPDATE evalcapacitacion SET evaluacion = ?, descr = ? WHERE carnet_identidad = ?',
+        'UPDATE evalcapacitacion SET evaluacion = ?, descr = ? WHERE id_tabla = ?',
         [evaluacion, descr, id_tabla],
         (err, result) => {
             if (err) {
@@ -1748,9 +2297,9 @@ app.put("/update-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['rrh
 
 // Eliminar un registro por id_tabla
 app.delete("/delete-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     db.query(
-        'DELETE FROM evalcapacitacion WHERE carnet_identidad = ?',
+        'DELETE FROM evalcapacitacion WHERE id_tabla = ?',
         [id_tabla],
         (err, result) => {
             if (err) {
@@ -1772,7 +2321,7 @@ app.delete("/delete-evalcapacitacion/:id_tabla", verificarToken, autorizarRol(['
 
 // Obtener todos los registros
 app.get("/evaluaciones", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT t.*, t.carnet_identidad AS id_tabla FROM evaluaciones t ORDER BY t.carnet_identidad', (err, result) => {
+    db.query('SELECT * FROM evaluaciones ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
@@ -1782,8 +2331,8 @@ app.get("/evaluaciones", verificarToken, autorizarRol(['rrhh', 'director']), (re
 app.post("/create-evaluacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, evaluacion, descr } = req.body;
     db.query(
-        'INSERT INTO evaluaciones (carnet_identidad, evaluacion, descr) VALUES (?, ?, ?)',
-        [normalizarCarnetApi(id_tabla) || id_tabla, evaluacion, descr],
+        'INSERT INTO evaluaciones (id_tabla, evaluacion, descr) VALUES (?, ?, ?)',
+        [id_tabla, evaluacion, descr],
         (err, result) => {
             if (err) {
                 console.log(err);
@@ -1799,10 +2348,10 @@ app.post("/create-evaluacion", verificarToken, autorizarRol(['rrhh']), (req, res
 
 // Actualizar un registro por id_tabla
 app.put("/update-evaluacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     const { evaluacion, descr } = req.body;
     db.query(
-        'UPDATE evaluaciones SET evaluacion = ?, descr = ? WHERE carnet_identidad = ?',
+        'UPDATE evaluaciones SET evaluacion = ?, descr = ? WHERE id_tabla = ?',
         [evaluacion, descr, id_tabla],
         (err, result) => {
             if (err) {
@@ -1816,9 +2365,9 @@ app.put("/update-evaluacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), 
 
 // Eliminar un registro por id_tabla
 app.delete("/delete-evaluacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     db.query(
-        'DELETE FROM evaluaciones WHERE carnet_identidad = ?',
+        'DELETE FROM evaluaciones WHERE id_tabla = ?',
         [id_tabla],
         (err, result) => {
             if (err) {
@@ -1840,7 +2389,7 @@ app.delete("/delete-evaluacion/:id_tabla", verificarToken, autorizarRol(['rrhh']
 
 // Obtener todos los registros
 app.get("/objetivos", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT t.*, DATE_FORMAT(t.fecha_logrado, "%Y-%m-%d") as fecha_logrado, t.carnet_identidad AS id_tabla FROM objetivos t ORDER BY t.carnet_identidad', (err, result) => {
+    db.query('SELECT *, DATE_FORMAT(fecha_logrado, "%Y-%m-%d") as fecha_logrado FROM objetivos ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
@@ -1850,8 +2399,8 @@ app.get("/objetivos", verificarToken, autorizarRol(['rrhh', 'director']), (req, 
 app.post("/create-objetivo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, objetivo, descr, logrado, fecha_logrado } = req.body;
     db.query(
-        'INSERT INTO objetivos (carnet_identidad, objetivo, descr, logrado, fecha_logrado) VALUES (?, ?, ?, ?, ?)',
-        [normalizarCarnetApi(id_tabla) || id_tabla, objetivo, descr, logrado ? 1 : 0, fecha_logrado || null],
+        'INSERT INTO objetivos (id_tabla, objetivo, descr, logrado, fecha_logrado) VALUES (?, ?, ?, ?, ?)',
+        [id_tabla, objetivo, descr, logrado ? 1 : 0, fecha_logrado || null],
         (err, result) => {
             if (err) {
                 console.log(err);
@@ -1867,10 +2416,10 @@ app.post("/create-objetivo", verificarToken, autorizarRol(['rrhh']), (req, res) 
 
 // Actualizar un registro por id_tabla
 app.put("/update-objetivo/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     const { objetivo, descr, logrado, fecha_logrado } = req.body;
     db.query(
-        'UPDATE objetivos SET objetivo = ?, descr = ?, logrado = ?, fecha_logrado = ? WHERE carnet_identidad = ?',
+        'UPDATE objetivos SET objetivo = ?, descr = ?, logrado = ?, fecha_logrado = ? WHERE id_tabla = ?',
         [objetivo, descr, logrado ? 1 : 0, fecha_logrado || null, id_tabla],
         (err, result) => {
             if (err) {
@@ -1884,9 +2433,9 @@ app.put("/update-objetivo/:id_tabla", verificarToken, autorizarRol(['rrhh']), (r
 
 // Eliminar un registro por id_tabla
 app.delete("/delete-objetivo/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     db.query(
-        'DELETE FROM objetivos WHERE carnet_identidad = ?',
+        'DELETE FROM objetivos WHERE id_tabla = ?',
         [id_tabla],
         (err, result) => {
             if (err) {
@@ -1915,7 +2464,7 @@ app.delete("/delete-objetivo/:id_tabla", verificarToken, autorizarRol(['rrhh']),
 
 // Obtener todos los registros
 app.get("/salarios", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT t.*, t.carnet_identidad AS id_tabla FROM salarios t ORDER BY t.carnet_identidad', (err, result) => {
+    db.query('SELECT * FROM salarios ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
@@ -1925,8 +2474,8 @@ app.get("/salarios", verificarToken, autorizarRol(['rrhh', 'director']), (req, r
 app.post("/create-salario", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, salario_neto } = req.body;
     db.query(
-        'INSERT INTO salarios (carnet_identidad, salario_neto) VALUES (?, ?)',
-        [normalizarCarnetApi(id_tabla) || id_tabla, salario_neto],
+        'INSERT INTO salarios (id_tabla, salario_neto) VALUES (?, ?)',
+        [id_tabla, salario_neto],
         (err, result) => {
             if (err) {
                 console.log(err);
@@ -1942,10 +2491,10 @@ app.post("/create-salario", verificarToken, autorizarRol(['rrhh']), (req, res) =
 
 // Actualizar un registro por id_tabla
 app.put("/update-salario/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     const { salario_neto } = req.body;
     db.query(
-        'UPDATE salarios SET salario_neto = ? WHERE carnet_identidad = ?',
+        'UPDATE salarios SET salario_neto = ? WHERE id_tabla = ?',
         [salario_neto, id_tabla],
         (err, result) => {
             if (err) {
@@ -1959,9 +2508,9 @@ app.put("/update-salario/:id_tabla", verificarToken, autorizarRol(['rrhh']), (re
 
 // Eliminar un registro por id_tabla
 app.delete("/delete-salario/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     db.query(
-        'DELETE FROM salarios WHERE carnet_identidad = ?',
+        'DELETE FROM salarios WHERE id_tabla = ?',
         [id_tabla],
         (err, result) => {
             if (err) {
@@ -1990,47 +2539,74 @@ app.delete("/delete-salario/:id_tabla", verificarToken, autorizarRol(['rrhh']), 
 // ==================== RUTAS PARA SEGSEGURIDAD ====================
 // (protegidas: solo admin y rrhh)
 
+// Obtener todos los registros
 app.get("/segseguridad", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query(`${SQL_SEGSEG_LIST}`, (err, result) => {
+    db.query('SELECT * FROM segseguridad ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
 });
 
-app.post("/create-segseguridad", verificarToken, autorizarRol(['rrhh']), async (req, res) => {
+// Crear un nuevo registro
+app.post("/create-segseguridad", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres } = req.body;
-    try {
-        await guardarSegseguridad(dbQuery, id_tabla, { cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres });
-        res.json({ message: 'Registro guardado' });
-    } catch (err) {
-        console.log(err);
-        if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: 'Ya existe un registro con ese ID' });
-        res.status(500).send(err);
-    }
+    db.query(
+        'INSERT INTO segseguridad (id_tabla, cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [id_tabla, cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres],
+        (err, result) => {
+            if (err) {
+                console.log(err);
+                if (err.code === 'ER_DUP_ENTRY') {
+                    return res.status(400).json({ message: 'Ya existe un registro con ese ID' });
+                }
+                return res.status(500).send(err);
+            }
+            res.send(result);
+        }
+    );
 });
 
-app.put("/update-segseguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), async (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+// Actualizar un registro por id_tabla
+app.put("/update-segseguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
+    const id_tabla = req.params.id_tabla;
     const { cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres } = req.body;
-    try {
-        await guardarSegseguridad(dbQuery, id_tabla, { cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres });
-        res.json({ message: 'Registro actualizado' });
-    } catch (err) {
-        console.log(err);
-        res.status(500).send(err);
-    }
+    db.query(
+        'UPDATE segseguridad SET cant_accuno = ?, desc_uno = ?, cant_accdos = ?, desc_dos = ?, cant_acctres = ?, desc_tres = ? WHERE id_tabla = ?',
+        [cant_accuno, desc_uno, cant_accdos, desc_dos, cant_acctres, desc_tres, id_tabla],
+        (err, result) => {
+            if (err) {
+                console.log(err);
+                return res.status(500).send(err);
+            }
+            res.send(result);
+        }
+    );
 });
 
-app.delete("/delete-segseguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), async (req, res) => {
-    const carnet = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
-    try {
-        await dbQuery('DELETE FROM segseguridad WHERE carnet_identidad = ?', [carnet]);
-        res.json({ message: 'Registro eliminado' });
-    } catch (err) {
-        console.log(err);
-        res.status(500).send(err);
-    }
+// Eliminar un registro por id_tabla
+app.delete("/delete-segseguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
+    const id_tabla = req.params.id_tabla;
+    db.query(
+        'DELETE FROM segseguridad WHERE id_tabla = ?',
+        [id_tabla],
+        (err, result) => {
+            if (err) {
+                console.log(err);
+                return res.status(500).send(err);
+            }
+            res.send(result);
+        }
+    );
 });
+
+
+
+
+
+
+
+
+
 
 
 // ==================== RUTAS PARA SEGURIDAD ====================
@@ -2038,7 +2614,7 @@ app.delete("/delete-segseguridad/:id_tabla", verificarToken, autorizarRol(['rrhh
 
 // Obtener todos los registros
 app.get("/seguridad", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT t.*, t.carnet_identidad AS id_tabla FROM seguridad t ORDER BY t.carnet_identidad', (err, result) => {
+    db.query('SELECT * FROM seguridad ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
@@ -2048,8 +2624,8 @@ app.get("/seguridad", verificarToken, autorizarRol(['rrhh', 'director']), (req, 
 app.post("/create-seguridad", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, acceso } = req.body;
     db.query(
-        'INSERT INTO seguridad (carnet_identidad, acceso) VALUES (?, ?)',
-        [normalizarCarnetApi(id_tabla) || id_tabla, acceso],
+        'INSERT INTO seguridad (id_tabla, acceso) VALUES (?, ?)',
+        [id_tabla, acceso],
         (err, result) => {
             if (err) {
                 console.log(err);
@@ -2065,10 +2641,10 @@ app.post("/create-seguridad", verificarToken, autorizarRol(['rrhh']), (req, res)
 
 // Actualizar un registro por id_tabla
 app.put("/update-seguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     const { acceso } = req.body;
     db.query(
-        'UPDATE seguridad SET acceso = ? WHERE carnet_identidad = ?',
+        'UPDATE seguridad SET acceso = ? WHERE id_tabla = ?',
         [acceso, id_tabla],
         (err, result) => {
             if (err) {
@@ -2082,9 +2658,9 @@ app.put("/update-seguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), (
 
 // Eliminar un registro por id_tabla
 app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     db.query(
-        'DELETE FROM seguridad WHERE carnet_identidad = ?',
+        'DELETE FROM seguridad WHERE id_tabla = ?',
         [id_tabla],
         (err, result) => {
             if (err) {
@@ -2102,7 +2678,7 @@ app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['rrhh'])
 
   // Obtener todos los cargos (ordenados por id_cargo)
   app.get("/cargos", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT c.*, d.nombre AS departamento FROM cargos c LEFT JOIN departamentos d ON d.id_departamento = c.id_departamento ORDER BY c.id_cargo', (err, result) => {
+    db.query('SELECT * FROM cargos ORDER BY id_cargo', (err, result) => {
       if (err) return res.status(500).send(err);
       res.send(result);
     });
@@ -2112,7 +2688,7 @@ app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['rrhh'])
   app.post("/create-cargo", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { nombre, descripcion, salario_base, departamento } = req.body;
     db.query(
-      'INSERT INTO cargos (nombre, descripcion, salario_base, id_departamento) VALUES (?, ?, ?, (SELECT id_departamento FROM departamentos WHERE nombre = ? LIMIT 1))',
+      'INSERT INTO cargos (nombre, descripcion, salario_base, departamento) VALUES (?, ?, ?, ?)',
       [nombre, descripcion, salario_base, departamento],
       (err, result) => {
         if (err) {
@@ -2129,7 +2705,7 @@ app.delete("/delete-seguridad/:id_tabla", verificarToken, autorizarRol(['rrhh'])
     const id_cargo = req.params.id_cargo;
     const { nombre, descripcion, salario_base, departamento, activo } = req.body;
     db.query(
-      'UPDATE cargos SET nombre = ?, descripcion = ?, salario_base = ?, id_departamento = (SELECT id_departamento FROM departamentos WHERE nombre = ? LIMIT 1), activo = ? WHERE id_cargo = ?',
+      'UPDATE cargos SET nombre = ?, descripcion = ?, salario_base = ?, departamento = ?, activo = ? WHERE id_cargo = ?',
       [nombre, descripcion, salario_base, departamento, activo ? 1 : 0, id_cargo],
       (err, result) => {
         if (err) {
@@ -2358,7 +2934,7 @@ app.delete("/delete-cert-medico/:id_cert_medico", verificarToken, autorizarRol([
 
 // Obtener todos los registros
 app.get("/vacaciones", verificarToken, autorizarRol(['rrhh', 'director']), (req, res) => {
-    db.query('SELECT t.*, DATE_FORMAT(t.fecha_inicio, "%Y-%m-%d") as fecha_inicio, DATE_FORMAT(t.fecha_fin, "%Y-%m-%d") as fecha_fin, t.carnet_identidad AS id_tabla FROM vacaciones t ORDER BY t.carnet_identidad', (err, result) => {
+    db.query('SELECT *, DATE_FORMAT(fecha_inicio, "%Y-%m-%d") as fecha_inicio, DATE_FORMAT(fecha_fin, "%Y-%m-%d") as fecha_fin FROM vacaciones ORDER BY id_tabla', (err, result) => {
         if (err) return res.status(500).send(err);
         res.send(result);
     });
@@ -2368,8 +2944,8 @@ app.get("/vacaciones", verificarToken, autorizarRol(['rrhh', 'director']), (req,
 app.post("/create-vacacion", verificarToken, autorizarRol(['rrhh']), (req, res) => {
     const { id_tabla, fecha_inicio, fecha_fin, dias_totales, motivo, aprobado, observaciones } = req.body;
     db.query(
-        'INSERT INTO vacaciones (carnet_identidad, fecha_inicio, fecha_fin, dias_totales, motivo, aprobado, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [normalizarCarnetApi(id_tabla) || id_tabla, fecha_inicio, fecha_fin, dias_totales, motivo, aprobado ? 1 : 0, observaciones],
+        'INSERT INTO vacaciones (id_tabla, fecha_inicio, fecha_fin, dias_totales, motivo, aprobado, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [id_tabla, fecha_inicio, fecha_fin, dias_totales, motivo, aprobado ? 1 : 0, observaciones],
         (err, result) => {
             if (err) {
                 console.log(err);
@@ -2385,10 +2961,10 @@ app.post("/create-vacacion", verificarToken, autorizarRol(['rrhh']), (req, res) 
 
 // Actualizar un registro por id_tabla
 app.put("/update-vacacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     const { fecha_inicio, fecha_fin, dias_totales, motivo, aprobado, observaciones } = req.body;
     db.query(
-        'UPDATE vacaciones SET fecha_inicio = ?, fecha_fin = ?, dias_totales = ?, motivo = ?, aprobado = ?, observaciones = ? WHERE carnet_identidad = ?',
+        'UPDATE vacaciones SET fecha_inicio = ?, fecha_fin = ?, dias_totales = ?, motivo = ?, aprobado = ?, observaciones = ? WHERE id_tabla = ?',
         [fecha_inicio, fecha_fin, dias_totales, motivo, aprobado ? 1 : 0, observaciones, id_tabla],
         (err, result) => {
             if (err) {
@@ -2402,9 +2978,9 @@ app.put("/update-vacacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (r
 
 // Eliminar un registro por id_tabla
 app.delete("/delete-vacacion/:id_tabla", verificarToken, autorizarRol(['rrhh']), (req, res) => {
-    const id_tabla = normalizarCarnetApi(req.params.id_tabla) || req.params.id_tabla;
+    const id_tabla = req.params.id_tabla;
     db.query(
-        'DELETE FROM vacaciones WHERE carnet_identidad = ?',
+        'DELETE FROM vacaciones WHERE id_tabla = ?',
         [id_tabla],
         (err, result) => {
             if (err) {

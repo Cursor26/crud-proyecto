@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
-import { exportRowsToExcel } from '../utils/exportExcel';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 import ModuleTitleBar from './ModuleTitleBar';
 
 const ReporteConsolidado = () => {
@@ -11,7 +11,7 @@ const ReporteConsolidado = () => {
 
   const cargar = () => {
     setCargando(true);
-    Axios.get('http://localhost:3001/reporte-consolidado-departamentos')
+    Axios.get('/reporte-consolidado-departamentos')
       .then((res) => setFilas(res.data))
       .catch((err) => {
         console.error(err);
@@ -38,24 +38,19 @@ const ReporteConsolidado = () => {
     return { activos, inactivos, total, masa };
   }, [filas]);
 
-  const exportarExcel = () => {
-    if (!filas.length) return;
-    const rows = filas.map((r) => ({
-      departamento: r.departamento,
-      empleados_activos: r.empleados_activos,
-      empleados_inactivos: r.empleados_inactivos,
-      total_empleados: r.total_empleados,
-      masa_salarial_activos: r.masa_salarial_activos,
-    }));
-    rows.push({
-      departamento: 'TOTAL EMPRESA',
-      empleados_activos: totales.activos,
-      empleados_inactivos: totales.inactivos,
-      total_empleados: totales.total,
-      masa_salarial_activos: totales.masa,
-    });
-    exportRowsToExcel(rows, 'Consolidado', `reporte_consolidado_dept_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
+  const headers = ['Departamento', 'Empleados activos', 'Empleados inactivos', 'Total empleados', 'Masa salarial activos'];
+  const dataRows = filas.length
+    ? [
+        ...filas.map((r) => [
+          r.departamento,
+          r.empleados_activos,
+          r.empleados_inactivos,
+          r.total_empleados,
+          r.masa_salarial_activos,
+        ]),
+        ['TOTAL EMPRESA', totales.activos, totales.inactivos, totales.total, totales.masa],
+      ]
+    : [];
 
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
@@ -66,9 +61,15 @@ const ReporteConsolidado = () => {
             <button type="button" className="btn btn-info btn-sm" onClick={cargar} disabled={cargando}>
               {cargando ? 'Actualizando…' : 'Actualizar'}
             </button>
-            <button type="button" className="btn btn-success btn-sm btn-form-nowrap" onClick={exportarExcel} disabled={filas.length === 0}>
-              Exportar Excel
-            </button>
+            <ExportacionAepgGrupo
+              subtitulo="Reporte: consolidado por departamento (activos, inactivos, masa salarial). Vista Reporte consolidado AEPG."
+              descripcion="Una fila por departamento más fila de totales empresa (suma de columnas numéricas)."
+              nombreBaseArchivo={`AEPG_reporte_consolidado_${new Date().toISOString().slice(0, 10)}`}
+              sheetName="Consolidado RRHH"
+              headers={headers}
+              dataRows={dataRows}
+              disabled={filas.length === 0}
+            />
           </>
         }
       />

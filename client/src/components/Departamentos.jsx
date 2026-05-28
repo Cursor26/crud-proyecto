@@ -1,11 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
 import ModuleTitleBar from './ModuleTitleBar';
 import AppSelect from './AppSelect';
+import { FormModal } from './FormModal';
+import ListSearchToolbar from './ListSearchToolbar';
+import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
+import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
 const Departamentos = () => {
+  const puedeEscribir = usePuedeEscribir();
   const [departamentos, setDepartamentos] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [nombre, setNombre] = useState('');
@@ -17,9 +23,12 @@ const Departamentos = () => {
 
   const [deptoAsignar, setDeptoAsignar] = useState('');
   const [carnetAsignar, setCarnetAsignar] = useState('');
+  const [showDeptoModal, setShowDeptoModal] = useState(false);
+  const [busqDepto, setBusqDepto] = useState('');
+  const [busqMiembros, setBusqMiembros] = useState('');
 
   const cargarDepartamentos = () => {
-    Axios.get('http://localhost:3001/departamentos')
+    Axios.get('/departamentos')
       .then((res) => setDepartamentos(res.data))
       .catch((err) => {
         console.error(err);
@@ -28,7 +37,7 @@ const Departamentos = () => {
   };
 
   const cargarEmpleados = () => {
-    Axios.get('http://localhost:3001/empleados')
+    Axios.get('/empleados')
       .then((res) => {
         const ordenados = [...res.data].sort((a, b) =>
           `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es')
@@ -52,8 +61,7 @@ const Departamentos = () => {
     setIdOriginal('');
   };
 
-  const handleSubmitDepto = (e) => {
-    e.preventDefault();
+  const guardarDepto = () => {
     if (!nombre.trim()) {
       Swal.fire('Atención', 'Indique el nombre del departamento.', 'warning');
       return;
@@ -65,20 +73,22 @@ const Departamentos = () => {
       activo: activo ? 1 : 0,
     };
     if (editando) {
-      Axios.put(`http://localhost:3001/update-departamento/${idOriginal}`, data)
+      Axios.put(`/update-departamento/${idOriginal}`, data)
         .then(() => {
           Swal.fire('Listo', 'Departamento actualizado', 'success');
           cargarDepartamentos();
           cargarEmpleados();
           limpiarFormDepto();
+          setShowDeptoModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     } else {
-      Axios.post('http://localhost:3001/create-departamento', data)
+      Axios.post('/create-departamento', data)
         .then(() => {
           Swal.fire('Listo', 'Departamento creado', 'success');
           cargarDepartamentos();
           limpiarFormDepto();
+          setShowDeptoModal(false);
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     }
@@ -91,6 +101,7 @@ const Departamentos = () => {
     setDescripcion(d.descripcion || '');
     setIdPadre(d.id_padre != null ? String(d.id_padre) : '');
     setActivo(d.activo == 1);
+    setShowDeptoModal(true);
   };
 
   const eliminarDepto = (d) => {
@@ -102,7 +113,7 @@ const Departamentos = () => {
       confirmButtonText: 'Sí, eliminar',
     }).then((r) => {
       if (r.isConfirmed) {
-        Axios.delete(`http://localhost:3001/delete-departamento/${d.id_departamento}`)
+        Axios.delete(`/delete-departamento/${d.id_departamento}`)
           .then(() => {
             Swal.fire('Eliminado', '', 'success');
             cargarDepartamentos();
@@ -118,11 +129,15 @@ const Departamentos = () => {
 
   const opcionesPadre = departamentos.filter((d) => !editando || String(d.id_departamento) !== String(idOriginal));
 
-  const idDeptoSeleccionado = deptoAsignar === '' ? null : Number(deptoAsignar);
-  const empleadosEnDepto =
-    idDeptoSeleccionado == null || Number.isNaN(idDeptoSeleccionado)
-      ? []
-      : empleados.filter((e) => Number(e.id_departamento) === idDeptoSeleccionado);
+  const idDeptoSeleccionado = useMemo(
+    () => (deptoAsignar === '' ? null : Number(deptoAsignar)),
+    [deptoAsignar]
+  );
+
+  const empleadosEnDepto = useMemo(() => {
+    if (idDeptoSeleccionado == null || Number.isNaN(idDeptoSeleccionado)) return [];
+    return empleados.filter((e) => Number(e.id_departamento) === idDeptoSeleccionado);
+  }, [empleados, idDeptoSeleccionado]);
 
   const asignarEmpleado = () => {
     if (!deptoAsignar) {
@@ -133,7 +148,7 @@ const Departamentos = () => {
       Swal.fire('Atención', 'Seleccione un empleado.', 'warning');
       return;
     }
-    Axios.post('http://localhost:3001/asignar-empleado-departamento', {
+    Axios.post('/asignar-empleado-departamento', {
       carnet_identidad: carnetAsignar,
       id_departamento: idDeptoSeleccionado,
     })
@@ -155,7 +170,7 @@ const Departamentos = () => {
       confirmButtonText: 'Sí',
     }).then((r) => {
       if (r.isConfirmed) {
-        Axios.post('http://localhost:3001/asignar-empleado-departamento', {
+        Axios.post('/asignar-empleado-departamento', {
           carnet_identidad: emp.carnet_identidad,
           id_departamento: null,
         })
@@ -177,76 +192,150 @@ const Departamentos = () => {
     return emp.departamento && String(emp.departamento).trim() ? emp.departamento : '—';
   };
 
+  const departamentosFiltrados = useMemo(() => {
+    const t = busqDepto.trim().toLowerCase();
+    if (!t) return departamentos;
+    return departamentos.filter((d) => {
+      const s = `${d.nombre} ${d.descripcion || ''} ${d.nombre_padre || ''} ${d.id_departamento}`.toLowerCase();
+      return s.includes(t);
+    });
+  }, [departamentos, busqDepto]);
+
+  const empleadosEnDeptoFiltrados = useMemo(() => {
+    const t = busqMiembros.trim().toLowerCase();
+    if (!t) return empleadosEnDepto;
+    return empleadosEnDepto.filter((e) => {
+      const s = `${e.carnet_identidad} ${e.nombre} ${e.apellidos} ${e.puesto}`.toLowerCase();
+      return s.includes(t);
+    });
+  }, [empleadosEnDepto, busqMiembros]);
+
+  const departamentosExportAepg = useMemo(() => {
+    const headers = ['ID', 'Nombre', 'Descripción', 'Departamento superior', 'N° empleados', 'Activo'];
+    const dataRows = departamentosFiltrados.map((d) => [
+      d.id_departamento,
+      d.nombre != null ? String(d.nombre) : '—',
+      d.descripcion != null && d.descripcion !== '' ? String(d.descripcion) : '—',
+      d.nombre_padre != null && d.nombre_padre !== '' ? String(d.nombre_padre) : '—',
+      d.num_empleados != null && d.num_empleados !== '' ? String(d.num_empleados) : '0',
+      d.activo == 1 ? 'Sí' : 'No',
+    ]);
+    return { headers, dataRows };
+  }, [departamentosFiltrados]);
+
+  const deptoSeleccionadoLabel = useMemo(
+    () => (deptoAsignar === '' ? '' : (departamentos.find((d) => String(d.id_departamento) === String(deptoAsignar))?.nombre || '')),
+    [deptoAsignar, departamentos]
+  );
+
+  const miembrosDeptoExportAepg = useMemo(() => {
+    const headers = ['Carnet', 'Nombre y apellidos', 'Puesto'];
+    const dataRows = empleadosEnDeptoFiltrados.map((e) => [
+      e.carnet_identidad,
+      `${e.nombre || ''} ${e.apellidos || ''}`.trim() || '—',
+      e.puesto != null && e.puesto !== '' ? String(e.puesto) : '—',
+    ]);
+    return { headers, dataRows };
+  }, [empleadosEnDeptoFiltrados]);
+
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
-      <ModuleTitleBar title="Departamentos y personal" />
-
-      <div className="card shadow-sm border-0 p-4 mb-4">
-        <h6 className="mb-3">{editando ? 'Editar departamento' : 'Nuevo departamento'}</h6>
-        <form onSubmit={handleSubmitDepto}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label">Nombre</label>
+      <ModuleTitleBar
+        title="Departamentos y personal"
+        actions={
+          <div className="d-flex flex-wrap align-items-center gap-2">
+            <ExportacionAepgGrupo
+              tituloSistema={AEPG_TITULO_RRHH}
+              subtitulo="Reporte: catálogo de departamentos (árbol y conteo de empleados)."
+              descripcion="Listado filtrado de la tarjeta «Catálogo de departamentos»; coincide con búsqueda y columnas de la tabla (sin acciones)."
+              nombreBaseArchivo={`AEPG_departamentos_${new Date().toISOString().slice(0, 10)}`}
+              sheetName="Departamentos"
+              headers={departamentosExportAepg.headers}
+              dataRows={departamentosExportAepg.dataRows}
+              disabled={!departamentos.length}
+            />
+            <ExportacionAepgGrupo
+              tituloSistema={AEPG_TITULO_RRHH}
+              subtitulo={deptoSeleccionadoLabel ? `Empleados del departamento: ${deptoSeleccionadoLabel}` : 'Empleados del departamento seleccionado'}
+              descripcion="Registros de la lista inferior «Empleados en el departamento seleccionado», con el filtro de miembros aplicado. Elija un departamento arriba para habilitar."
+              nombreBaseArchivo={`AEPG_depto_${(deptoSeleccionadoLabel || 'miembros').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}`}
+              sheetName="Miembros"
+              headers={miembrosDeptoExportAepg.headers}
+              dataRows={miembrosDeptoExportAepg.dataRows}
+              disabled={!deptoAsignar || !empleadosEnDeptoFiltrados.length}
+            />
+          <button
+            type="button"
+            className="btn btn-primary btn-form-nowrap"
+            onClick={() => { limpiarFormDepto(); setShowDeptoModal(true); }}
+            disabled={!puedeEscribir}
+          >
+            + Departamento
+          </button>
+          </div>
+        }
+      />
+      <FormModal
+        show={showDeptoModal}
+        onHide={() => { setShowDeptoModal(false); limpiarFormDepto(); }}
+        title={editando ? 'Editar departamento' : 'Nuevo departamento'}
+        onPrimary={guardarDepto}
+        primaryLabel={editando ? 'Guardar' : 'Crear'}
+        primaryDisabled={!puedeEscribir}
+      >
+        <div className="row g-3">
+          <div className="col-md-4">
+            <label className="form-label">Nombre</label>
+            <input
+              type="text"
+              className="form-control"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              required
+              placeholder="Ej. Recursos Humanos"
+              disabled={editando}
+            />
+          </div>
+          <div className="col-md-4">
+            <label className="form-label">Departamento superior (opcional)</label>
+            <AppSelect className="form-select" value={idPadre} onChange={(e) => setIdPadre(e.target.value)}>
+              <option value="">— Ninguno (raíz) —</option>
+              {opcionesPadre.map((d) => (
+                <option key={d.id_departamento} value={d.id_departamento}>
+                  {d.nombre}
+                </option>
+              ))}
+            </AppSelect>
+          </div>
+          <div className="col-md-4 d-flex align-items-end">
+            <div className="form-check">
               <input
-                type="text"
-                className="form-control"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                required
-                placeholder="Ej. Recursos Humanos"
+                className="form-check-input"
+                type="checkbox"
+                id="activoDepto"
+                checked={activo}
+                onChange={(e) => setActivo(e.target.checked)}
               />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label">Departamento superior (opcional)</label>
-              <AppSelect className="form-select" value={idPadre} onChange={(e) => setIdPadre(e.target.value)}>
-                <option value="">— Ninguno (raíz) —</option>
-                {opcionesPadre.map((d) => (
-                  <option key={d.id_departamento} value={d.id_departamento}>
-                    {d.nombre}
-                  </option>
-                ))}
-              </AppSelect>
-            </div>
-            <div className="col-md-2 d-flex align-items-end">
-              <div className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="activoDepto"
-                  checked={activo}
-                  onChange={(e) => setActivo(e.target.checked)}
-                />
-                <label className="form-check-label" htmlFor="activoDepto">
-                  Activo
-                </label>
-              </div>
-            </div>
-            <div className="col-md-2 d-flex align-items-end gap-1 flex-wrap">
-              <button type="submit" className="btn btn-success btn-form-nowrap">
-                {editando ? 'Guardar' : 'Crear'}
-              </button>
-              {editando && (
-                <button type="button" className="btn btn-secondary btn-form-nowrap" onClick={limpiarFormDepto}>
-                  Cancelar
-                </button>
-              )}
-            </div>
-            <div className="col-12">
-              <label className="form-label">Descripción</label>
-              <textarea
-                className="form-control"
-                rows={2}
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-                placeholder="Funciones o alcance del departamento"
-              />
+              <label className="form-check-label" htmlFor="activoDepto">Activo</label>
             </div>
           </div>
-        </form>
-      </div>
+          <div className="col-12">
+            <label className="form-label">Descripción</label>
+            <textarea
+              className="form-control"
+              rows={2}
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Funciones o alcance del departamento"
+            />
+          </div>
+        </div>
+      </FormModal>
 
       <div className="card shadow-sm border-0 p-3 mb-4">
-        <h6 className="mb-3">Catálogo de departamentos</h6>
+        <h6 className="mb-2">Catálogo de departamentos</h6>
+        <ListSearchToolbar value={busqDepto} onChange={setBusqDepto} placeholder="Nombre, descripción, superior, ID…" />
+        <p className="small text-muted mb-2">Mostrando {departamentosFiltrados.length} de {departamentos.length}</p>
         <div className="table-responsive">
           <table className="table table-data-compact table-bordered table-striped table-sm align-middle mb-0">
             <thead className="table-light">
@@ -259,14 +348,14 @@ const Departamentos = () => {
               </tr>
             </thead>
             <tbody>
-              {departamentos.length === 0 ? (
+              {departamentosFiltrados.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center text-muted py-4">
-                    No hay departamentos. Cree el primero con el formulario superior.
+                    No hay departamentos con los criterios indicados.
                   </td>
                 </tr>
               ) : (
-                departamentos.map((d) => (
+                departamentosFiltrados.map((d) => (
                   <tr key={d.id_departamento}>
                     <td>
                       <strong>{d.nombre}</strong>
@@ -280,10 +369,10 @@ const Departamentos = () => {
                     <td>{d.num_empleados != null ? d.num_empleados : 0}</td>
                     <td>{d.activo == 1 ? 'Sí' : 'No'}</td>
                     <td>
-                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarDepto(d)}>
+                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarDepto(d)} disabled={!puedeEscribir}>
                         Editar
                       </button>
-                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarDepto(d)}>
+                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarDepto(d)} disabled={!puedeEscribir}>
                         Eliminar
                       </button>
                     </td>
@@ -321,7 +410,7 @@ const Departamentos = () => {
             </AppSelect>
           </div>
           <div className="col-12 col-md-3 d-grid d-md-flex justify-content-md-end">
-            <button type="button" className="btn btn-success btn-form-nowrap" onClick={asignarEmpleado}>
+            <button type="button" className="btn btn-success btn-form-nowrap" onClick={asignarEmpleado} disabled={!puedeEscribir}>
               Asignar
             </button>
           </div>
@@ -329,46 +418,55 @@ const Departamentos = () => {
 
         <h6 className="mb-2">Empleados en el departamento seleccionado</h6>
         {!deptoAsignar ? null : (
-          <div className="table-responsive">
-            <table className="table table-data-compact table-bordered table-sm align-middle mb-0">
-              <thead className="table-light">
-                <tr>
-                  <th>Carnet</th>
-                  <th>Nombre</th>
-                  <th>Puesto</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {empleadosEnDepto.length === 0 ? (
+          <>
+            <ListSearchToolbar
+              value={busqMiembros}
+              onChange={setBusqMiembros}
+              placeholder="Filtrar por carnet, nombre o puesto en esta lista…"
+            />
+            <p className="small text-muted mb-2">Mostrando {empleadosEnDeptoFiltrados.length} de {empleadosEnDepto.length}</p>
+            <div className="table-responsive">
+              <table className="table table-data-compact table-bordered table-sm align-middle mb-0">
+                <thead className="table-light">
                   <tr>
-                    <td colSpan={4} className="text-center text-muted py-3">
-                      Ningún empleado asignado a este departamento.
-                    </td>
+                    <th>Carnet</th>
+                    <th>Nombre</th>
+                    <th>Puesto</th>
+                    <th>Acciones</th>
                   </tr>
-                ) : (
-                  empleadosEnDepto.map((emp) => (
-                    <tr key={emp.carnet_identidad}>
-                      <td>{emp.carnet_identidad}</td>
-                      <td>
-                        {emp.nombre} {emp.apellidos}
-                      </td>
-                      <td>{emp.puesto || '—'}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-warning"
-                          onClick={() => quitarEmpleadoDepto(emp)}
-                        >
-                          Quitar del departamento
-                        </button>
+                </thead>
+                <tbody>
+                  {empleadosEnDeptoFiltrados.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="text-center text-muted py-3">
+                        Ningún empleado con el filtro indicado.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    empleadosEnDeptoFiltrados.map((emp) => (
+                      <tr key={emp.carnet_identidad}>
+                        <td>{emp.carnet_identidad}</td>
+                        <td>
+                          {emp.nombre} {emp.apellidos}
+                        </td>
+                        <td>{emp.puesto || '—'}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-warning"
+                            onClick={() => quitarEmpleadoDepto(emp)}
+                            disabled={!puedeEscribir}
+                          >
+                            Quitar del departamento
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>
