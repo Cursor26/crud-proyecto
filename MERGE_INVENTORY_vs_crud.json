@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-05-19T15:39:03.030Z",
+  "baseDir": "c:\\crud-unificado",
+  "otherDir": "c:\\crud",
+  "counts": {
+    "onlyBase": 5,
+    "onlyOther": 1,
+    "different": 4,
+    "identical": 138
+  },
+  "onlyBase": [
+    "client/.env.local",
+    "MERGE_DECISIONS.md",
+    "MERGE_INVENTORY.json",
+    "MERGE_INVENTORY_vs_companero.json",
+    "MERGE_POLICY.md"
+  ],
+  "onlyOther": [
+    "scripts/assemble-unificado-index.js"
+  ],
+  "different": [
+    "server/index.js",
+    "client/src/components/GestionUsuarios.jsx",
+    "server/package.json",
+    "server/.env.example"
+  ]
+}

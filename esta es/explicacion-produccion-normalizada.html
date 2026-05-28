@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Producción normalizada — bd_crud</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #1a2332;
+      --muted: #5a6b7d;
+      --accent: #2e5090;
+      --border: #d8e2ef;
+      --ok: #0d7a4a;
+      --warn: #b45309;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 16px;
+    }
+    .wrap {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+    }
+    header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 2px solid var(--accent);
+    }
+    h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.65rem;
+      color: var(--accent);
+    }
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    h2 {
+      margin: 2rem 0 0.75rem;
+      font-size: 1.2rem;
+      color: var(--accent);
+    }
+    h3 {
+      margin: 1.25rem 0 0.5rem;
+      font-size: 1.05rem;
+    }
+    p { margin: 0.6rem 0; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      margin: 1rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    }
+    .lead {
+      font-size: 1.05rem;
+      border-left: 4px solid var(--accent);
+      padding-left: 1rem;
+      margin: 1rem 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      margin: 0.75rem 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.65rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #e8eef7;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    code, .mono {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.88em;
+      background: #eef2f7;
+      padding: 0.12em 0.35em;
+      border-radius: 3px;
+    }
+    pre {
+      background: #1e2936;
+      color: #e8eef7;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      margin: 0.75rem 0;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+    ul { margin: 0.5rem 0; padding-left: 1.35rem; }
+    li { margin: 0.35rem 0; }
+    .diagram {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+    .box {
+      background: #e8eef7;
+      border: 1px solid var(--accent);
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .arrow { color: var(--muted); font-weight: bold; }
+    .summary {
+      background: #e8f5ee;
+      border: 1px solid #a8d4bc;
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      margin-top: 2rem;
+    }
+    .summary strong { color: var(--ok); }
+    footer {
+      margin-top: 2.5rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    @media print {
+      body { background: #fff; }
+      .wrap { max-width: 100%; }
+      .card { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>¿Dónde están leche, matadero y sacrificio?</h1>
+      <p class="subtitle">Explicación del módulo de producción — base de datos <code>bd_crud</code> normalizada (3FN)</p>
+    </header>
+
+    <p class="lead">
+      Los datos <strong>no desaparecieron</strong>. Ya no viven en tres tablas anchas llamadas
+      <code>leche</code>, <code>matadero_vivo</code> y <code>sacrificio_vacuno</code>, sino en un modelo
+      <strong>normalizado en filas</strong> (entidad–atributo–valor).
+    </p>
+
+    <h2>1. Antes (esquema original)</h2>
+    <p>Cada módulo era <strong>una tabla con muchísimas columnas</strong> y <strong>una fila por fecha</strong>:</p>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Tabla antigua</th>
+            <th>Qué guardaba</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>sacrificio_vacuno</code></td>
+            <td>Un día de sacrificio + columnas como <code>terneras_Cab</code>, <code>vacas_Cbz_1ra</code>, <code>total1_Cab</code>, etc.</td>
+          </tr>
+          <tr>
+            <td><code>matadero_vivo</code></td>
+            <td>Lo mismo, pero con datos de matadero vivo.</td>
+          </tr>
+          <tr>
+            <td><code>leche</code></td>
+            <td>Un día de leche + columnas como <code>Zenea_Acopio</code>, <code>Rosafe_TOTAL</code>, <code>total1_Acopio</code>, etc.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      Ese diseño concentraba cientos de columnas en una sola tabla por módulo. Los campos
+      <code>total1_*</code>, <code>total2_*</code>, etc. repetían información que se puede calcular a partir de otros valores.
+    </p>
+
+    <h2>2. Ahora (dónde está “la pelota” de datos)</h2>
+    <p>
+      Las <strong>tres áreas de negocio siguen existiendo</strong>, pero como <strong>módulos</strong> en
+      <code>prod_modulo</code>, no como tablas físicas separadas:
+    </p>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>id_modulo</th>
+            <th>codigo</th>
+            <th>nombre</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><code>sacrificio</code></td><td>Sacrificio vacuno</td></tr>
+          <tr><td>2</td><td><code>matadero</code></td><td>Matadero vivo</td></tr>
+          <tr><td>3</td><td><code>leche</code></td><td>Leche</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Los números se reparten en cuatro tablas relacionadas:</p>
+
+    <div class="diagram" aria-label="Flujo del modelo normalizado">
+      <div class="flow">
+        <span class="box">prod_modulo<br><small>sacrificio / matadero / leche</small></span>
+        <span class="arrow">→</span>
+        <span class="box">prod_registro<br><small>1 fila = módulo + fecha</small></span>
+        <span class="arrow">→</span>
+        <span class="box">prod_valor<br><small>valor numérico</small></span>
+        <span class="arrow">←</span>
+        <span class="box">prod_metrica<br><small>nombre de columna</small></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Tabla</th>
+            <th>Rol</th>
+            <th>Equivalente mental</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>prod_modulo</code></td>
+            <td>Catálogo de los 3 tipos</td>
+            <td>“¿Es leche, matadero o sacrificio?”</td>
+          </tr>
+          <tr>
+            <td><code>prod_registro</code></td>
+            <td><code>id_modulo</code> + <code>fecha</code> + auditoría</td>
+            <td>La <strong>fila del día</strong> (antes el encabezado de la tabla vieja)</td>
+          </tr>
+          <tr>
+            <td><code>prod_metrica</code></td>
+            <td><code>clave</code> = nombre de cada columna</td>
+            <td>El <strong>diccionario de columnas</strong> (<code>Nazareno_Acopio</code>, <code>aniojas_Cab</code>, …)</td>
+          </tr>
+          <tr>
+            <td><code>prod_valor</code></td>
+            <td><code>(id_registro, id_metrica, valor)</code></td>
+            <td><strong>Cada celda numérica</strong> de la planilla</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Ejemplo concreto</h3>
+    <ul>
+      <li><strong>Antes:</strong> en <code>leche</code>, fila <code>fecha = 2024-03-15</code>, columna <code>Zenea_Acopio = 120</code>.</li>
+      <li><strong>Ahora:</strong>
+        <ul>
+          <li><code>prod_registro</code>: módulo <code>leche</code> (id 3), fecha <code>2024-03-15</code> → un <code>id_registro</code>.</li>
+          <li><code>prod_metrica</code>: clave <code>Zenea_Acopio</code> → un <code>id_metrica</code>.</li>
+          <li><code>prod_valor</code>: ese <code>id_registro</code> + ese <code>id_metrica</code> → <code>valor = 120</code>.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <p>La migración desde el dump original hizo exactamente esa conversión:</p>
+    <pre><code>migrateProd('sacrificio_vacuno', 'sacrificio', 1);
+migrateProd('matadero_vivo',   'matadero',   2);
+migrateProd('leche',           'leche',      3);</code></pre>
+
+    <h2>3. ¿Y los totales (<code>total1_</code>, <code>total2_</code>, …)?</h2>
+    <p>
+      <strong>No se guardan en la base de datos.</strong> Se calculan al leer en el servidor (igual que en el frontend),
+      a partir de las métricas “reales”. Solo se persisten las claves que no son categorías totalizadoras
+      (<code>total1</code>, <code>total2</code>, <code>total3</code>, <code>total</code>, etc.).
+    </p>
+
+    <h2>4. ¿El frontend sigue viendo lo mismo?</h2>
+    <p><strong>Sí.</strong> Las rutas de la API no cambiaron de nombre para el usuario:</p>
+    <ul>
+      <li><code>/leche</code>, <code>/create-leche</code>, …</li>
+      <li><code>/matadero</code>, …</li>
+      <li><code>/sacrificio</code>, …</li>
+    </ul>
+    <p>
+      El backend, al guardar, <strong>descompone</strong> el objeto ancho en <code>prod_registro</code> + <code>prod_valor</code>.
+      Al listar, <strong>vuelve a armar</strong> el mismo JSON con todas las claves (incluidos totales calculados).
+      Para quien usa la aplicación, la planilla es la misma; solo cambió la forma de persistir en MySQL.
+    </p>
+
+    <h2>5. Histórico de cambios</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Antes</th>
+            <th>Ahora</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>produccion_historico</code> con JSON en <code>datos_json</code></td>
+            <td>
+              <code>historico_produccion</code> (cabecera: módulo, fecha, acción, usuario)<br>
+              + <code>historico_produccion_valor</code> (mismas métricas que <code>prod_valor</code>, fila a fila)
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>El modal del historial en el frontend sigue recibiendo un objeto <code>datos</code> reconstruido por el backend.</p>
+
+    <div class="summary">
+      <h2 style="margin-top:0;">Resumen en una frase</h2>
+      <p>
+        <strong><code>leche</code>, <code>matadero_vivo</code> y <code>sacrificio_vacuno</code> no se borraron como conceptos:</strong>
+        pasaron a ser <code>id_modulo</code> 1, 2 y 3 en <code>prod_modulo</code>, y cada columna numérica de esas tablas
+        antiguas es ahora una o más filas en <code>prod_valor</code>, enlazadas por <code>prod_metrica</code>.
+      </p>
+    </div>
+
+    <footer>
+      <p>Documento generado para el proyecto CRUD unificado — carpeta <code>esta es/</code>.</p>
+      <p>Ver también: <a href="explicacion-modulos-normalizados.html">Usuarios, contratación y RRHH</a> · <code>bd_crud_normalizada.sql</code> · <code>server/db/produccionNorm.js</code> · <code>imagenes/MODELO_BD_COMPLETO.png</code></p>
+    </footer>
+  </div>
+</body>
+</html>

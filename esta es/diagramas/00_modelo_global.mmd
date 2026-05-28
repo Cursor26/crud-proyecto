@@ -1,0 +1,37 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '14px'}}}%%
+flowchart TB
+    subgraph USUARIOS["Seguridad y usuarios"]
+        roles[(roles)]
+        usuarios[(usuarios)]
+        roles --> usuarios
+    end
+
+    subgraph CONTRATOS["Contratación"]
+        cat_cp[(catalogo_contraparte)]
+        cat_tc[(catalogo_tipo_contrato)]
+        contratos[(contratos_generales)]
+        cat_cp --> contratos
+        cat_tc --> contratos
+    end
+
+    subgraph RRHH["Recursos Humanos"]
+        dept[(departamentos)]
+        emp[(empleados)]
+        dept --> emp
+        emp --> rrhh1["asistencias, cursos, salarios, vacaciones..."]
+        emp --> rrhhN["historial, turnos, sanciones, grupos..."]
+    end
+
+    subgraph PROD["Producción normalizada"]
+        mod[(prod_modulo)]
+        reg[(prod_registro)]
+        met[(prod_metrica)]
+        val[(prod_valor)]
+        mod --> reg
+        reg --> val
+        met --> val
+    end
+
+    USUARIOS ~~~ CONTRATOS
+    CONTRATOS ~~~ RRHH
+    RRHH ~~~ PROD

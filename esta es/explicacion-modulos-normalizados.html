@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Usuarios, contratación y RRHH — bd_crud</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #1a2332;
+      --muted: #5a6b7d;
+      --accent: #2e5090;
+      --usuarios: #1a5f8a;
+      --contratos: #0d6b4a;
+      --rrhh: #8b4513;
+      --border: #d8e2ef;
+      --ok: #0d7a4a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 16px;
+    }
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+    }
+    header {
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 2px solid var(--accent);
+    }
+    h1 { margin: 0 0 0.35rem; font-size: 1.65rem; color: var(--accent); }
+    .subtitle { margin: 0; color: var(--muted); font-size: 0.95rem; }
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1.1rem;
+      margin: 1.25rem 0 2rem;
+      font-size: 0.95rem;
+    }
+    nav.toc a { color: var(--accent); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    nav.toc ul { margin: 0.4rem 0 0; padding-left: 1.25rem; }
+    nav.toc li { margin: 0.25rem 0; }
+    h2 {
+      margin: 2.5rem 0 0.75rem;
+      font-size: 1.25rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 3px solid var(--accent);
+    }
+    h2.sec-usuarios { border-color: var(--usuarios); color: var(--usuarios); }
+    h2.sec-contratos { border-color: var(--contratos); color: var(--contratos); }
+    h2.sec-rrhh { border-color: var(--rrhh); color: var(--rrhh); }
+    h3 { margin: 1.25rem 0 0.5rem; font-size: 1.05rem; }
+    p { margin: 0.6rem 0; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      margin: 1rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    }
+    .lead {
+      font-size: 1.05rem;
+      border-left: 4px solid var(--accent);
+      padding-left: 1rem;
+      margin: 1rem 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      margin: 0.75rem 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.6rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #e8eef7; font-weight: 600; }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.88em;
+      background: #eef2f7;
+      padding: 0.12em 0.35em;
+      border-radius: 3px;
+    }
+    ul { margin: 0.5rem 0; padding-left: 1.35rem; }
+    li { margin: 0.35rem 0; }
+    .diagram {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+    .flow { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: center; align-items: center; }
+    .box {
+      background: #e8eef7;
+      border: 1px solid #7a9bc4;
+      padding: 0.35rem 0.55rem;
+      border-radius: 4px;
+      line-height: 1.3;
+    }
+    .arrow { color: var(--muted); font-weight: bold; }
+    .tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.45rem;
+      border-radius: 3px;
+      margin-right: 0.25rem;
+    }
+    .tag-pk { background: #fde8e8; color: #a00; }
+    .tag-fk { background: #e8f0fd; color: #06c; }
+    .tag-calc { background: #fff3e0; color: var(--warn, #b45309); }
+    .summary {
+      background: #e8f5ee;
+      border: 1px solid #a8d4bc;
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      margin-top: 2rem;
+    }
+    .pill-list { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0; }
+    .pill {
+      background: #f0f4f8;
+      border: 1px solid var(--border);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-family: Consolas, monospace;
+    }
+    footer { margin-top: 2.5rem; font-size: 0.85rem; color: var(--muted); }
+    @media print {
+      body { background: #fff; }
+      nav.toc { break-after: avoid; }
+      h2 { break-before: page; }
+      h2:first-of-type { break-before: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Usuarios, contratación y RRHH</h1>
+      <p class="subtitle">Cómo quedó cada módulo en <code>bd_crud</code> normalizada — complemento del documento de producción</p>
+    </header>
+
+    <p class="lead">
+      Estos tres bloques <strong>no desaparecieron</strong>: se reorganizaron para cumplir 3FN (sin repetir textos de catálogo en cada fila,
+      sin claves “sueltas” como <code>id_tabla</code>, sin columnas calculadas guardadas en disco).
+      El frontend sigue hablando casi igual; el backend traduce entre la forma antigua y las tablas nuevas.
+    </p>
+
+    <nav class="toc" aria-label="Índice">
+      <strong>En este documento</strong>
+      <ul>
+        <li><a href="#usuarios">1. Usuarios y seguridad</a></li>
+        <li><a href="#contratacion">2. Contratación</a></li>
+        <li><a href="#rrhh">3. Recursos Humanos</a></li>
+      </ul>
+      <p style="margin:0.6rem 0 0;"><strong>Relacionado:</strong> <a href="explicacion-produccion-normalizada.html">Producción (leche, matadero, sacrificio)</a></p>
+    </nav>
+
+    <!-- USUARIOS -->
+    <h2 id="usuarios" class="sec-usuarios">1. Usuarios y seguridad</h2>
+
+    <h3>Antes</h3>
+    <p>La tabla <code>usuarios</code> guardaba el rol como <strong>texto</strong> en la columna <code>rol</code> (admin, rrhh, contratacion, …). Cada fila repetía el mismo literal; si cambiabas el nombre del perfil, había que tocar muchas filas.</p>
+
+    <h3>Ahora — 3 tablas</h3>
+    <div class="diagram">
+      <div class="flow">
+        <span class="box"><strong>roles</strong><br><small>catálogo de perfiles</small></span>
+        <span class="arrow">1 → N</span>
+        <span class="box"><strong>usuarios</strong><br><small>cuentas de acceso</small></span>
+        <span class="arrow">1 → N</span>
+        <span class="box"><strong>password_reset_tokens</strong><br><small>recuperar contraseña</small></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Tabla</th><th>Qué guarda</th><th>Clave</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>roles</code></td>
+            <td>Perfiles del sistema: admin, rrhh, contratacion, produccion, estadistica, director</td>
+            <td><span class="tag tag-pk">PK</span> <code>id_rol</code> · <code>codigo</code> único</td>
+          </tr>
+          <tr>
+            <td><code>usuarios</code></td>
+            <td>Email, nombre, contraseña (bcrypt), si está activo, auditoría</td>
+            <td><span class="tag tag-pk">PK</span> <code>email</code> · <span class="tag tag-fk">FK</span> <code>id_rol</code> → <code>roles</code></td>
+          </tr>
+          <tr>
+            <td><code>password_reset_tokens</code></td>
+            <td>Tokens temporales para “olvidé mi contraseña” (hash, vencimiento, IP)</td>
+            <td><span class="tag tag-pk">PK</span> <code>id</code> · email indexado (sin FK obligatoria)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Ejemplo mental</h3>
+    <ul>
+      <li><strong>Antes:</strong> <code>usuarios.rol = 'rrhh'</code> (texto en cada usuario).</li>
+      <li><strong>Ahora:</strong> fila en <code>roles</code> con <code>codigo = 'rrhh'</code> → <code>usuarios.id_rol = 2</code>.</li>
+    </ul>
+
+    <h3>¿El login y la app ven lo mismo?</h3>
+    <p><strong>Sí.</strong> Al autenticar o listar usuarios, el backend hace JOIN y devuelve <code>rol</code> como código de texto (igual que antes):</p>
+    <p><code>SELECT … r.codigo AS rol FROM usuarios u INNER JOIN roles r ON r.id_rol = u.id_rol</code></p>
+    <p>Al crear o editar un usuario, envías <code>rol: "rrhh"</code> en el JSON; el servidor lo convierte a <code>id_rol</code> internamente.</p>
+
+    <div class="card" style="border-left: 4px solid var(--usuarios);">
+      <strong>Resumen usuarios:</strong> el concepto “rol” pasó de columna repetida a tabla catálogo <code>roles</code>; los datos de cuenta siguen en <code>usuarios</code>.
+    </div>
+
+    <!-- CONTRATACION -->
+    <h2 id="contratacion" class="sec-contratos">2. Contratación</h2>
+
+    <h3>Antes</h3>
+    <p>En <code>contratos_generales</code> convivían varios problemas de normalización:</p>
+    <ul>
+      <li><code>proveedor_cliente</code> como número suelto (0 = cliente, 1 = proveedor) sin tabla de dominio.</li>
+      <li><code>tipo_contrato</code> como <strong>texto libre</strong> repetido en cada contrato (“Compra”, “Servicio”, …).</li>
+      <li><code>vencido</code> guardado en BD aunque depende solo de <code>fecha_fin</code> y la fecha de hoy.</li>
+    </ul>
+
+    <h3>Ahora — catálogos + contrato</h3>
+    <div class="diagram">
+      <div class="flow">
+        <span class="box"><strong>catalogo_tipo_contraparte</strong></span>
+        <span class="arrow">→</span>
+        <span class="box"><strong>contratos_generales</strong></span>
+        <span class="arrow">←</span>
+        <span class="box"><strong>catalogo_tipo_contrato</strong></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Tabla</th><th>Qué guarda</th><th>Notas</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>catalogo_tipo_contraparte</code></td>
+            <td>Cliente (código 0) y Proveedor (código 1), compatibles con el valor antiguo</td>
+            <td>Evita repetir el significado del 0/1 en cada fila</td>
+          </tr>
+          <tr>
+            <td><code>catalogo_tipo_contrato</code></td>
+            <td>Tipos únicos: Compra, Servicio, Arrendamiento, … (se crean al migrar según los textos que ya existían)</td>
+            <td>Un nombre → un <code>id_tipo_contrato</code></td>
+          </tr>
+          <tr>
+            <td><code>contratos_generales</code></td>
+            <td>Número de contrato, empresa, correo, suplementos, vigencia, fechas</td>
+            <td><span class="tag tag-pk">PK</span> <code>numero_contrato</code> · <span class="tag tag-fk">FK</span> <code>id_contraparte</code>, <code>id_tipo_contrato</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Campos que ya no están en la tabla física</h3>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>En la API / pantalla (igual que antes)</th><th>En MySQL ahora</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>proveedor_cliente</code> (0 o 1)</td>
+            <td><code>id_contraparte</code> → el backend expone otra vez <code>proveedor_cliente</code> con JOIN al catálogo</td>
+          </tr>
+          <tr>
+            <td><code>tipo_contrato</code> (texto)</td>
+            <td><code>id_tipo_contrato</code> → el SELECT devuelve el <code>nombre</code> del catálogo como <code>tipo_contrato</code></td>
+          </tr>
+          <tr>
+            <td><code>vencido</code> (0/1)</td>
+            <td><span class="tag tag-calc">Calculado</span> en consulta: <code>fecha_fin &lt; CURDATE()</code> — no se guarda</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Ejemplo mental</h3>
+    <ul>
+      <li><strong>Antes:</strong> contrato X con <code>proveedor_cliente = 1</code>, <code>tipo_contrato = 'Compra'</code>, <code>vencido = 1</code>.</li>
+      <li><strong>Ahora:</strong> misma fila con <code>id_contraparte = 2</code> (proveedor), <code>id_tipo_contrato = 3</code> (id de “Compra” en catálogo); al listar, la API arma otra vez los tres campos “viejos”.</li>
+    </ul>
+
+    <div class="card" style="border-left: 4px solid var(--contratos);">
+      <strong>Resumen contratación:</strong> los contratos siguen en <code>contratos_generales</code>; lo que cambió es que cliente/proveedor y tipo de contrato apuntan a catálogos, y <code>vencido</code> se calcula al vuelo.
+    </div>
+
+    <!-- RRHH -->
+    <h2 id="rrhh" class="sec-rrhh">3. Recursos Humanos</h2>
+
+    <h3>Antes — el eje era <code>id_tabla</code></h3>
+    <p>Muchas tablas de RRHH usaban <code>id_tabla</code> (a veces el carnet, a veces un identificador interno) <strong>sin FK formal</strong> a <code>empleados</code>. Además:</p>
+    <ul>
+      <li><code>cargos</code> tenía <code>departamento</code> en texto libre.</li>
+      <li><code>empleados</code> mezclaba datos con textos largos duplicados (cursos, certificados en columnas).</li>
+      <li><code>segseguridad</code> concentraba varios accidentes/incidencias en columnas de una sola fila (grupos repetitivos).</li>
+    </ul>
+
+    <h3>Ahora — el eje es <code>empleados.carnet_identidad</code></h3>
+    <p>Toda persona trabajadora vive en <code>empleados</code> (PK = carnet de 11 caracteres). El resto de tablas enlazan con <span class="tag tag-fk">FK</span> <code>carnet_identidad</code>.</p>
+
+    <h3>3.1 Núcleo organizacional</h3>
+    <div class="diagram">
+      <div class="flow">
+        <span class="box"><strong>departamentos</strong><br><small>jerarquía id_padre</small></span>
+        <span class="arrow">→</span>
+        <span class="box"><strong>cargos</strong></span>
+        <span class="arrow">→</span>
+        <span class="box"><strong>empleados</strong></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Tabla</th><th>Rol</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>departamentos</code></td><td>Estructura de la empresa; un departamento puede tener padre (<code>id_padre</code>)</td></tr>
+          <tr><td><code>cargos</code></td><td>Puestos tipo con salario base; <code>id_departamento</code> FK (antes texto suelto)</td></tr>
+          <tr><td><code>empleados</code></td><td>Datos personales y laborales básicos; <code>id_departamento</code> FK</td></tr>
+          <tr><td><code>historial_laboral</code></td><td>Auditoría de cambios de puesto, departamento o salario (varias filas por empleado)</td></tr>
+          <tr><td><code>licencias_empleado</code></td><td>Licencias (varias por carnet)</td></tr>
+          <tr><td><code>turnos_trabajo</code></td><td>Turnos asignados (varias filas por empleado)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>3.2 Módulos “uno por empleado” (relación 1:1)</h3>
+    <p>Cada tabla tiene <code>UNIQUE(carnet_identidad)</code>: como máximo <strong>una fila</strong> por trabajador. Es el mismo concepto que antes tenías en pantallas separadas (asistencia, cursos, evaluaciones, etc.).</p>
+    <div class="pill-list" aria-label="Tablas 1:1">
+      <span class="pill">asistencias</span>
+      <span class="pill">certificaciones</span>
+      <span class="pill">cursos</span>
+      <span class="pill">evalcapacitacion</span>
+      <span class="pill">evaluaciones</span>
+      <span class="pill">objetivos</span>
+      <span class="pill">salarios</span>
+      <span class="pill">seguridad</span>
+      <span class="pill">vacaciones</span>
+      <span class="pill">segseguridad</span>
+    </div>
+    <p>En consultas SQL del backend, muchas rutas siguen devolviendo el alias <code>id_tabla</code> = <code>carnet_identidad</code> para que el frontend no cambie.</p>
+
+    <h3>3.3 Seguridad industrial descompuesta</h3>
+    <p>Antes: varias columnas de accidentes en una fila de <code>segseguridad</code>. Ahora:</p>
+    <ul>
+      <li><code>segseguridad</code> — cabecera por empleado (carnet).</li>
+      <li><code>segseguridad_incidencia</code> — <strong>una fila por incidencia</strong> (cantidad, descripción, orden).</li>
+    </ul>
+    <p>Eso cumple 1FN: no hay “accidente1, accidente2, accidente3” en la misma fila.</p>
+
+    <h3>3.4 Varios registros por empleado (1:N)</h3>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Tabla</th><th>Qué almacena</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>cert_medicos</code></td><td>Certificados médicos</td></tr>
+          <tr><td><code>eval_medicas</code></td><td>Evaluaciones médicas</td></tr>
+          <tr><td><code>sanciones_empleado</code></td><td>Sanciones</td></tr>
+          <tr><td><code>reconocimientos_empleado</code></td><td>Reconocimientos / estímulos</td></tr>
+          <tr><td><code>jubilaciones_empleado</code></td><td>Jubilaciones y salidas</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>3.5 Grupos de trabajo</h3>
+    <div class="diagram">
+      <div class="flow">
+        <span class="box"><strong>grupos_trabajo</strong></span>
+        <span class="arrow">N:M</span>
+        <span class="box"><strong>grupo_miembros</strong></span>
+        <span class="arrow">↔</span>
+        <span class="box"><strong>empleados</strong></span>
+      </div>
+      <div class="flow" style="margin-top:0.6rem;">
+        <span class="box"><strong>asistencia_grupal</strong></span>
+        <span class="arrow">← por grupo y fecha</span>
+        <span class="box"><strong>grupos_trabajo</strong></span>
+      </div>
+    </div>
+    <ul>
+      <li><code>grupo_miembros</code>: quién pertenece a qué grupo (PK compuesta grupo + carnet).</li>
+      <li><code>asistencia_grupal</code>: control de asistencia del grupo en una fecha.</li>
+    </ul>
+
+    <h3>Mapa rápido: ¿dónde quedó cada cosa?</h3>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Concepto en la app</th><th>Dónde está ahora</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Ficha del empleado (nombre, puesto, departamento)</td><td><code>empleados</code> + <code>departamentos</code></td></tr>
+          <tr><td>Pantallas RRHH por “id de tabla” / carnet</td><td>Tablas 1:1 listadas arriba, FK <code>carnet_identidad</code></td></tr>
+          <tr><td>Accidentes / seg. industrial</td><td><code>segseguridad</code> + <code>segseguridad_incidencia</code></td></tr>
+          <tr><td>Grupos y asistencia grupal</td><td><code>grupos_trabajo</code>, <code>grupo_miembros</code>, <code>asistencia_grupal</code></td></tr>
+          <tr><td>Catálogo de cargos</td><td><code>cargos</code> (con departamento normalizado)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="border-left: 4px solid var(--rrhh);">
+      <strong>Resumen RRHH:</strong> no hay una sola tabla gigante; hay un <strong>hub</strong> (<code>empleados</code>) y satélites por tema. La clave de negocio unificada es el <strong>carnet</strong>, no <code>id_tabla</code> suelto.
+    </div>
+
+    <!-- CIERRE -->
+    <div class="summary">
+      <h2 style="margin-top:0;">Los tres módulos en una frase</h2>
+      <ul>
+        <li><strong>Usuarios:</strong> roles en catálogo; cuentas en <code>usuarios</code>; la API sigue enviando <code>rol</code> como texto.</li>
+        <li><strong>Contratación:</strong> contratos en <code>contratos_generales</code>; tipos y cliente/proveedor en catálogos; <code>vencido</code> calculado.</li>
+        <li><strong>RRHH:</strong> todo gira en torno a <code>empleados.carnet_identidad</code>; tablas por función; incidencias y grupos normalizados.</li>
+      </ul>
+      <p style="margin-bottom:0;">
+        <strong>Producción</strong> (leche, matadero, sacrificio) se explica aparte porque usa otro patrón (registro + métrica + valor).
+        Ver <a href="explicacion-produccion-normalizada.html">explicacion-produccion-normalizada.html</a>.
+      </p>
+    </div>
+
+    <footer>
+      <p>Proyecto CRUD unificado — carpeta <code>esta es/</code></p>
+      <p>Referencias: <code>bd_crud_normalizada.sql</code>, <code>MODELO_ENTIDAD_RELACION.md</code>, <code>imagenes/MODELO_BD_COMPLETO.png</code></p>
+    </footer>
+  </div>
+</body>
+</html>

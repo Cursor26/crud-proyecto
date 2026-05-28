@@ -1,0 +1,66 @@
+%% Modelo Entidad-Relación — bd_crud (vista global simplificada)
+%% Abrir en https://mermaid.live o VS Code con preview Mermaid
+
+erDiagram
+    %% === USUARIOS ===
+    roles ||--o{ usuarios : tiene
+    roles {
+        tinyint id_rol PK
+        varchar codigo UK
+        varchar nombre
+    }
+    usuarios {
+        varchar email PK
+        varchar nombre
+        varchar password
+        tinyint id_rol FK
+        tinyint activo
+    }
+
+    %% === CONTRATOS ===
+    catalogo_tipo_contraparte ||--o{ contratos_generales : ""
+    catalogo_tipo_contrato ||--o{ contratos_generales : ""
+    contratos_generales {
+        varchar numero_contrato PK
+        tinyint id_contraparte FK
+        varchar empresa
+        date fecha_fin
+    }
+
+    %% === RRHH NÚCLEO ===
+    departamentos ||--o{ empleados : ""
+    departamentos ||--o{ cargos : ""
+    empleados {
+        char carnet_identidad PK
+        varchar nombre
+        varchar apellidos
+        int id_departamento FK
+    }
+
+    %% === RRHH 1:1 (muestra) ===
+    empleados ||--o| asistencias : ""
+    empleados ||--o| salarios : ""
+    empleados ||--o| segseguridad : ""
+    segseguridad ||--|{ segseguridad_incidencia : ""
+
+    %% === GRUPOS ===
+    grupos_trabajo ||--o{ grupo_miembros : ""
+    empleados ||--o{ grupo_miembros : ""
+
+    %% === PRODUCCIÓN ===
+    prod_modulo ||--o{ prod_registro : ""
+    prod_registro ||--|{ prod_valor : ""
+    prod_metrica ||--o{ prod_valor : ""
+    prod_modulo ||--o{ historico_produccion : ""
+    historico_produccion ||--|{ historico_produccion_valor : ""
+
+    prod_registro {
+        bigint id_registro PK
+        date fecha
+        tinyint id_modulo FK
+    }
+    prod_valor {
+        bigint id_registro FK
+        smallint id_metrica FK
+        decimal valor
+    }

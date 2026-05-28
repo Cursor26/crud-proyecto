@@ -1,0 +1,22 @@
+erDiagram
+    departamentos ||--o{ departamentos : padre
+    departamentos ||--o{ cargos : agrupa
+    departamentos ||--o{ empleados : asigna
+    empleados ||--o{ historial_laboral : registra
+    empleados ||--o{ turnos_trabajo : turnos
+    departamentos {
+        int id_departamento PK
+        varchar nombre
+        int id_padre FK
+    }
+    empleados {
+        char carnet_identidad PK
+        varchar nombre
+        varchar apellidos
+        int id_departamento FK
+    }
+    cargos {
+        int id_cargo PK
+        varchar nombre UK
+        int id_departamento FK
+    }

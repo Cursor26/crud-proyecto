@@ -1,0 +1,30 @@
+Diagramas del modelo bd_crud (PNG)
+
+PRINCIPAL (una sola imagen, estilo Visual Paradigm):
+  MODELO_BD_COMPLETO.png   — Las 37 tablas con todos los atributos, tipos, PK/FK y relaciones
+  MODELO_BD_COMPLETO.svg   — Misma vista en vectorial (impresión / zoom sin pérdida)
+
+PARA LA TUTORA (doble clic → navegador):
+  MODELO_BD_COMPLETO.html  — Diagrama CON FLECHAS (como la imagen) + zoom + clic en tabla
+
+Regenerar HTML:
+  node "esta es/scripts/generar-modelo-html.mjs"
+
+Regenerar el modelo completo:
+  node "esta es/scripts/generar-modelo-completo.mjs"
+
+Fuente editable (Graphviz):
+  esta es/diagramas/MODELO_BD_COMPLETO.dot
+
+Diagramas por módulo (resumen, opcionales):
+  00_modelo_global.png     — Vista general por módulos
+  01_usuarios.png          — roles, usuarios, password_reset_tokens
+  02_contratos.png         — catálogos y contratos_generales
+  03_rrhh_nucleo.png       — departamentos, empleados, cargos, historial
+  04_rrhh_empleado.png     — tablas 1:1 por carnet + segseguridad_incidencia
+  05_rrhh_grupos.png       — grupos, miembros, salud, sanciones
+  06_produccion.png        — prod_registro, prod_valor, histórico normalizado
+
+Regenerar módulos (Mermaid):
+  node "esta es/scripts/export-diagramas-png.mjs"
+  esta es/diagramas/*.mmd

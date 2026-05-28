@@ -1,0 +1,21 @@
+erDiagram
+    roles ||--o{ usuarios : tiene
+    usuarios ||--o{ password_reset_tokens : solicita
+    roles {
+        tinyint id_rol PK
+        varchar codigo UK
+        varchar nombre
+    }
+    usuarios {
+        varchar email PK
+        varchar nombre
+        varchar password
+        tinyint id_rol FK
+        tinyint activo
+    }
+    password_reset_tokens {
+        bigint id PK
+        varchar email
+        char token_hash
+        datetime expires_at
+    }

@@ -1,0 +1,19 @@
+erDiagram
+    empleados ||--o| asistencias : ""
+    empleados ||--o| certificaciones : ""
+    empleados ||--o| cursos : ""
+    empleados ||--o| salarios : ""
+    empleados ||--o| vacaciones : ""
+    empleados ||--o| segseguridad : ""
+    segseguridad ||--|{ segseguridad_incidencia : incidencias
+    empleados {
+        char carnet_identidad PK
+        varchar nombre
+        varchar puesto
+    }
+    segseguridad_incidencia {
+        int id_incidencia PK
+        int id_seg FK
+        tinyint orden
+        int cantidad
+    }

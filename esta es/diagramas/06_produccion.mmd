@@ -1,0 +1,24 @@
+erDiagram
+    prod_modulo ||--o{ prod_registro : ""
+    prod_registro ||--|{ prod_valor : ""
+    prod_metrica ||--o{ prod_valor : ""
+    prod_modulo ||--o{ historico_produccion : ""
+    historico_produccion ||--|{ historico_produccion_valor : ""
+    prod_modulo {
+        tinyint id_modulo PK
+        varchar codigo UK
+    }
+    prod_registro {
+        bigint id_registro PK
+        date fecha
+        tinyint id_modulo FK
+    }
+    prod_valor {
+        bigint id_registro FK
+        smallint id_metrica FK
+        decimal valor
+    }
+    prod_metrica {
+        smallint id_metrica PK
+        varchar clave UK
+    }

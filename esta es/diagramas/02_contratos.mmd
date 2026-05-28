@@ -1,0 +1,19 @@
+erDiagram
+    catalogo_tipo_contraparte ||--o{ contratos_generales : clasifica
+    catalogo_tipo_contrato ||--o{ contratos_generales : tipifica
+    catalogo_tipo_contraparte {
+        tinyint id_contraparte PK
+        tinyint codigo UK
+        varchar nombre
+    }
+    catalogo_tipo_contrato {
+        smallint id_tipo_contrato PK
+        varchar nombre UK
+    }
+    contratos_generales {
+        varchar numero_contrato PK
+        tinyint id_contraparte FK
+        varchar empresa
+        date fecha_inicio
+        date fecha_fin
+    }

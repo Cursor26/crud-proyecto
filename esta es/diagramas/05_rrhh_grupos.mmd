@@ -1,0 +1,15 @@
+erDiagram
+    empleados ||--o{ cert_medicos : ""
+    empleados ||--o{ sanciones_empleado : ""
+    empleados ||--o{ reconocimientos_empleado : ""
+    grupos_trabajo ||--o{ grupo_miembros : ""
+    empleados ||--o{ grupo_miembros : ""
+    grupos_trabajo ||--o{ asistencia_grupal : ""
+    grupos_trabajo {
+        int id_grupo PK
+        varchar nombre
+    }
+    grupo_miembros {
+        int id_grupo PK_FK
+        char carnet_identidad PK_FK
+    }
