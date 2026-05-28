@@ -161,6 +161,7 @@ margin-top: 15px;
   z-index: 20;
   background: linear-gradient(180deg, #1c1c1c 0%, #141414 52%, #111111 100%) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
+  min-height: 0;
 }
 
 .dashboard-sidebar .dashboard-sidebar-divider {
@@ -255,13 +256,21 @@ margin-top: 15px;
   background-color: var(--dash-pink) !important;
   border-color: var(--dash-pink-deep) !important;
   margin-left: 1.35rem;
-  width: calc(100% - 1.35rem);
+  /*
+   * Debe coincidir con el ancho del sidebar (280px) menos padding lateral p-4 (3rem).
+   * Con Popper strategy:fixed, width:% referencia el viewport y rompe el layout — usar calc en px.
+   */
+  width: calc(280px - 3rem - 1.35rem);
+  max-width: calc(280px - 3rem - 1.35rem);
   min-width: 0;
-  /* Scroll interno: listas largas (p. ej. Rec. Humanos) sin salirse de la pantalla */
-  max-height: min(65vh, calc(100vh - 10rem));
+  /* Scroll interno + altura acotada al viewport (dvh/svh ayuda con barra de tareas del SO). */
+  max-height: min(62vh, calc(100dvh - 12rem), calc(100svh - 12rem));
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  padding-bottom: 12px;
+  scroll-padding-bottom: 14px;
+  box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.45) rgba(255, 255, 255, 0.08);
 }

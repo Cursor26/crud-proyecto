@@ -346,6 +346,7 @@ function GestionUsuarios() {
               <option value="contratacion">Contratación</option>
               <option value="admin">Administrador</option>
               <option value="produccion">Producción</option>
+              <option value="director">Director (solo consulta)</option>
             </AppSelect>
             {formErrors.rol ? <small className="text-danger">{formErrors.rol}</small> : null}
           </div>

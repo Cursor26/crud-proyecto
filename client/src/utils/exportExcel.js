@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 
 /**
- * RF20 — Exporta filas (array de objetos planos) a un archivo .xlsx
+ * RF20 — Exporta filas (array de objetos planos) a un archivo .xlsx (sin cabecera AEPG; usar exportAepgPlantilla para informes).
  */
 export function exportRowsToExcel(rows, sheetName, fileName) {
   if (!rows || rows.length === 0) return;
@@ -12,3 +12,16 @@ export function exportRowsToExcel(rows, sheetName, fileName) {
   const name = fileName && String(fileName).toLowerCase().endsWith('.xlsx') ? fileName : `${fileName || 'export'}.xlsx`;
   XLSX.writeFile(wb, name);
 }
+
+export {
+  exportarAepgTablaXLSX,
+  exportarAepgTablaXLS,
+  exportarAepgTablaCSV,
+  exportarAepgDesdeJson,
+  exportarAepgDesdeJsonXLS,
+  exportarAepgDesdeJsonCSV,
+  filasAoaDesdeJson,
+  AEPG_TITULO_RRHH,
+  AEPG_TITULO_PRODUCCION,
+  AEPG_TITULO_CONTRATOS,
+} from './exportAepgPlantilla';

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Axios from 'axios';
 import '../App.css';
 import Swal from 'sweetalert2';
@@ -6,8 +6,13 @@ import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
 import AppSelect from './AppSelect';
+import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
+import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
+import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
 const Sanciones = () => {
+  const puedeEscribir = usePuedeEscribir();
   const [registros, setRegistros] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [carnet, setCarnet] = useState('');
@@ -22,7 +27,7 @@ const Sanciones = () => {
   const [showSancionModal, setShowSancionModal] = useState(false);
 
   const getRegistros = () => {
-    Axios.get('http://localhost:3001/sanciones-empleado')
+    Axios.get('/sanciones-empleado')
       .then((res) => setRegistros(res.data))
       .catch((err) => {
         console.error(err);
@@ -31,7 +36,7 @@ const Sanciones = () => {
   };
 
   const getEmpleados = () => {
-    Axios.get('http://localhost:3001/empleados')
+    Axios.get('/empleados')
       .then((res) => {
         const ordenados = [...res.data].sort((a, b) =>
           `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es')
@@ -74,7 +79,7 @@ const Sanciones = () => {
       activo: activo ? 1 : 0,
     };
     if (editando) {
-      Axios.put(`http://localhost:3001/update-sancion-empleado/${idOriginal}`, data)
+      Axios.put(`/update-sancion-empleado/${idOriginal}`, data)
         .then(() => {
           Swal.fire('Listo', 'Sanción actualizada', 'success');
           getRegistros();
@@ -83,7 +88,7 @@ const Sanciones = () => {
         })
         .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
     } else {
-      Axios.post('http://localhost:3001/create-sancion-empleado', data)
+      Axios.post('/create-sancion-empleado', data)
         .then(() => {
           Swal.fire('Listo', 'Sanción registrada', 'success');
           getRegistros();
@@ -116,7 +121,7 @@ const Sanciones = () => {
       confirmButtonText: 'Sí, eliminar',
     }).then((res) => {
       if (res.isConfirmed) {
-        Axios.delete(`http://localhost:3001/delete-sancion-empleado/${r.id_sancion}`)
+        Axios.delete(`/delete-sancion-empleado/${r.id_sancion}`)
           .then(() => {
             Swal.fire('Eliminado', '', 'success');
             getRegistros();
@@ -126,15 +131,53 @@ const Sanciones = () => {
     });
   };
 
+  const sancionesExportAepg = useMemo(() => {
+    const headers = [
+      'ID',
+      'Fecha aplicación',
+      'Empleado',
+      'Carnet',
+      'Tipo',
+      'Motivo',
+      'Días suspensión',
+      'Observaciones',
+      'Activo',
+    ];
+    const dataRows = registros.map((r) => [
+      r.id_sancion,
+      r.fecha_aplicacion != null && r.fecha_aplicacion !== '' ? String(r.fecha_aplicacion) : '—',
+      `${r.nombre || ''} ${r.apellidos || ''}`.trim() || '—',
+      r.carnet_identidad != null ? String(r.carnet_identidad) : '—',
+      r.tipo_sancion != null ? String(r.tipo_sancion) : '—',
+      r.motivo != null ? String(r.motivo) : '—',
+      r.dias_suspension != null && r.dias_suspension !== '' ? String(r.dias_suspension) : '—',
+      r.observaciones != null && r.observaciones !== '' ? String(r.observaciones) : '—',
+      r.activo == 1 ? 'Sí' : 'No',
+    ]);
+    return { headers, dataRows };
+  }, [registros]);
+
   return (
     <div className="content-wrapper p-3" style={{ backgroundColor: '#f5f7fb', minHeight: '100vh' }}>
       <ModuleTitleBar
         title="Sanciones"
         actions={
-          <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowSancionModal(true); }}>
+          <>
+            <ExportacionAepgGrupo
+              tituloSistema={AEPG_TITULO_RRHH}
+              subtitulo="Reporte: sanciones disciplinarias."
+              descripcion="Todos los registros de sanciones con motivo y observaciones (información sensible — maneje con cuidado)."
+              nombreBaseArchivo={`AEPG_sanciones_${new Date().toISOString().slice(0, 10)}`}
+              sheetName="Sanciones"
+              headers={sancionesExportAepg.headers}
+              dataRows={sancionesExportAepg.dataRows}
+              disabled={!registros.length}
+            />
+          <button type="button" className="btn btn-primary btn-form-nowrap" disabled={!puedeEscribir} onClick={() => { limpiarForm(); setShowSancionModal(true); }}>
             <i className="bi bi-exclamation-octagon me-2" aria-hidden="true" />
             Registrar sanción
           </button>
+          </>
         }
       />
 
@@ -145,11 +188,12 @@ const Sanciones = () => {
         subtitle=""
         onPrimary={() => handleSubmit({ preventDefault: () => {} })}
         primaryLabel={editando ? 'Actualizar' : 'Guardar'}
+        primaryDisabled={!puedeEscribir}
       >
         <div className="minimal-form-stack">
           <div className="minimal-field">
             <label className="minimal-label">Empleado:</label>
-            <AppSelect className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)}>
+            <AppSelect className={`minimal-select ${carnet ? 'is-selected' : ''}`} value={carnet} onChange={(e) => setCarnet(e.target.value)} disabled={editando}>
               <option value="" disabled hidden>--- Seleccione ---</option>
               {empleados.map((emp) => (
                 <option key={emp.carnet_identidad} value={emp.carnet_identidad}>{emp.carnet_identidad} — {emp.nombre} {emp.apellidos}</option>
@@ -157,7 +201,7 @@ const Sanciones = () => {
             </AppSelect>
           </div>
           <div className="minimal-field"><label className="minimal-label">Tipo de sanción:</label><input type="text" className="minimal-input" placeholder="------------------------" value={tipoSancion} onChange={(e) => setTipoSancion(e.target.value)} /></div>
-          <div className="minimal-field"><label className="minimal-label">Fecha aplicación:</label><input type="date" className="minimal-input" value={fechaAplicacion} onChange={(e) => setFechaAplicacion(e.target.value)} /></div>
+          <div className="minimal-field"><label className="minimal-label">Fecha aplicación:</label><input type="date" className="minimal-input" value={fechaAplicacion} onChange={(e) => setFechaAplicacion(e.target.value)} disabled={editando} /></div>
           <div className="minimal-field"><label className="minimal-label">Días suspensión:</label><input type="number" min={0} className="minimal-input" placeholder="------------------------" value={diasSuspension} onChange={(e) => setDiasSuspension(e.target.value)} /></div>
           <div className="minimal-field"><label className="minimal-label">Motivo:</label><input type="text" className="minimal-input" placeholder="------------------------" value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
           <div className="minimal-field"><label className="minimal-label">Observaciones:</label><input type="text" className="minimal-input" placeholder="------------------------" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} /></div>
@@ -200,13 +244,9 @@ const Sanciones = () => {
                     <td style={{ maxWidth: 240, whiteSpace: 'pre-wrap' }}>{r.motivo}</td>
                     <td>{r.dias_suspension != null ? r.dias_suspension : '—'}</td>
                     <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
-                    <td>
-                      <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarRegistro(r)}>
-                        Editar
-                      </button>
-                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => eliminarRegistro(r)}>
-                        Eliminar
-                      </button>
+                    <td className="text-center">
+                      <EditTableActionButton onClick={() => editarRegistro(r)} className="me-1" />
+                      <DeleteTableActionButton onClick={() => eliminarRegistro(r)} />
                     </td>
                   </tr>
                 ))

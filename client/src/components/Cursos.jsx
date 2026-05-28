@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { useEmpleadosOptions } from '../hooks/useEmpleadosOptions';
@@ -7,38 +7,50 @@ import { EditTableActionButton, DeleteTableActionButton } from './TableActionIco
 import ModuleTitleBar from './ModuleTitleBar';
 import { fmtFechaTabla } from '../utils/formatDates';
 import AppSelect from './AppSelect';
+import { FormModal } from './FormModal';
+import ListSearchToolbar from './ListSearchToolbar';
+import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { CURSO_TIPOS } from '../constants/hrCatalogos';
+import ExportacionAepgGrupo from './ExportacionAepgGrupo';
+import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
 const Cursos = () => {
+    const puedeEscribir = usePuedeEscribir();
     const [registros, setRegistros] = useState([]);
     const [idTabla, setIdTabla] = useState('');
-    const [curso, setCurso] = useState('');
+    const [cursoSel, setCursoSel] = useState(CURSO_TIPOS[0]);
+    const [cursoOtro, setCursoOtro] = useState('');
     const [descr, setDescr] = useState('');
     const [logrado, setLogrado] = useState(false);
     const [fechaFin, setFechaFin] = useState('');
     const [editando, setEditando] = useState(false);
     const [idOriginal, setIdOriginal] = useState('');
+    const [showModal, setShowModal] = useState(false);
+    const [busq, setBusq] = useState('');
     const { empleados, nombrePorCarnet } = useEmpleadosOptions();
 
     const getRegistros = () => {
-        Axios.get('http://localhost:3001/cursos')
-            .then(res => {
-                // Asegurar que la fecha se muestre correctamente
-                const datos = res.data.map(item => ({
+        Axios.get('/cursos')
+            .then((res) => {
+                const datos = res.data.map((item) => ({
                     ...item,
-                    fech_fin_curso: item.fech_fin_curso ? item.fech_fin_curso.split('T')[0] : ''
+                    fech_fin_curso: item.fech_fin_curso ? item.fech_fin_curso.split('T')[0] : '',
                 }));
                 setRegistros(datos);
             })
-            .catch(err => console.error('Error al cargar:', err));
+            .catch((err) => console.error('Error al cargar:', err));
     };
 
     useEffect(() => {
         getRegistros();
     }, []);
 
+    const cursoNombre = () => (cursoSel === 'Otro' ? cursoOtro.trim() : cursoSel);
+
     const limpiarForm = () => {
         setIdTabla('');
-        setCurso('');
+        setCursoSel(CURSO_TIPOS[0]);
+        setCursoOtro('');
         setDescr('');
         setLogrado(false);
         setFechaFin('');
@@ -46,36 +58,35 @@ const Cursos = () => {
         setIdOriginal('');
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
+    const guardar = () => {
         if (!idTabla) {
-            Swal.fire('Error', 'El ID de tabla es obligatorio', 'warning');
+            Swal.fire('Error', 'El empleado es obligatorio', 'warning');
             return;
         }
-        const data = {
-            id_tabla: idTabla,
-            curso,
-            descr,
-            logrado,
-            fech_fin_curso: fechaFin || null
-        };
-
+        const curso = cursoNombre();
+        if (!curso) {
+            Swal.fire('Error', 'Indicá el curso o el texto en "Otro"', 'warning');
+            return;
+        }
+        const data = { id_tabla: idTabla, curso, descr, logrado, fech_fin_curso: fechaFin || null };
         if (editando) {
-            Axios.put(`http://localhost:3001/update-curso/${idOriginal}`, data)
+            Axios.put(`/update-curso/${idOriginal}`, data)
                 .then(() => {
                     Swal.fire('Actualizado', 'Registro actualizado', 'success');
                     getRegistros();
                     limpiarForm();
+                    setShowModal(false);
                 })
-                .catch(err => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
+                .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
         } else {
-            Axios.post('http://localhost:3001/create-curso', data)
+            Axios.post('/create-curso', data)
                 .then(() => {
                     Swal.fire('Creado', 'Registro creado', 'success');
                     getRegistros();
                     limpiarForm();
+                    setShowModal(false);
                 })
-                .catch(err => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
+                .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
         }
     };
 
@@ -83,10 +94,18 @@ const Cursos = () => {
         setEditando(true);
         setIdOriginal(reg.id_tabla);
         setIdTabla(String(reg.id_tabla ?? ''));
-        setCurso(reg.curso || '');
+        const t = reg.curso || '';
+        if (CURSO_TIPOS.filter((x) => x !== 'Otro').includes(t)) {
+            setCursoSel(t);
+            setCursoOtro('');
+        } else {
+            setCursoSel('Otro');
+            setCursoOtro(t);
+        }
         setDescr(reg.descr || '');
         setLogrado(reg.logrado === 1 || reg.logrado === true);
         setFechaFin(reg.fech_fin_curso || '');
+        setShowModal(true);
     };
 
     const eliminarRegistro = (id) => {
@@ -95,94 +114,66 @@ const Cursos = () => {
             text: `Se eliminará el registro con ID ${id}`,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Sí'
-        }).then(result => {
+            confirmButtonText: 'Sí',
+        }).then((result) => {
             if (result.isConfirmed) {
-                Axios.delete(`http://localhost:3001/delete-curso/${id}`)
+                Axios.delete(`/delete-curso/${id}`)
                     .then(() => {
                         Swal.fire('Eliminado', 'Registro eliminado', 'success');
                         getRegistros();
                     })
-                    .catch(err => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
+                    .catch((err) => Swal.fire('Error', err.response?.data?.message || err.message, 'error'));
             }
         });
     };
 
+    const filtrados = useMemo(() => {
+        const t = busq.trim().toLowerCase();
+        if (!t) return registros;
+        return registros.filter((reg) => {
+            const s = `${reg.id_tabla} ${reg.curso} ${reg.descr} ${reg.fech_fin_curso} ${nombrePorCarnet(reg.id_tabla) || ''}`.toLowerCase();
+            return s.includes(t);
+        });
+    }, [registros, busq, nombrePorCarnet]);
+
+    const cursosExportAepg = useMemo(() => {
+        const headers = ['Carnet', 'Empleado', 'Curso', 'Descripción', 'Logrado', 'Fecha fin curso'];
+        const dataRows = filtrados.map((reg) => [
+            reg.id_tabla,
+            nombrePorCarnet(reg.id_tabla) || '—',
+            reg.curso != null ? String(reg.curso) : '—',
+            reg.descr != null && reg.descr !== '' ? String(reg.descr) : '—',
+            reg.logrado === 1 || reg.logrado === true ? 'Sí' : 'No',
+            reg.fech_fin_curso != null && reg.fech_fin_curso !== '' ? String(reg.fech_fin_curso) : '—',
+        ]);
+        return { headers, dataRows };
+    }, [filtrados, nombrePorCarnet]);
+
     return (
         <div className="container-fluid px-0">
-            <ModuleTitleBar title="Gestión de Cursos" />
+            <ModuleTitleBar
+                title="Gestión de Cursos"
+                actions={
+                    <>
+                        <ExportacionAepgGrupo
+                            tituloSistema={AEPG_TITULO_RRHH}
+                            subtitulo="Reporte: cursos y formación de personal."
+                            descripcion="Listado filtrado: empleado, curso, descripción, finalización (sin acciones)."
+                            nombreBaseArchivo={`AEPG_cursos_${new Date().toISOString().slice(0, 10)}`}
+                            sheetName="Cursos"
+                            headers={cursosExportAepg.headers}
+                            dataRows={cursosExportAepg.dataRows}
+                            disabled={!registros.length}
+                        />
+                    <button type="button" className="btn btn-primary btn-form-nowrap" onClick={() => { limpiarForm(); setShowModal(true); }} disabled={!puedeEscribir}>
+                        + Curso
+                    </button>
+                    </>
+                }
+            />
             <div className="card p-3">
-                
-                <form onSubmit={handleSubmit}>
-                    <div className="row">
-                        <div className="col-md-5 mb-2">
-                            <label>Empleado</label>
-                            <AppSelect
-                                className="form-select"
-                                value={idTabla}
-                                onChange={(e) => setIdTabla(e.target.value)}
-                                disabled={editando}
-                                required
-                            >
-                                <option value="" disabled hidden>— Seleccione empleado —</option>
-                                {empleados.map((emp) => (
-                                    <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
-                                        {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
-                                    </option>
-                                ))}
-                            </AppSelect>
-                        </div>
-                        <div className="col-md-3 mb-2">
-                            <label>Curso</label>
-                            <input
-                                type="text"
-                                className="form-control"
-                                value={curso}
-                                onChange={e => setCurso(e.target.value)}
-                            />
-                        </div>
-                        <div className="col-md-3 mb-2">
-                            <label>Fecha Fin</label>
-                            <input
-                                type="date"
-                                className="form-control"
-                                value={fechaFin}
-                                onChange={e => setFechaFin(e.target.value)}
-                            />
-                        </div>
-                        <div className="col-md-3 mb-2">
-                            <label>Logrado</label>
-                            <div className="form-check mt-2">
-                                <input
-                                    type="checkbox"
-                                    className="form-check-input"
-                                    checked={logrado}
-                                    onChange={e => setLogrado(e.target.checked)}
-                                />
-                                <label className="form-check-label">Sí</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="row">
-                        <div className="col-md-9 mb-2">
-                            <label>Descripción</label>
-                            <textarea
-                                className="form-control"
-                                rows="2"
-                                value={descr}
-                                onChange={e => setDescr(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                    <div className="d-flex gap-2 mt-3 flex-wrap align-items-center">
-                        <button type="submit" className={`btn ${editando ? 'btn-warning' : 'btn-success'} btn-sm btn-form-nowrap`}>
-                            {editando ? 'Actualizar' : 'Guardar'}
-                        </button>
-                        {editando && <button type="button" className="btn btn-secondary btn-sm btn-form-nowrap ms-2" onClick={limpiarForm}>Cancelar</button>}
-                    </div>
-                </form>
-                <hr />
-                <h4>Registros existentes</h4>
+                <ListSearchToolbar value={busq} onChange={setBusq} placeholder="Empleado, curso, descripción, fechas…" />
+                <h6 className="mb-2">Registros ({filtrados.length} de {registros.length})</h6>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="table table-data-compact table-bordered table-striped">
                         <thead>
@@ -196,26 +187,84 @@ const Cursos = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {registros.map(reg => (
-                                <tr key={reg.id_tabla}>
-                                    <td>
-                                        <div>{nombrePorCarnet(reg.id_tabla) || '—'}</div>
-                                        <small className="text-muted">{reg.id_tabla}</small>
-                                    </td>
-                                    <td>{reg.curso}</td>
-                                    <td>{reg.descr}</td>
-                                    <td>{reg.logrado ? 'Sí' : 'No'}</td>
-                                    <td className="text-nowrap">{fmtFechaTabla(reg.fech_fin_curso)}</td>
-                                    <td>
-                                        <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
-                                        <DeleteTableActionButton onClick={() => eliminarRegistro(reg.id_tabla)} />
+                            {filtrados.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="text-center text-muted py-4">
+                                        No hay registros con los criterios indicados.
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                filtrados.map((reg) => (
+                                    <tr key={reg.id_tabla}>
+                                        <td>
+                                            <div>{nombrePorCarnet(reg.id_tabla) || '—'}</div>
+                                            <small className="text-muted">{reg.id_tabla}</small>
+                                        </td>
+                                        <td>{reg.curso}</td>
+                                        <td>{reg.descr}</td>
+                                        <td>{reg.logrado ? 'Sí' : 'No'}</td>
+                                        <td className="text-nowrap">{fmtFechaTabla(reg.fech_fin_curso)}</td>
+                                        <td>
+                                            <EditTableActionButton onClick={() => editarRegistro(reg)} className="me-1" />
+                                            <DeleteTableActionButton onClick={() => eliminarRegistro(reg.id_tabla)} />
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
             </div>
+            <FormModal
+                show={showModal}
+                onHide={() => { setShowModal(false); limpiarForm(); }}
+                title={editando ? 'Editar curso' : 'Nuevo curso'}
+                onPrimary={guardar}
+                primaryLabel={editando ? 'Actualizar' : 'Guardar'}
+                primaryDisabled={!puedeEscribir}
+            >
+                <div className="row g-2">
+                    <div className="col-12 col-md-6">
+                        <label className="form-label">Empleado</label>
+                        <AppSelect className="form-select" value={idTabla} onChange={(e) => setIdTabla(e.target.value)} disabled={editando} required>
+                            <option value="" disabled hidden>— Seleccione empleado —</option>
+                            {empleados.map((emp) => (
+                                <option key={emp.carnet_identidad} value={emp.carnet_identidad}>
+                                    {emp.carnet_identidad} — {emp.nombre} {emp.apellidos}
+                                </option>
+                            ))}
+                        </AppSelect>
+                    </div>
+                    <div className="col-12 col-md-6">
+                        <label className="form-label">Curso</label>
+                        <AppSelect className="form-select" value={cursoSel} onChange={(e) => setCursoSel(e.target.value)}>
+                            {CURSO_TIPOS.map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                            ))}
+                        </AppSelect>
+                    </div>
+                    {cursoSel === 'Otro' && (
+                        <div className="col-12">
+                            <label className="form-label">Especificar</label>
+                            <input className="form-control" value={cursoOtro} onChange={(e) => setCursoOtro(e.target.value)} />
+                        </div>
+                    )}
+                    <div className="col-12 col-md-4">
+                        <label className="form-label">Fecha fin</label>
+                        <input type="date" className="form-control" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+                    </div>
+                    <div className="col-12 col-md-4 d-flex align-items-end">
+                        <div className="form-check">
+                            <input type="checkbox" className="form-check-input" id="logC" checked={logrado} onChange={(e) => setLogrado(e.target.checked)} />
+                            <label className="form-check-label" htmlFor="logC">Logrado</label>
+                        </div>
+                    </div>
+                    <div className="col-12">
+                        <label className="form-label">Descripción</label>
+                        <textarea className="form-control" rows={2} value={descr} onChange={(e) => setDescr(e.target.value)} />
+                    </div>
+                </div>
+            </FormModal>
         </div>
     );
 };

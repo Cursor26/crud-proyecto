@@ -35,10 +35,22 @@ import CambiosCargo from './components/CambiosCargo';
 import ReporteConsolidado from './components/ReporteConsolidado';
 import ProduccionHistorico from './components/ProduccionHistorico';
 import GestionUsuarios from './components/GestionUsuarios';
+import { PuedeEscribirProvider } from './context/PuedeEscribirContext';
+import RrhhModuloHerramientas6Modal from './components/RrhhModuloHerramientas6Modal';
 import logoAepg from './images/logo-aepg.png';
 import DnaThreeWidget from './components/DnaThreeWidget';
 
 const TOKEN_KEY = 'token';
+
+/** Vista inicial al entrar o al cambiar de rol */
+function getDefaultKeyForRol(rol) {
+  if (rol === 'admin') return 'usuarios';
+  if (rol === 'contratacion') return 'contratos-resumen';
+  if (rol === 'rrhh') return 'empleados';
+  if (rol === 'estadistica' || rol === 'produccion') return 'sacrificio';
+  if (rol === 'director') return 'produccion-historico';
+  return '';
+}
 
 const SIDEBAR_RRHH_KEYS = new Set([
   'empleados',
@@ -95,10 +107,10 @@ function App() {
   const [token, setToken] = useState(tokenInicial);
 
   const [key, setKey] = useState('');
-  const [sidebarRrhhOpen, setSidebarRrhhOpen] = useState(false);
-  const [sidebarProdOpen, setSidebarProdOpen] = useState(false);
-  const [sidebarContratosOpen, setSidebarContratosOpen] = useState(false);
+  /** A la vez solo un submenú lateral abierto: 'rrhh' | 'contratos' | 'prod' | null */
+  const [sidebarMenuOpen, setSidebarMenuOpen] = useState(null);
   const [now, setNow] = useState(new Date());
+  const [rrhhAnaliticaOpen, setRrhhAnaliticaOpen] = useState(false);
 
   const moduloLabel = {
     usuarios: 'Gestión de usuarios',
@@ -139,41 +151,27 @@ function App() {
   };
 
   const handleSidebarRrhhToggle = (nextOpen) => {
-    setSidebarRrhhOpen(nextOpen);
-    if (nextOpen) setSidebarProdOpen(false);
+    setSidebarMenuOpen(nextOpen ? 'rrhh' : null);
   };
 
   const handleSidebarProdToggle = (nextOpen) => {
-    setSidebarProdOpen(nextOpen);
-    if (nextOpen) setSidebarRrhhOpen(false);
+    setSidebarMenuOpen(nextOpen ? 'prod' : null);
   };
 
   const handleSidebarContratosToggle = (nextOpen) => {
-    setSidebarContratosOpen(nextOpen);
-    if (nextOpen) {
-      setSidebarRrhhOpen(false);
-      setSidebarProdOpen(false);
-    }
+    setSidebarMenuOpen(nextOpen ? 'contratos' : null);
   };
 
   const handleNavSelect = (selectedKey) => {
     setKey(selectedKey);
     if (selectedKey === 'usuarios' || selectedKey === 'contratos') {
-      setSidebarRrhhOpen(false);
-      setSidebarProdOpen(false);
-      setSidebarContratosOpen(false);
+      setSidebarMenuOpen(null);
     } else if (SIDEBAR_RRHH_KEYS.has(selectedKey)) {
-      setSidebarRrhhOpen(true);
-      setSidebarProdOpen(false);
-      setSidebarContratosOpen(false);
+      setSidebarMenuOpen('rrhh');
     } else if (SIDEBAR_CONTRATOS_KEYS.has(selectedKey)) {
-      setSidebarContratosOpen(true);
-      setSidebarRrhhOpen(false);
-      setSidebarProdOpen(false);
+      setSidebarMenuOpen('contratos');
     } else if (SIDEBAR_PROD_KEYS.has(selectedKey)) {
-      setSidebarProdOpen(true);
-      setSidebarRrhhOpen(false);
-      setSidebarContratosOpen(false);
+      setSidebarMenuOpen('prod');
     }
   };
 
@@ -205,9 +203,19 @@ function App() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    if (!user?.rol) return;
+    const k = getDefaultKeyForRol(user.rol);
+    setKey(k);
+    if (SIDEBAR_RRHH_KEYS.has(k)) setSidebarMenuOpen('rrhh');
+    else if (SIDEBAR_CONTRATOS_KEYS.has(k)) setSidebarMenuOpen('contratos');
+    else if (SIDEBAR_PROD_KEYS.has(k)) setSidebarMenuOpen('prod');
+    else setSidebarMenuOpen(null);
+  }, [user?.rol, user?.email]);
+
   const login = async (email, password) => {
     try {
-      const response = await Axios.post('http://localhost:3001/login', { email, password });
+      const response = await Axios.post('/login', { email, password });
       const { token: newToken, usuario } = response.data;
       const usuarioNormalizado = {
         ...usuario,
@@ -218,6 +226,12 @@ function App() {
       setAuthToken(newToken);
       setToken(newToken);
       setUser(usuarioNormalizado);
+      const k = getDefaultKeyForRol(usuarioNormalizado.rol);
+      setKey(k);
+      if (SIDEBAR_RRHH_KEYS.has(k)) setSidebarMenuOpen('rrhh');
+      else if (SIDEBAR_CONTRATOS_KEYS.has(k)) setSidebarMenuOpen('contratos');
+      else if (SIDEBAR_PROD_KEYS.has(k)) setSidebarMenuOpen('prod');
+      else setSidebarMenuOpen(null);
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message || 'Error al conectar' };
@@ -230,65 +244,50 @@ function App() {
     setAuthToken(null);
     setToken(null);
     setUser(null);
+    setKey('');
+    setSidebarMenuOpen(null);
   };
 
-  const rolDesdeToken = (() => {
-    try {
-      if (!token) return '';
-      const parts = String(token).split('.');
-      if (parts.length < 2) return '';
-      const payload = JSON.parse(atob(parts[1]));
-      return String(payload?.rol || '').trim().toLowerCase();
-    } catch {
-      return '';
-    }
-  })();
+  const rol = user?.rol;
+  const esAdmin = rol === 'admin';
+  const esEstadistica = rol === 'estadistica' || rol === 'produccion';
+  const mostrarUsuarios = esAdmin;
+  const mostrarContratos = esAdmin || rol === 'contratacion' || rol === 'director';
+  const mostrarRHum = esAdmin || rol === 'rrhh' || rol === 'director';
+  const mostrarProduccion = esAdmin || esEstadistica || rol === 'director';
+  const mostrarEmpleados = mostrarRHum;
+  const mostrarAsistencias = mostrarRHum;
+  const mostrarCertificaciones = mostrarRHum;
+  const mostrarCursos = mostrarRHum;
+  const mostrarEvalcapacitacion = mostrarRHum;
+  const mostrarEvaluaciones = mostrarRHum;
+  const mostrarObjetivos = mostrarRHum;
+  const mostrarSalarios = mostrarRHum;
+  const mostrarVacaciones = mostrarRHum;
+  const mostrarTurnosTrabajo = mostrarRHum;
+  const mostrarGruposTrabajo = mostrarRHum;
+  const mostrarSanciones = mostrarRHum;
+  const mostrarReconocimientos = mostrarRHum;
+  const mostrarJubilaciones = mostrarRHum;
+  const mostrarSegSeguridad = mostrarRHum;
+  const mostrarSeguridad = mostrarRHum;
+  const mostrarCargos = mostrarRHum;
+  const mostrarDepartamentos = mostrarRHum;
+  const mostrarCertMedicos = rol === 'rrhh' || esEstadistica || rol === 'director';
+  const mostrarEvalMedicas = mostrarCertMedicos;
+  const mostrarSacrificio = mostrarProduccion;
+  const mostrarMatadero = mostrarProduccion;
+  const mostrarLeche = mostrarProduccion;
+  const esDirectorLectura = rol === 'director';
 
-  const rolActual = String(user?.rol || rolDesdeToken || '').trim().toLowerCase();
-  const rolNormalizado = rolActual.replace(/[^a-z]/g, '');
-  const esAdminTotal = rolNormalizado === 'admin';
-  const mostrarSacrificio = esAdminTotal || rolActual === 'produccion';
-  const mostrarMatadero = esAdminTotal || rolActual === 'produccion';
-  const mostrarLeche = esAdminTotal || rolActual === 'produccion';
-  const mostrarAsistencias = esAdminTotal || rolActual === 'rrhh';
-  const mostrarCertificaciones = esAdminTotal || rolActual === 'rrhh';
-  const mostrarCursos = esAdminTotal || rolActual === 'rrhh';
-  const mostrarEvalcapacitacion = esAdminTotal || rolActual === 'rrhh';
-  const mostrarEvaluaciones = esAdminTotal || rolActual === 'rrhh';
-  const mostrarObjetivos = esAdminTotal || rolActual === 'rrhh';
-  const mostrarContratos = esAdminTotal || rolActual === 'contratacion';
-  const mostrarEmpleados = esAdminTotal || rolActual === 'rrhh';
-  const mostrarUsuarios = esAdminTotal;
-  const mostrarRHum = esAdminTotal || rolActual === 'rrhh';
-  const mostrarProduccion = esAdminTotal || rolActual === 'produccion';
-  const mostrarSalarios = esAdminTotal || rolActual === 'rrhh';
-  const mostrarVacaciones = esAdminTotal || rolActual === 'rrhh';
-  const mostrarTurnosTrabajo = esAdminTotal || rolActual === 'rrhh';
-  const mostrarGruposTrabajo = esAdminTotal || rolActual === 'rrhh';
-  const mostrarSanciones = esAdminTotal || rolActual === 'rrhh';
-  const mostrarReconocimientos = esAdminTotal || rolActual === 'rrhh';
-  const mostrarJubilaciones = esAdminTotal || rolActual === 'rrhh';
-  const mostrarSegSeguridad = esAdminTotal || rolActual === 'rrhh';
-  const mostrarSeguridad = esAdminTotal || rolActual === 'rrhh';
-  const mostrarCargos = esAdminTotal || rolActual === 'rrhh';
-  const mostrarDepartamentos = esAdminTotal || rolActual === 'rrhh';
-  const mostrarCertMedicos = esAdminTotal || rolActual === 'rrhh' || rolActual === 'produccion';
-  const mostrarEvalMedicas = esAdminTotal || rolActual === 'rrhh' || rolActual === 'produccion';
-
-  useEffect(() => {
-    if (!user) return;
-    if (key) return;
-    if (esAdminTotal) {
-      setKey('usuarios');
-      setSidebarRrhhOpen(false);
-      setSidebarProdOpen(false);
-      setSidebarContratosOpen(false);
-      return;
-    }
-    if (mostrarContratos) return setKey('contratos');
-    if (mostrarRHum) return setKey('empleados');
-    if (mostrarProduccion) return setKey('sacrificio');
-  }, [user, key, esAdminTotal, mostrarContratos, mostrarRHum, mostrarProduccion]);
+  const rolEtiqueta = (r) => {
+    if (r === 'estadistica' || r === 'produccion') return 'Estadística';
+    if (r === 'admin') return 'Administrador';
+    if (r === 'director') return 'Director (consulta)';
+    if (r === 'contratacion') return 'Contratación';
+    if (r === 'rrhh') return 'Rec. humanos';
+    return r || '';
+  };
 
   if (loading) {
     return (
@@ -303,6 +302,7 @@ function App() {
   }
 
   return (
+    <PuedeEscribirProvider puedeEscribir={user?.rol !== 'director'}>
     <div className="dashboard-shell d-flex vh-100" style={{ overflow: 'hidden' }}>
       <div className="dashboard-sidebar vh-100 p-4 d-flex flex-column shadow-lg" style={{ width: '280px', minWidth: '280px' }}>
         <div className="text-white mb-2 pb-4 border-bottom dashboard-sidebar-divider">
@@ -332,7 +332,7 @@ function App() {
               id="sidebar-dropdown-contratos"
               className="mi-dropdown-sidebar"
               autoClose={false}
-              show={sidebarContratosOpen}
+              show={sidebarMenuOpen === 'contratos'}
               onToggle={handleSidebarContratosToggle}
             >
               <NavDropdown.Item eventKey="contratos-resumen" active={key === 'contratos-resumen'}>
@@ -367,7 +367,7 @@ function App() {
               id="sidebar-dropdown-rrhh"
               className="mi-dropdown-sidebar"
               autoClose={false}
-              show={sidebarRrhhOpen}
+              show={sidebarMenuOpen === 'rrhh'}
               onToggle={handleSidebarRrhhToggle}
             >
               {mostrarEmpleados && (
@@ -497,13 +497,13 @@ function App() {
             <NavDropdown
               title={
                 <span className="d-inline-flex align-items-center">
-                  <i className="bi bi-box-seam me-2" aria-hidden="true"></i>Producción
+                  <i className="bi bi-box-seam me-2" aria-hidden="true"></i>Estadística
                 </span>
               }
               id="sidebar-dropdown-prod"
               className="mi-dropdown-sidebar"
               autoClose={false}
-              show={sidebarProdOpen}
+              show={sidebarMenuOpen === 'prod'}
               onToggle={handleSidebarProdToggle}
             >
               {mostrarSacrificio && (
@@ -539,7 +539,7 @@ function App() {
             <div className="dashboard-topbar-avatar-wrap">
               <div className="dashboard-topbar-user-meta">
                 <span className="dashboard-topbar-user-name">{user.nombre}</span>
-                <span className="dashboard-topbar-user-role">{user.rol}</span>
+                <span className="dashboard-topbar-user-role">{rolEtiqueta(user.rol)}</span>
               </div>
               <img src="/images/usuario.png" alt="" width="52" height="52" className="dashboard-user-avatar" />
             </div>
@@ -551,31 +551,31 @@ function App() {
           </Navbar.Collapse>
         </Navbar>
 
+        {esDirectorLectura ? (
+          <div className="alert alert-info py-2 px-4 mb-0 rounded-0 border-0 small" role="status">
+            Modo solo consulta: podés revisar la información; no podés crear, editar ni eliminar registros.
+          </div>
+        ) : null}
+
         <div className="dashboard-main-scroll">
           <div className="dashboard-content-layout">
           <div className="dashboard-content-main">
-            {(key === 'contratos' ||
-              key === 'contratos-lista' ||
-              key === 'contratos-resumen' ||
-              key === 'contratos-vencimientos' ||
-              key === 'contratos-renovaciones' ||
-              key === 'contratos-reportes') && (
-              <GestionContratos
-                vistaInicial={
-                  key === 'contratos-resumen'
-                    ? 'resumen'
-                    : key === 'contratos-vencimientos'
-                      ? 'vencimientos'
-                      : key === 'contratos-renovaciones'
-                        ? 'renovaciones'
-                        : key === 'contratos-reportes'
-                          ? 'reportes'
-                          : 'contratos'
-                }
-                onSectionChange={handleContratosSectionChange}
-              />
+            {(key === 'contratos' || key === 'contratos-lista') && (
+              <GestionContratos vistaInicial="contratos" user={user} onSectionChange={handleContratosSectionChange} />
             )}
-            {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios />}
+            {key === 'contratos-resumen' && (
+              <GestionContratos vistaInicial="resumen" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
+            {key === 'contratos-vencimientos' && (
+              <GestionContratos vistaInicial="vencimientos" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
+            {key === 'contratos-renovaciones' && (
+              <GestionContratos vistaInicial="renovaciones" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
+            {key === 'contratos-reportes' && (
+              <GestionContratos vistaInicial="reportes" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
+            {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
             {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
             {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
             {key === 'leche' && mostrarLeche && <Leche />}
@@ -637,8 +637,28 @@ function App() {
           </aside>
           </div>
         </div>
+        {mostrarRHum && key && SIDEBAR_RRHH_KEYS.has(key) && (
+          <>
+            <button
+              type="button"
+              className="btn btn-primary shadow rrhh-analitica-fab"
+              onClick={() => setRrhhAnaliticaOpen(true)}
+              title="6 herramientas de análisis del módulo actual (RR.HH.)"
+              aria-label="Abrir 6 herramientas específicas del módulo de recursos humanos"
+            >
+              <i className="bi bi-bar-chart-line-fill" aria-hidden="true" />
+            </button>
+            <RrhhModuloHerramientas6Modal
+              show={rrhhAnaliticaOpen}
+              onHide={() => setRrhhAnaliticaOpen(false)}
+              moduleKey={key}
+              moduleLabel={moduloLabel[key] || key}
+            />
+          </>
+        )}
       </div>
     </div>
+    </PuedeEscribirProvider>
   );
 }
 
