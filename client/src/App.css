@@ -156,7 +156,7 @@ margin-top: 15px;
   --dash-pink: var(--brand-black-soft);
   --dash-pink-deep: #2a2d31;
   /* Altura reservada para el texto en hover (1.065rem × line-height + padding); evita que el resto de filas “salten”. */
-  --sidebar-nav-row-min-height: 2.4rem;
+  --sidebar-nav-row-min-height: 2.65rem;
   position: relative;
   z-index: 20;
   background: linear-gradient(180deg, #1c1c1c 0%, #141414 52%, #111111 100%) !important;
@@ -185,7 +185,7 @@ margin-top: 15px;
   background-color: rgba(255, 255, 255, 0.04) !important;
   color: #f4f4f5 !important;
   border: none !important;
-  font-size: 0.94rem;
+  font-size: 1.06rem;
   line-height: 1.35;
   text-rendering: optimizeLegibility;
   min-height: var(--sidebar-nav-row-min-height);
@@ -201,7 +201,7 @@ margin-top: 15px;
 .dashboard-sidebar .nav-link.dashboard-nav-link:focus {
   background-color: rgba(255, 255, 255, 0.14) !important;
   color: #ffffff !important;
-  font-size: 1.055rem;
+  font-size: 1.14rem;
 }
 
 .dashboard-sidebar .nav-link.dashboard-nav-link.active {
@@ -220,7 +220,7 @@ margin-top: 15px;
   color: #f4f4f5 !important;
   border: none !important;
   border-color: transparent !important;
-  font-size: 0.94rem;
+  font-size: 1.06rem;
   line-height: 1.35;
   text-rendering: optimizeLegibility;
   min-height: var(--sidebar-nav-row-min-height);
@@ -240,7 +240,7 @@ margin-top: 15px;
 .mi-dropdown-sidebar .dropdown-toggle:focus-visible {
   background-color: rgba(255, 255, 255, 0.14) !important;
   color: #ffffff !important;
-  font-size: 1.055rem;
+  font-size: 1.14rem;
 }
 
 .mi-dropdown-sidebar.show > .dropdown-toggle {
@@ -297,7 +297,7 @@ margin-top: 15px;
   color: white !important;
   background-color: transparent !important;
   padding-left: 1.35rem;
-  font-size: 0.94rem;
+  font-size: 1.06rem;
   line-height: 1.35;
   text-rendering: optimizeLegibility;
   min-height: var(--sidebar-nav-row-min-height);
@@ -312,11 +312,11 @@ margin-top: 15px;
 .mi-dropdown-sidebar .dropdown-item:hover:not(.active) {
   background-color: rgba(255, 255, 255, 0.14) !important;
   color: white !important;
-  font-size: 1.055rem;
+  font-size: 1.14rem;
 }
 
 .mi-dropdown-sidebar .dropdown-item:focus:not(.active) {
-  font-size: 1.055rem;
+  font-size: 1.14rem;
 }
 
 .mi-dropdown-sidebar .dropdown-item.active,
@@ -328,7 +328,7 @@ margin-top: 15px;
 
 .mi-dropdown-sidebar .dropdown-item.active:hover,
 .mi-dropdown-sidebar .dropdown-item.active:focus {
-  font-size: 1.055rem;
+  font-size: 1.14rem;
 }
 
 /* Vencimientos: oculto solo en el menú lateral; la ruta y la vista siguen activas (p. ej. “Ver todos”). */
@@ -3262,8 +3262,15 @@ body .btn:not(.btn-link) {
   border: none;
   border-radius: 999px;
   font-weight: 600;
-  font-size: 0.8125rem;
-  padding: 0.35rem 0.8rem 0.45rem;
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  padding: 0.45rem 1rem 0.5rem;
+}
+
+.dashboard-main--contratos .contratos-tab.btn.btn-sm {
+  font-size: 1.0625rem;
+  padding: 0.45rem 1rem 0.5rem;
+  line-height: 1.3;
 }
 
 .contratos-tab:hover {
@@ -3915,6 +3922,85 @@ body .btn:not(.btn-link) {
 .dashboard-main--contratos .contratos-pdf-inline.contratos-pdf-inline--active,
 .dashboard-main--contratos .contratos-pdf-inline.contratos-pdf-inline--active:hover {
   color: #0d6efd;
+}
+
+.contratos-pdf-inline--multi {
+  position: relative;
+}
+
+.contratos-pdf-picker__count {
+  position: absolute;
+  top: -0.15rem;
+  right: -0.35rem;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--contratos-navy, #14532d);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1rem;
+  text-align: center;
+}
+
+.contratos-pdf-picker__menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1050;
+  min-width: 12rem;
+  max-width: 16rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.15);
+  padding: 0.35rem;
+}
+
+.contratos-pdf-picker__menu--fixed {
+  position: fixed;
+  top: auto;
+  left: auto;
+  transform: none;
+  z-index: 1060;
+}
+
+.contratos-pdf-picker__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #212529;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.contratos-pdf-picker__item:hover {
+  background: #f1f5f9;
+  color: #b4232a;
+}
+
+.contratos-pdf-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.contratos-pdf-modal-list__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.4rem;
+  background: #fafafa;
 }
 
 /* Contratos: acciones de tabla — editar azul, renovar verde, eliminar rojo (tono base un poco más oscuro) */
@@ -4740,6 +4826,175 @@ button.renov-empresa-avatar:focus-visible {
   }
 }
 
+/* ---- Resumen ejecutivo (cockpit) ---- */
+.dashboard-main--contratos .resumen-cockpit__title {
+  color: var(--contratos-navy, #14532d);
+  font-size: 0.95rem;
+}
+
+.resumen-semaforo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  text-align: center;
+}
+
+.resumen-semaforo--verde {
+  background: rgba(20, 83, 45, 0.08);
+  border: 1px solid rgba(20, 83, 45, 0.2);
+}
+
+.resumen-semaforo--amarillo {
+  background: rgba(255, 193, 7, 0.12);
+  border: 1px solid rgba(255, 193, 7, 0.35);
+}
+
+.resumen-semaforo--rojo {
+  background: rgba(220, 53, 69, 0.08);
+  border: 1px solid rgba(220, 53, 69, 0.25);
+}
+
+.resumen-semaforo__score {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--contratos-navy, #14532d);
+}
+
+.resumen-semaforo--rojo .resumen-semaforo__score {
+  color: #b02a37;
+}
+
+.resumen-semaforo--amarillo .resumen-semaforo__score {
+  color: #856404;
+}
+
+.resumen-semaforo__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 0.25rem;
+  color: #495057;
+}
+
+.resumen-kpi-mini strong {
+  font-size: 1.05rem;
+}
+
+.resumen-acciones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.resumen-accion-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  background: #fff;
+  text-align: left;
+  font-size: 0.85rem;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.resumen-accion-btn:hover {
+  background: #f8f9fa;
+  border-color: #ced4da;
+}
+
+.resumen-accion-btn__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.resumen-accion-btn--danger .resumen-accion-btn__count {
+  background: rgba(220, 53, 69, 0.12);
+  color: #b02a37;
+}
+
+.resumen-accion-btn--warning .resumen-accion-btn__count {
+  background: rgba(255, 193, 7, 0.2);
+  color: #856404;
+}
+
+.resumen-accion-btn--info .resumen-accion-btn__count {
+  background: rgba(13, 110, 253, 0.1);
+  color: #0a58ca;
+}
+
+.resumen-accion-btn--primary .resumen-accion-btn__count {
+  background: rgba(20, 83, 45, 0.12);
+  color: var(--contratos-navy, #14532d);
+}
+
+.resumen-accion-btn__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.resumen-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.resumen-timeline__item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #eee;
+}
+
+.resumen-timeline__item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.resumen-timeline__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--contratos-navy, #14532d);
+  flex-shrink: 0;
+}
+
+.resumen-timeline__dot.is-urgent {
+  background: #ffc107;
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.25);
+}
+
+.resumen-timeline__body {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.resumen-timeline__days {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #495057;
+  white-space: nowrap;
+}
+
+.resumen-concentracion-alert {
+  font-size: 0.9rem;
+}
+
 /* ---- Reportes de contratación (vista premium, filtros propios) ---- */
 .dashboard-main--contratos .reportes-dashboard {
   margin-bottom: 1rem;
@@ -4917,11 +5172,20 @@ button.renov-empresa-avatar:focus-visible {
   background: #0e7490;
 }
 
-.reportes-preview-table-wrap {
-  max-height: 320px;
-  overflow: auto;
+.dashboard-main.dashboard-main--contratos .reportes-preview-table-wrap.table-responsive {
+  display: block;
+  max-height: min(22rem, 52vh);
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
+  background: #ffffff !important;
+}
+
+.dashboard-main.dashboard-main--contratos .reportes-preview-table-wrap.table-responsive > .table {
+  margin-bottom: 0;
 }
 
 .reportes-side-card {

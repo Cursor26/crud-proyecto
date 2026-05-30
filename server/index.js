@@ -10,11 +10,23 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
+const {
+  STORAGE_ROOT,
+  ACTIVOS_DIR,
+  saveActivoPdf,
+  saveArchivoPdf,
+  copyFileToArchivo,
+  resolveAbsPath,
+  removeDirIfExists,
+  calcRetencionHasta,
+} = require('./lib/contratosDocumentosStorage');
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 /* Express 5: sin cuerpo, express.json puede dejar req.body en undefined; normalizamos para rutas que desestructuran el body. */
 app.use((req, res, next) => {
   if (req.body === undefined || req.body === null) {
@@ -29,7 +41,9 @@ const { validarSacrificio, validarMatadero, validarLeche } = require('./validate
 const {
   SQL_USUARIO_AUTH,
   SQL_USUARIO_LIST,
+  SQL_CONTRATO_SELECT,
   idRolDesdeCodigo,
+  idsContratoDesdeBody,
 } = require('./db/queryHelpers');
 
 const db = mysql.createConnection({
@@ -243,6 +257,19 @@ const ensureUsuariosSecurityAuditColumns = async () => {
     const exists = Number(rows?.[0]?.cnt || 0) > 0;
     if (!exists) await dbQuery(def.sql);
   }
+};
+
+const ensureContratosArchivoTables = async () => {
+  const sqlPath = path.join(__dirname, 'sql', 'contratos_archivo.sql');
+  const raw = fs.readFileSync(sqlPath, 'utf8');
+  const statements = raw
+    .split(';')
+    .map((s) => s.replace(/--[^\n]*/g, '').trim())
+    .filter(Boolean);
+  for (const stmt of statements) {
+    await dbQuery(stmt);
+  }
+  fs.mkdirSync(STORAGE_ROOT, { recursive: true });
 };
 
 const ROLES_PERMITIDOS_USUARIO = ['admin', 'rrhh', 'contratacion', 'produccion', 'estadistica', 'director'];
@@ -719,47 +746,52 @@ app.get("/tabla1", (req, res)=>{
 //Contratos:
 
 // ==================== RUTAS PARA CONTRATOS ====================
-app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacion']), (req, res) => {
-  const { numero_contrato, proveedor_cliente, empresa, correo_notificacion, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido } = req.body;
-  db.query(
-    'INSERT INTO contratos_generales (numero_contrato, proveedor_cliente, empresa, correo_notificacion, suplementos, vigencia, tipo_contrato, fecha_inicio, fecha_fin, vencido) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    [
-      numero_contrato,
-      proveedor_cliente,
-      empresa,
-      correo_notificacion ? String(correo_notificacion).trim() : null,
-      suplementos,
-      vigencia,
-      tipo_contrato,
-      fecha_inicio,
-      fecha_fin,
-      vencido,
-    ],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-        res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
-      } else {
-        res.send(result);
-      }
-    }
-  );
-});
-
-app.put("/update-contrato", (req, res) => {
-  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacion']), async (req, res) => {
   const {
     numero_contrato,
-    numero_contrato_original,
-    proveedor_cliente,
     empresa,
     correo_notificacion,
     suplementos,
     vigencia,
-    tipo_contrato,
     fecha_inicio,
     fecha_fin,
-    vencido,
+  } = req.body;
+  try {
+    const { idContraparte, idTipo } = await idsContratoDesdeBody(dbQuery, req.body);
+    await dbQuery(
+      `INSERT INTO contratos_generales
+        (numero_contrato, id_contraparte, empresa, correo_notificacion, suplementos, vigencia, id_tipo_contrato, fecha_inicio, fecha_fin)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [
+        numero_contrato,
+        idContraparte,
+        empresa,
+        correo_notificacion ? String(correo_notificacion).trim() : null,
+        suplementos,
+        vigencia,
+        idTipo,
+        fecha_inicio,
+        fecha_fin,
+      ]
+    );
+    res.send({ ok: true });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+  }
+});
+
+app.put("/update-contrato", verificarToken, autorizarRol(['admin', 'contratacion']), async (req, res) => {
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const {
+    numero_contrato,
+    numero_contrato_original,
+    empresa,
+    correo_notificacion,
+    suplementos,
+    vigencia,
+    fecha_inicio,
+    fecha_fin,
   } = body;
   const numeroNuevo = numero_contrato == null ? '' : String(numero_contrato).trim();
   const hasNumeroOriginal = Object.prototype.hasOwnProperty.call(body, 'numero_contrato_original');
@@ -773,85 +805,398 @@ app.put("/update-contrato", (req, res) => {
     return res.status(400).json({ message: 'El número de contrato no puede estar vacío.' });
   }
 
-  const sql =
-    'UPDATE contratos_generales SET numero_contrato=?, proveedor_cliente=?, empresa=?, correo_notificacion=?, suplementos=?, vigencia=?, tipo_contrato=?, fecha_inicio=?, fecha_fin=?, vencido=? WHERE numero_contrato=?';
-  const params = [
-    numeroNuevo,
-    proveedor_cliente,
-    empresa,
-    correo_notificacion ? String(correo_notificacion).trim() : null,
-    suplementos,
-    vigencia,
-    tipo_contrato,
-    fecha_inicio,
-    fecha_fin,
-    vencido,
-    numeroContratoWhere,
-  ];
-
-  db.query(sql, params, (err, result) => {
-    if (err) {
-      console.log(err);
-      return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
-    }
+  try {
+    const { idContraparte, idTipo } = await idsContratoDesdeBody(dbQuery, body);
+    const result = await dbQuery(
+      `UPDATE contratos_generales
+          SET numero_contrato = ?,
+              id_contraparte = ?,
+              empresa = ?,
+              correo_notificacion = ?,
+              suplementos = ?,
+              vigencia = ?,
+              id_tipo_contrato = ?,
+              fecha_inicio = ?,
+              fecha_fin = ?
+        WHERE numero_contrato = ?`,
+      [
+        numeroNuevo,
+        idContraparte,
+        empresa,
+        correo_notificacion ? String(correo_notificacion).trim() : null,
+        suplementos,
+        vigencia,
+        idTipo,
+        fecha_inicio,
+        fecha_fin,
+        numeroContratoWhere,
+      ]
+    );
     const nRows = Number(result.affectedRows) || 0;
     if (nRows === 0) {
-      return db.query(
+      const rows = await dbQuery(
         'SELECT 1 AS ok FROM contratos_generales WHERE numero_contrato = ? LIMIT 1',
-        [numeroContratoWhere],
-        (e2, rows) => {
-          if (e2) {
-            console.log(e2);
-            return res.status(500).json({ message: e2.sqlMessage || e2.message || String(e2) });
-          }
-          if (!rows || !rows.length) {
-            return res.status(404).json({
-              message: `No existe un contrato con número «${numeroContratoWhere}».`,
-            });
-          }
-          return res.json({
-            ok: true,
-            affectedRows: 0,
-            warning: 'No hubo cambios en MySQL (datos idénticos).',
-            numero_contrato: numeroNuevo,
-          });
-        }
+        [numeroContratoWhere]
       );
+      if (!rows?.length) {
+        return res.status(404).json({
+          message: `No existe un contrato con número «${numeroContratoWhere}».`,
+        });
+      }
+      return res.json({
+        ok: true,
+        affectedRows: 0,
+        warning: 'No hubo cambios en MySQL (datos idénticos).',
+        numero_contrato: numeroNuevo,
+      });
     }
     return res.json({
       ok: true,
       affectedRows: nRows,
       numero_contrato: numeroNuevo,
     });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+  }
+});
+
+const ROLES_CONTRATOS_LECTURA = ['admin', 'contratacion', 'director'];
+
+app.post(
+  '/contratos/:numero_contrato/archivar',
+  verificarToken,
+  autorizarRol(['admin', 'contratacion']),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+
+    const motivo = String(req.body?.motivo || '').trim().slice(0, 500) || null;
+    const documentosCliente = Array.isArray(req.body?.documentos) ? req.body.documentos : [];
+    const eliminadoPor = String(req.user?.email || req.user?.nombre || '').trim() || null;
+
+    try {
+      const rows = await dbQuery(
+        `SELECT c.numero_contrato, c.id_contraparte, c.empresa, c.correo_notificacion, c.suplementos,
+                c.vigencia, c.id_tipo_contrato, c.fecha_inicio, c.fecha_fin,
+                COALESCE(tc.nombre, '') AS tipo_contrato
+           FROM contratos_generales c
+           LEFT JOIN catalogo_tipo_contrato tc ON tc.id_tipo_contrato = c.id_tipo_contrato
+          WHERE c.numero_contrato = ?
+          LIMIT 1`,
+        [numero]
+      );
+      if (!rows.length) return res.status(404).json({ message: 'Contrato no encontrado.' });
+
+      const c = rows[0];
+      const eliminadoEn = new Date();
+      const retencionHasta = calcRetencionHasta(eliminadoEn);
+
+      const insertArchivo = await dbQuery(
+        `INSERT INTO contratos_archivo
+          (numero_contrato, id_contraparte, empresa, correo_notificacion, suplementos, vigencia,
+           id_tipo_contrato, tipo_contrato, fecha_inicio, fecha_fin, eliminado_en, eliminado_por, motivo, retencion_hasta)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          c.numero_contrato,
+          c.id_contraparte,
+          c.empresa,
+          c.correo_notificacion,
+          c.suplementos,
+          c.vigencia,
+          c.id_tipo_contrato,
+          c.tipo_contrato,
+          c.fecha_inicio,
+          c.fecha_fin,
+          eliminadoEn,
+          eliminadoPor,
+          motivo,
+          retencionHasta,
+        ]
+      );
+      const idArchivo = insertArchivo.insertId;
+      const nombresGuardados = new Set();
+
+      const docsActivos = await dbQuery(
+        'SELECT id_documento, nombre_archivo, ruta_relativa FROM contratos_documentos WHERE numero_contrato = ?',
+        [numero]
+      );
+      for (const doc of docsActivos) {
+        const copied = copyFileToArchivo(idArchivo, doc.ruta_relativa, doc.nombre_archivo);
+        if (!copied) continue;
+        await dbQuery(
+          `INSERT INTO contratos_archivo_documentos (id_archivo, nombre_archivo, ruta_relativa, tamano_bytes)
+           VALUES (?,?,?,?)`,
+          [idArchivo, copied.nombreArchivo, copied.rutaRelativa, copied.tamanoBytes]
+        );
+        nombresGuardados.add(String(copied.nombreArchivo).toLowerCase());
+      }
+
+      for (const item of documentosCliente) {
+        const nombre = String(item?.nombre || 'Contrato.pdf').trim();
+        const dataUrl = String(item?.dataUrl || '');
+        if (!dataUrl) continue;
+        const key = nombre.toLowerCase();
+        if (nombresGuardados.has(key)) continue;
+        try {
+          const saved = saveArchivoPdf(idArchivo, nombre, dataUrl);
+          await dbQuery(
+            `INSERT INTO contratos_archivo_documentos (id_archivo, nombre_archivo, ruta_relativa, tamano_bytes)
+             VALUES (?,?,?,?)`,
+            [idArchivo, saved.nombreArchivo, saved.rutaRelativa, saved.tamanoBytes]
+          );
+          nombresGuardados.add(String(saved.nombreArchivo).toLowerCase());
+        } catch (pdfErr) {
+          console.warn('PDF cliente omitido al archivar:', pdfErr?.message || pdfErr);
+        }
+      }
+
+      await dbQuery('DELETE FROM contratos_generales WHERE numero_contrato = ?', [numero]);
+      removeDirIfExists(path.join(ACTIVOS_DIR, numero));
+
+      return res.json({
+        ok: true,
+        id_archivo: idArchivo,
+        retencion_hasta: retencionHasta,
+        documentos: nombresGuardados.size,
+      });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+    }
+  }
+);
+
+app.get('/contratos-archivo', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
+  const busqueda = String(req.query.busqueda || '').trim();
+  const anio = String(req.query.anio || '').trim();
+  const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 500);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+  try {
+    const params = [];
+    let where = '1=1';
+    if (busqueda) {
+      where += ' AND (a.numero_contrato LIKE ? OR a.empresa LIKE ? OR a.tipo_contrato LIKE ?)';
+      const like = `%${busqueda}%`;
+      params.push(like, like, like);
+    }
+    if (anio && /^\d{4}$/.test(anio)) {
+      where += ' AND YEAR(a.eliminado_en) = ?';
+      params.push(Number(anio));
+    }
+
+    const rows = await dbQuery(
+      `SELECT a.id_archivo, a.numero_contrato, a.id_contraparte, a.empresa, a.correo_notificacion,
+              a.suplementos, a.vigencia, a.tipo_contrato, a.fecha_inicio, a.fecha_fin,
+              a.eliminado_en, a.eliminado_por, a.motivo, a.retencion_hasta,
+              cp.codigo AS proveedor_cliente,
+              (SELECT COUNT(*) FROM contratos_archivo_documentos d WHERE d.id_archivo = a.id_archivo) AS num_documentos,
+              DATEDIFF(a.retencion_hasta, CURDATE()) AS dias_restantes_retencion
+         FROM contratos_archivo a
+         INNER JOIN catalogo_tipo_contraparte cp ON cp.id_contraparte = a.id_contraparte
+        WHERE ${where}
+        ORDER BY a.eliminado_en DESC
+        LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+  }
+});
+
+app.get('/contratos-archivo/:id_archivo', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
+  const idArchivo = Number(req.params.id_archivo);
+  if (!idArchivo) return res.status(400).json({ message: 'ID de archivo inválido.' });
+
+  try {
+    const rows = await dbQuery(
+      `SELECT a.*, cp.codigo AS proveedor_cliente,
+              DATEDIFF(a.retencion_hasta, CURDATE()) AS dias_restantes_retencion
+         FROM contratos_archivo a
+         INNER JOIN catalogo_tipo_contraparte cp ON cp.id_contraparte = a.id_contraparte
+        WHERE a.id_archivo = ?
+        LIMIT 1`,
+      [idArchivo]
+    );
+    if (!rows.length) return res.status(404).json({ message: 'Expediente archivado no encontrado.' });
+
+    const documentos = await dbQuery(
+      `SELECT id_documento, nombre_archivo, tamano_bytes, subido_en
+         FROM contratos_archivo_documentos
+        WHERE id_archivo = ?
+        ORDER BY id_documento ASC`,
+      [idArchivo]
+    );
+    return res.json({ ...rows[0], documentos });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+  }
+});
+
+app.get(
+  '/contratos-archivo/:id_archivo/documentos/:id_documento',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    const idArchivo = Number(req.params.id_archivo);
+    const idDocumento = Number(req.params.id_documento);
+    if (!idArchivo || !idDocumento) return res.status(400).json({ message: 'Parámetros inválidos.' });
+
+    try {
+      const rows = await dbQuery(
+        `SELECT d.nombre_archivo, d.ruta_relativa
+           FROM contratos_archivo_documentos d
+          WHERE d.id_documento = ? AND d.id_archivo = ?
+          LIMIT 1`,
+        [idDocumento, idArchivo]
+      );
+      if (!rows.length) return res.status(404).json({ message: 'Documento no encontrado.' });
+
+      const abs = resolveAbsPath(rows[0].ruta_relativa);
+      if (!fs.existsSync(abs)) return res.status(404).json({ message: 'Archivo PDF no encontrado en disco.' });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${String(rows[0].nombre_archivo || 'documento.pdf').replace(/"/g, '')}"`
+      );
+      return res.sendFile(abs);
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  '/contratos/:numero_contrato/documentos',
+  verificarToken,
+  autorizarRol(['admin', 'contratacion']),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    const documentos = Array.isArray(req.body?.documentos) ? req.body.documentos : [];
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+
+    try {
+      const exists = await dbQuery('SELECT numero_contrato FROM contratos_generales WHERE numero_contrato = ? LIMIT 1', [
+        numero,
+      ]);
+      if (!exists.length) return res.status(404).json({ message: 'Contrato no encontrado.' });
+
+      const guardados = [];
+      for (const item of documentos) {
+        const dataUrl = String(item?.dataUrl || '');
+        if (!dataUrl) continue;
+        const nombre = String(item?.nombre || 'Contrato.pdf').trim();
+        const clienteId = item?.clienteId != null ? String(item.clienteId) : null;
+
+        if (clienteId) {
+          const prev = await dbQuery(
+            'SELECT id_documento, ruta_relativa FROM contratos_documentos WHERE numero_contrato = ? AND cliente_id = ? LIMIT 1',
+            [numero, clienteId]
+          );
+          if (prev.length) {
+            const oldAbs = resolveAbsPath(prev[0].ruta_relativa);
+            if (fs.existsSync(oldAbs)) fs.unlinkSync(oldAbs);
+            await dbQuery('DELETE FROM contratos_documentos WHERE id_documento = ?', [prev[0].id_documento]);
+          }
+        }
+
+        const saved = saveActivoPdf(numero, nombre, dataUrl);
+        const insert = await dbQuery(
+          `INSERT INTO contratos_documentos (numero_contrato, nombre_archivo, ruta_relativa, tamano_bytes, cliente_id)
+           VALUES (?,?,?,?,?)`,
+          [numero, saved.nombreArchivo, saved.rutaRelativa, saved.tamanoBytes, clienteId]
+        );
+        guardados.push({
+          id_documento: insert.insertId,
+          nombre_archivo: saved.nombreArchivo,
+          tamano_bytes: saved.tamanoBytes,
+          cliente_id: clienteId,
+        });
+      }
+
+      return res.json({ ok: true, documentos: guardados });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.get(
+  '/contratos/:numero_contrato/documentos',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+
+    try {
+      const rows = await dbQuery(
+        `SELECT id_documento, nombre_archivo, tamano_bytes, cliente_id, subido_en
+           FROM contratos_documentos
+          WHERE numero_contrato = ?
+          ORDER BY id_documento ASC`,
+        [numero]
+      );
+      return res.json(rows);
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.get(
+  '/contratos/:numero_contrato/documentos/:id_documento',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    const idDocumento = Number(req.params.id_documento);
+    if (!numero || !idDocumento) return res.status(400).json({ message: 'Parámetros inválidos.' });
+
+    try {
+      const rows = await dbQuery(
+        `SELECT nombre_archivo, ruta_relativa
+           FROM contratos_documentos
+          WHERE id_documento = ? AND numero_contrato = ?
+          LIMIT 1`,
+        [idDocumento, numero]
+      );
+      if (!rows.length) return res.status(404).json({ message: 'Documento no encontrado.' });
+
+      const abs = resolveAbsPath(rows[0].ruta_relativa);
+      if (!fs.existsSync(abs)) return res.status(404).json({ message: 'Archivo PDF no encontrado en disco.' });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${String(rows[0].nombre_archivo || 'documento.pdf').replace(/"/g, '')}"`
+      );
+      return res.sendFile(abs);
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.get("/contratos", verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), (req, res) => {
+  db.query(`${SQL_CONTRATO_SELECT} ORDER BY c.numero_contrato ASC`, (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+    } else {
+      const rows = Array.isArray(result) ? result : [];
+      res.json(JSON.parse(JSON.stringify(rows)));
+    }
   });
-});
-
-app.delete("/delete-contrato/:numero_contrato", (req, res) => {
-  const numero = req.params.numero_contrato;
-  db.query('DELETE FROM contratos_generales WHERE numero_contrato=?', [numero],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-        res.status(500).send(err);
-      } else {
-        res.send(result);
-      }
-    }
-  );
-});
-
-app.get("/contratos", (req, res) => {
-  db.query('SELECT * FROM contratos_generales',
-    (err, result) => {
-      if (err) {
-        console.log(err);
-        res.status(500).send(err);
-      } else {
-        const rows = Array.isArray(result) ? result : [];
-        res.json(JSON.parse(JSON.stringify(rows)));
-      }
-    }
-  );
 });
 
 app.post("/send-contrato-reminder", async (req, res) => {
@@ -862,9 +1207,11 @@ app.post("/send-contrato-reminder", async (req, res) => {
 
   try {
     const rows = await dbQuery(
-      `SELECT numero_contrato, empresa, tipo_contrato, vigencia, fecha_inicio, fecha_fin, correo_notificacion
-         FROM contratos_generales
-        WHERE numero_contrato = ?
+      `SELECT c.numero_contrato, c.empresa, COALESCE(tc.nombre, '') AS tipo_contrato,
+              c.vigencia, c.fecha_inicio, c.fecha_fin, c.correo_notificacion
+         FROM contratos_generales c
+         LEFT JOIN catalogo_tipo_contrato tc ON tc.id_tipo_contrato = c.id_tipo_contrato
+        WHERE c.numero_contrato = ?
         LIMIT 1`,
       [numeroContrato]
     );
@@ -3706,7 +4053,12 @@ app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autoriza
     res.send(result);
   });
 });
-Promise.all([ensurePasswordResetTable(), ensureContratoCorreoColumn(), ensureUsuariosSecurityAuditColumns()])
+Promise.all([
+  ensurePasswordResetTable(),
+  ensureContratoCorreoColumn(),
+  ensureUsuariosSecurityAuditColumns(),
+  ensureContratosArchivoTables(),
+])
   .then(async () => {
     let smtpReady = false;
     try {

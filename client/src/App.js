@@ -110,6 +110,7 @@ const SIDEBAR_CONTRATOS_KEYS = new Set([
   'contratos-vencimientos',
   'contratos-renovaciones',
   'contratos-reportes',
+  'contratos-archivo',
 ]);
 
 const setAuthToken = (token) => {
@@ -144,6 +145,7 @@ function App() {
     'contratos-vencimientos': 'Contratación · Vencimientos',
     'contratos-renovaciones': 'Contratación · Renovaciones',
     'contratos-reportes': 'Contratación · Reportes',
+    'contratos-archivo': 'Contratación · Archivo histórico',
     empleados: 'Gestión de empleados',
     'bajas-empleados': 'Bajas de empleado',
     'reporte-personal': 'Reporte de personal',
@@ -206,6 +208,7 @@ function App() {
       vencimientos: 'contratos-vencimientos',
       renovaciones: 'contratos-renovaciones',
       reportes: 'contratos-reportes',
+      archivo: 'contratos-archivo',
     };
     const nextKey = sectionToKey[sectionId];
     if (!nextKey || nextKey === key) return;
@@ -385,6 +388,9 @@ function App() {
               </NavDropdown.Item>
               <NavDropdown.Item eventKey="contratos-reportes" active={key === 'contratos-reportes'}>
                 <i className="bi bi-bar-chart-line me-2" aria-hidden="true"></i>Reportes
+              </NavDropdown.Item>
+              <NavDropdown.Item eventKey="contratos-archivo" active={key === 'contratos-archivo'}>
+                <i className="bi bi-archive me-2" aria-hidden="true"></i>Archivo histórico
               </NavDropdown.Item>
             </NavDropdown>
           )}
@@ -606,6 +612,9 @@ function App() {
             )}
             {key === 'contratos-reportes' && (
               <GestionContratos vistaInicial="reportes" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
+            {key === 'contratos-archivo' && (
+              <GestionContratos vistaInicial="archivo" user={user} onSectionChange={handleContratosSectionChange} />
             )}
             {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
             {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}

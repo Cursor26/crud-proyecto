@@ -49,6 +49,15 @@ function formatDelimitedField(value, separator) {
 function buildRows(contratosEnriquecidos, getPdfContrato, toISODate) {
   return contratosEnriquecidos.map((c) => {
     const p = getPdfContrato(c.numero_contrato);
+    let documento = '—';
+    if (Array.isArray(p)) {
+      if (p.length === 1) documento = p[0]?.nombre || 'PDF';
+      else if (p.length > 1) documento = `${p.length} PDFs: ${p.map((x) => x.nombre).join(', ')}`;
+    } else if (p?.nombre) {
+      documento = p.nombre;
+    } else if (p?.dataUrl) {
+      documento = 'PDF';
+    }
     return [
       c.numero_contrato,
       c.proveedor_cliente ? 'Proveedor' : 'Cliente',
@@ -59,7 +68,7 @@ function buildRows(contratosEnriquecidos, getPdfContrato, toISODate) {
       toISODate(c.fecha_fin),
       c.estado || '',
       c.diasRestantes ?? '',
-      p?.nombre || (p?.dataUrl ? 'PDF' : '—'),
+      documento,
     ];
   });
 }
