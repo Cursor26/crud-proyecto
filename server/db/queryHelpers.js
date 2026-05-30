@@ -25,7 +25,7 @@ const SQL_CONTRATO_SELECT = `SELECT c.numero_contrato,
   c.cancelado_por,
   CASE WHEN c.fecha_fin IS NOT NULL AND c.fecha_fin < CURDATE() THEN 1 ELSE 0 END AS vencido
   FROM contratos_generales c
-  INNER JOIN catalogo_tipo_contraparte cp ON cp.id_contraparte = c.id_contraparte
+  LEFT JOIN catalogo_tipo_contraparte cp ON cp.id_contraparte = c.id_contraparte
   LEFT JOIN catalogo_tipo_contrato tc ON tc.id_tipo_contrato = c.id_tipo_contrato`;
 
 const SQL_SEGSEG_LIST = `SELECT s.carnet_identidad AS id_tabla,

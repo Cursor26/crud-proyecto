@@ -2,7 +2,10 @@ import Axios from 'axios';
 import Swal from 'sweetalert2';
 
 const base = (process.env.REACT_APP_API_URL || 'http://localhost:3001').replace(/\/$/, '');
+export const API_BASE = base;
 Axios.defaults.baseURL = base;
+
+export default Axios;
 
 Axios.interceptors.request.use((config) => {
   try {

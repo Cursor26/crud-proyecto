@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import Axios from 'axios';
+import Axios, { API_BASE } from '../axiosConfig';
 import Swal from 'sweetalert2';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
@@ -46,7 +46,7 @@ function GestionUsuarios() {
 
   const getUsuarios = () => {
     setLoadError('');
-    Axios.get('http://localhost:3001/usuarios')
+    Axios.get(`${API_BASE}/usuarios`)
       .then((response) => {
         const data = response.data;
         setUsuarios(Array.isArray(data) ? data : []);
@@ -122,7 +122,7 @@ function GestionUsuarios() {
 
   const addUsuario = () => {
     if (!validarFormulario()) return;
-    Axios.post('http://localhost:3001/create-usuario', {
+    Axios.post('${API_BASE}/create-usuario', {
       email: userEmail.trim().toLowerCase(),
       nombre: userNombre.trim(),
       password: userPassword,
@@ -141,7 +141,7 @@ function GestionUsuarios() {
 
   const updateUsuario = () => {
     if (!validarFormulario()) return;
-    Axios.put(`http://localhost:3001/update-usuario/${encodeURIComponent(userEmailOriginal)}`, {
+    Axios.put(`${API_BASE}/update-usuario/${encodeURIComponent(userEmailOriginal)}`, {
       email: userEmail.trim().toLowerCase(),
       nombre: userNombre.trim(),
       password: userPassword,
@@ -171,7 +171,7 @@ function GestionUsuarios() {
     }
     const nextActivo = actualmenteActivo ? 0 : 1;
     setActivoTogglePending(u.email);
-    Axios.put(`http://localhost:3001/update-usuario/${encodeURIComponent(u.email)}`, {
+    Axios.put(`${API_BASE}/update-usuario/${encodeURIComponent(u.email)}`, {
       email: rowEmail,
       nombre: String(u.nombre || '').trim(),
       password: '',
@@ -198,7 +198,7 @@ function GestionUsuarios() {
       confirmButtonText: 'Sí',
     }).then((result) => {
       if (result.isConfirmed) {
-        Axios.delete(`http://localhost:3001/delete-usuario/${email}`)
+        Axios.delete(`${API_BASE}/delete-usuario/${email}`)
           .then(() => {
             getUsuarios();
             Swal.fire('Eliminado', 'Usuario eliminado', 'success');

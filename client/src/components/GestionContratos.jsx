@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import Axios from 'axios';
+import Axios, { API_BASE } from '../axiosConfig';
 import Swal from 'sweetalert2';
 import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
@@ -54,8 +54,6 @@ const ARCHIVO_EXCEL_HEADERS = [
   'Nº PDFs',
   'Motivo',
 ];
-
-const API_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:3001').replace(/\/$/, '');
 
 function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
@@ -113,8 +111,130 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const getContratos = () => {
     Axios.get(`${API_BASE}/contratos`)
-      .then((response) => setContratos(response.data))
+      .then((response) => {
+        const list = Array.isArray(response.data) ? response.data : [];
+        setContratos(list);
+        return cargarPdfsDesdeServidor(list.map((c) => c.numero_contrato));
+      })
       .catch((error) => console.error('Error al cargar contratos:', error));
+  };
+
+  const blobToDataUrl = (blob) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+  const cargarPdfBlobServidor = async (numeroContrato, idDocumento) => {
+    const res = await Axios.get(
+      `${API_BASE}/contratos/${encodeURIComponent(numeroContrato)}/documentos/${idDocumento}`,
+      { responseType: 'blob' }
+    );
+    return blobToDataUrl(res.data);
+  };
+
+  const cargarPdfsDesdeServidor = async (numerosContrato) => {
+    const numerosSet = new Set(
+      (Array.isArray(numerosContrato) ? numerosContrato : [])
+        .map((n) => String(n || '').trim())
+        .filter(Boolean)
+    );
+    if (!numerosSet.size) return;
+
+    try {
+      const res = await Axios.get(`${API_BASE}/contratos-documentos`);
+      const docs = Array.isArray(res.data) ? res.data : [];
+
+      let localCache = {};
+      try {
+        const raw = localStorage.getItem(CONTRATOS_PDF_STORAGE_KEY);
+        if (raw) localCache = JSON.parse(raw) || {};
+      } catch (_) {
+        /* ignore */
+      }
+
+      const nextPdfs = { ...localCache };
+
+      for (const doc of docs) {
+        const num = String(doc.numero_contrato || '').trim();
+        if (!numerosSet.has(num)) continue;
+        const pdfId = doc.cliente_id ? String(doc.cliente_id) : `srv_${doc.id_documento}`;
+        const serverEntry = {
+          id: pdfId,
+          serverId: Number(doc.id_documento),
+          nombre: doc.nombre_archivo || 'Contrato.pdf',
+          dataUrl: '',
+        };
+        const prevList = normalizarListaPdfs(nextPdfs[num]);
+        const prev = prevList.find((p) => p.id === pdfId || p.serverId === serverEntry.serverId);
+        if (prev?.dataUrl) serverEntry.dataUrl = prev.dataUrl;
+        const filtered = prevList.filter(
+          (p) => p.id !== pdfId && p.serverId !== serverEntry.serverId
+        );
+        nextPdfs[num] = [...filtered, serverEntry];
+      }
+
+      persistirPdfsContrato(nextPdfs);
+
+      const migraciones = [];
+      for (const num of numerosSet) {
+        const soloLocal = normalizarListaPdfs(nextPdfs[num]).filter((p) => p.dataUrl && !p.serverId);
+        if (!soloLocal.length) continue;
+        migraciones.push(
+          Axios.post(`${API_BASE}/contratos/${encodeURIComponent(num)}/documentos`, {
+            documentos: soloLocal.map((p) => ({
+              nombre: p.nombre,
+              dataUrl: p.dataUrl,
+              clienteId: p.id,
+            })),
+          })
+            .then((up) => {
+              const guardados = Array.isArray(up.data?.documentos) ? up.data.documentos : [];
+              if (!guardados.length) return;
+              const actuales = normalizarListaPdfs(nextPdfs[num]);
+              const merged = actuales.map((p) => {
+                const match = guardados.find(
+                  (g) =>
+                    (g.cliente_id && String(g.cliente_id) === p.id) ||
+                    (!g.cliente_id && !p.serverId && p.dataUrl)
+                );
+                return match ? { ...p, serverId: Number(match.id_documento) } : p;
+              });
+              nextPdfs[num] = merged;
+              persistirPdfsContrato({ ...nextPdfs });
+            })
+            .catch((err) => console.warn(`Migración PDF contrato ${num}:`, err?.message || err))
+        );
+      }
+      if (migraciones.length) await Promise.all(migraciones);
+    } catch (error) {
+      console.warn('No se pudieron cargar PDFs del servidor:', error?.message || error);
+    }
+  };
+
+  const syncPdfsServidor = async (numeroContrato) => {
+    const pdfs = getPdfsContrato(numeroContrato).filter((p) => p.dataUrl);
+    if (!pdfs.length) return;
+    const res = await Axios.post(`${API_BASE}/contratos/${encodeURIComponent(numeroContrato)}/documentos`, {
+      documentos: pdfs.map((p) => ({
+        nombre: p.nombre,
+        dataUrl: p.dataUrl,
+        clienteId: p.id,
+      })),
+    });
+    const guardados = Array.isArray(res.data?.documentos) ? res.data.documentos : [];
+    if (!guardados.length) return;
+    const key = normalizarNumeroContratoKey(numeroContrato);
+    const actuales = getPdfsContrato(numeroContrato);
+    const merged = actuales.map((p) => {
+      const match = guardados.find(
+        (g) => (g.cliente_id && String(g.cliente_id) === p.id) || (!g.cliente_id && !p.serverId)
+      );
+      return match ? { ...p, serverId: Number(match.id_documento) } : p;
+    });
+    persistirPdfsContrato({ ...contratoPdfs, [key]: merged });
   };
 
   const cargarArchivo = () => {
@@ -129,18 +249,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         Swal.fire('Error', error.response?.data?.message || error.message, 'error');
       })
       .finally(() => setArchivoLoading(false));
-  };
-
-  const syncPdfsServidor = async (numeroContrato) => {
-    const pdfs = getPdfsContrato(numeroContrato);
-    if (!pdfs.length) return;
-    await Axios.post(`${API_BASE}/contratos/${encodeURIComponent(numeroContrato)}/documentos`, {
-      documentos: pdfs.map((p) => ({
-        nombre: p.nombre,
-        dataUrl: p.dataUrl,
-        clienteId: p.id,
-      })),
-    });
   };
 
   useEffect(() => {
@@ -237,8 +345,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           id: String(p?.id || `legacy_${idx}`),
           dataUrl: String(p?.dataUrl || ''),
           nombre: String(p?.nombre || `Contrato_${idx + 1}.pdf`),
+          serverId: p?.serverId != null ? Number(p.serverId) : null,
         }))
-        .filter((p) => p.dataUrl);
+        .filter((p) => p.dataUrl || p.serverId);
     }
     if (typeof entry === 'string') {
       return [{ id: 'legacy_0', dataUrl: entry, nombre: 'Contrato.pdf' }];
@@ -301,15 +410,41 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const eliminarPdfContrato = (numeroContrato, pdfId = null) => {
     const key = normalizarNumeroContratoKey(numeroContrato);
     if (!key || !contratoPdfs[key]) return;
+    const eliminarEnEstado = () => {
+      if (!pdfId) {
+        const nextPdfs = { ...contratoPdfs };
+        delete nextPdfs[key];
+        persistirPdfsContrato(nextPdfs);
+        setNombreArchivoPdf('');
+        return;
+      }
+      const filtrados = getPdfsContrato(numeroContrato).filter((p) => p.id !== pdfId);
+      guardarPdfsListaContrato(numeroContrato, filtrados);
+    };
+
     if (!pdfId) {
-      const nextPdfs = { ...contratoPdfs };
-      delete nextPdfs[key];
-      persistirPdfsContrato(nextPdfs);
-      setNombreArchivoPdf('');
+      const pdfs = getPdfsContrato(numeroContrato);
+      pdfs.filter((p) => p.serverId).forEach((p) => {
+        Axios.delete(
+          `${API_BASE}/contratos/${encodeURIComponent(numeroContrato)}/documentos/${p.serverId}`
+        ).catch((err) => console.warn('No se pudo borrar PDF en servidor:', err?.message || err));
+      });
+      eliminarEnEstado();
       return;
     }
-    const filtrados = getPdfsContrato(numeroContrato).filter((p) => p.id !== pdfId);
-    guardarPdfsListaContrato(numeroContrato, filtrados);
+
+    const pdf = getPdfsContrato(numeroContrato).find((p) => p.id === pdfId);
+    if (pdf?.serverId) {
+      Axios.delete(
+        `${API_BASE}/contratos/${encodeURIComponent(numeroContrato)}/documentos/${pdf.serverId}`
+      )
+        .then(eliminarEnEstado)
+        .catch((err) => {
+          Swal.fire('Error', err.response?.data?.message || err.message, 'error');
+        });
+      return;
+    }
+    eliminarEnEstado();
   };
 
   const dataUrlToObjectUrl = (dataUrl) => {
@@ -327,12 +462,38 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     return URL.createObjectURL(blob);
   };
 
-  const abrirPdfContrato = (numeroContrato, pdfItem = null) => {
-    const pdf = pdfItem || getPdfContrato(numeroContrato);
+  const abrirPdfContrato = async (numeroContrato, pdfItem = null) => {
+    let pdf = pdfItem || getPdfContrato(numeroContrato);
+    if (!pdf) {
+      Swal.fire('Sin PDF', 'Este contrato no tiene PDF asociado.', 'info');
+      return;
+    }
+
+    if (!pdf.dataUrl && pdf.serverId) {
+      try {
+        Swal.fire({
+          title: 'Cargando PDF…',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading(),
+        });
+        const dataUrl = await cargarPdfBlobServidor(numeroContrato, pdf.serverId);
+        Swal.close();
+        const list = getPdfsContrato(numeroContrato).map((p) =>
+          p.id === pdf.id ? { ...p, dataUrl } : p
+        );
+        guardarPdfsListaContrato(numeroContrato, list);
+        pdf = { ...pdf, dataUrl };
+      } catch (error) {
+        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+        return;
+      }
+    }
+
     if (!pdf?.dataUrl) {
       Swal.fire('Sin PDF', 'Este contrato no tiene PDF asociado.', 'info');
       return;
     }
+
     let objectUrl = null;
     try {
       objectUrl = dataUrlToObjectUrl(pdf.dataUrl);
@@ -805,6 +966,15 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const esContratoCancelado = (con) => con?.estado === 'Cancelado' || Number(con?.cancelado) === 1;
   const muestraBotonEliminar = (con) => esContratoVencido(con) || esContratoCancelado(con);
 
+  const mensajeErrorApi = (error, fallback = 'Error de comunicación con el servidor.') => {
+    const status = error.response?.status;
+    const msg = error.response?.data?.message || error.message || fallback;
+    if (status === 404) {
+      return `${msg} Si acabas de actualizar el sistema, reinicia el servidor Node (puerto 3001).`;
+    }
+    return msg;
+  };
+
   const marcarContratoCanceladoEnServidor = (val) =>
     Axios.post(`${API_BASE}/contratos/${encodeURIComponent(val.numero_contrato)}/cancelar`)
       .then(() => {
@@ -816,7 +986,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         );
       })
       .catch((error) => {
-        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+        Swal.fire('Error', mensajeErrorApi(error), 'error');
       });
 
   const archivarContratoEnServidor = (val, motivo, exito) => {
@@ -1117,7 +1287,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       const nuevaFechaFin = result.value?.fechaFin;
       if (!nuevaFechaFin) return;
 
-      Axios.put('http://localhost:3001/update-contrato', {
+      Axios.put(`${API_BASE}/update-contrato`, {
         numero_contrato: contrato.numero_contrato,
         proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
         empresa: contrato.empresa,
@@ -1165,7 +1335,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       cancelButtonText: 'Cancelar',
     }).then((result) => {
       if (!result.isConfirmed) return;
-      Axios.post('http://localhost:3001/send-contrato-reminder', {
+      Axios.post(`${API_BASE}/send-contrato-reminder`, {
         numero_contrato: contrato.numero_contrato,
       })
         .then((res) => {
@@ -1546,7 +1716,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           objetivo.map((contrato) => {
             const baseInicio = toISODate(contrato.fecha_fin) || toISODate(contrato.fecha_inicio);
             const nuevaFechaFin = sumarTiempoConVigencia(baseInicio, contrato.vigencia);
-            return Axios.put('http://localhost:3001/update-contrato', {
+            return Axios.put(`${API_BASE}/update-contrato`, {
               numero_contrato: contrato.numero_contrato,
               proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
               empresa: contrato.empresa,
@@ -1676,7 +1846,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
       const resultados = await Promise.allSettled(
         contratosVencidos.map((contrato) => {
-          return Axios.put('http://localhost:3001/update-contrato', {
+          return Axios.put(`${API_BASE}/update-contrato`, {
             numero_contrato: contrato.numero_contrato,
             proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
             empresa: contrato.empresa,

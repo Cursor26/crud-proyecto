@@ -679,7 +679,7 @@ app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (r
 
 
 
-app.post("/create", (req, res)=>{
+app.post("/create", verificarToken, autorizarRol(['admin']), (req, res)=>{
     const nombre = req.body.nombre;
     const edad = req.body.edad;
     const pais = req.body.pais;
@@ -702,7 +702,7 @@ app.post("/create", (req, res)=>{
 
 
 
-app.put("/update", (req, res)=>{
+app.put("/update", verificarToken, autorizarRol(['admin']), (req, res)=>{
     const id = req.body.id;
     const nombre = req.body.nombre;
     const edad = req.body.edad;
@@ -724,7 +724,7 @@ app.put("/update", (req, res)=>{
 
 
 
-app.delete("/delete/:id", (req, res)=>{
+app.delete("/delete/:id", verificarToken, autorizarRol(['admin']), (req, res)=>{
     const id = req.params.id;
 
     
@@ -742,7 +742,7 @@ app.delete("/delete/:id", (req, res)=>{
 
 
 
-app.get("/tabla1", (req, res)=>{
+app.get("/tabla1", verificarToken, autorizarRol(['admin']), (req, res)=>{
 
     
     db.query('SELECT * FROM tabla1',
@@ -846,7 +846,10 @@ app.put("/update-contrato", verificarToken, autorizarRol(['admin', 'contratacion
               vigencia = ?,
               id_tipo_contrato = ?,
               fecha_inicio = ?,
-              fecha_fin = ?
+              fecha_fin = ?,
+              cancelado = IF(? IS NOT NULL AND ? >= CURDATE(), 0, cancelado),
+              cancelado_en = IF(? IS NOT NULL AND ? >= CURDATE(), NULL, cancelado_en),
+              cancelado_por = IF(? IS NOT NULL AND ? >= CURDATE(), NULL, cancelado_por)
         WHERE numero_contrato = ?`,
       [
         numeroNuevo,
@@ -857,6 +860,12 @@ app.put("/update-contrato", verificarToken, autorizarRol(['admin', 'contratacion
         vigencia,
         idTipo,
         fecha_inicio,
+        fecha_fin,
+        fecha_fin,
+        fecha_fin,
+        fecha_fin,
+        fecha_fin,
+        fecha_fin,
         fecha_fin,
         numeroContratoWhere,
       ]
@@ -1150,6 +1159,25 @@ app.get(
   }
 );
 
+app.get(
+  '/contratos-documentos',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    try {
+      const rows = await dbQuery(
+        `SELECT id_documento, numero_contrato, nombre_archivo, tamano_bytes, cliente_id, subido_en
+           FROM contratos_documentos
+          ORDER BY numero_contrato ASC, id_documento ASC`
+      );
+      return res.json(rows);
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
 app.post(
   '/contratos/:numero_contrato/documentos',
   verificarToken,
@@ -1265,6 +1293,33 @@ app.get(
   }
 );
 
+app.delete(
+  '/contratos/:numero_contrato/documentos/:id_documento',
+  verificarToken,
+  autorizarRol(['admin', 'contratacion']),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    const idDocumento = Number(req.params.id_documento);
+    if (!numero || !idDocumento) return res.status(400).json({ message: 'Parámetros inválidos.' });
+
+    try {
+      const rows = await dbQuery(
+        `SELECT ruta_relativa FROM contratos_documentos WHERE id_documento = ? AND numero_contrato = ? LIMIT 1`,
+        [idDocumento, numero]
+      );
+      if (!rows.length) return res.status(404).json({ message: 'Documento no encontrado.' });
+
+      const abs = resolveAbsPath(rows[0].ruta_relativa);
+      if (fs.existsSync(abs)) fs.unlinkSync(abs);
+      await dbQuery('DELETE FROM contratos_documentos WHERE id_documento = ?', [idDocumento]);
+      return res.json({ ok: true });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
 app.get("/contratos", verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), (req, res) => {
   db.query(`${SQL_CONTRATO_SELECT} ORDER BY c.numero_contrato ASC`, (err, result) => {
     if (err) {
@@ -1277,28 +1332,23 @@ app.get("/contratos", verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), (re
   });
 });
 
-app.post("/send-contrato-reminder", async (req, res) => {
+app.post("/send-contrato-reminder", verificarToken, autorizarRol(['admin', 'contratacion']), async (req, res) => {
   const numeroContrato = String(req.body?.numero_contrato || '').trim();
   if (!numeroContrato) {
     return res.status(400).json({ message: 'Número de contrato requerido.' });
   }
 
   try {
-    const rows = await dbQuery(
-      `SELECT c.numero_contrato, c.empresa, COALESCE(tc.nombre, '') AS tipo_contrato,
-              c.vigencia, c.fecha_inicio, c.fecha_fin, c.correo_notificacion
-         FROM contratos_generales c
-         LEFT JOIN catalogo_tipo_contrato tc ON tc.id_tipo_contrato = c.id_tipo_contrato
-        WHERE c.numero_contrato = ?
-        LIMIT 1`,
-      [numeroContrato]
-    );
+    const rows = await dbQuery(`${SQL_CONTRATO_SELECT} WHERE c.numero_contrato = ? LIMIT 1`, [numeroContrato]);
 
     if (!rows.length) {
       return res.status(404).json({ message: 'Contrato no encontrado.' });
     }
 
     const contrato = rows[0];
+    if (Number(contrato.cancelado) === 1) {
+      return res.status(400).json({ message: 'No se pueden enviar recordatorios de contratos cancelados.' });
+    }
     const destino = normalizeEmail(contrato.correo_notificacion);
     if (!destino || !isValidEmail(destino)) {
       return res.status(400).json({ message: 'Este contrato no tiene un correo de notificación válido.' });
