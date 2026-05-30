@@ -40,6 +40,24 @@ export function DeleteTableActionButton({ onClick, className = '', title = 'Elim
   );
 }
 
+export function CancelTableActionButton({ onClick, className = '', title = 'Cancelar contrato', disabled: disabledProp, ...rest }) {
+  const puedeEscribir = usePuedeEscribir();
+  const disabled = disabledProp === true || !puedeEscribir;
+  return (
+    <button
+      type="button"
+      className={joinClass('btn-table-icon-action', 'btn-table-icon-action--cancel', className)}
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      {...rest}
+    >
+      <i className="bi bi-x-circle" aria-hidden="true" />
+    </button>
+  );
+}
+
 export function RenewTableActionButton({ onClick, className = '', title = 'Renovar contrato', disabled: disabledProp, ...rest }) {
   const puedeEscribir = usePuedeEscribir();
   const disabled = disabledProp === true || !puedeEscribir;

@@ -236,6 +236,35 @@ const ensureContratoCorreoColumn = async () => {
   }
 };
 
+const ensureContratoCanceladoColumns = async () => {
+  const defs = [
+    {
+      name: 'cancelado',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN cancelado TINYINT(1) NOT NULL DEFAULT 0 AFTER fecha_fin',
+    },
+    {
+      name: 'cancelado_en',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN cancelado_en DATETIME NULL AFTER cancelado',
+    },
+    {
+      name: 'cancelado_por',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN cancelado_por VARCHAR(255) NULL AFTER cancelado_en',
+    },
+  ];
+  for (const def of defs) {
+    const rows = await dbQuery(
+      `SELECT COUNT(*) AS cnt
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'contratos_generales'
+          AND COLUMN_NAME = ?`,
+      [def.name]
+    );
+    const exists = Number(rows?.[0]?.cnt || 0) > 0;
+    if (!exists) await dbQuery(def.sql);
+  }
+};
+
 const ensureUsuariosSecurityAuditColumns = async () => {
   const defs = [
     { name: 'activo', sql: 'ALTER TABLE usuarios ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1 AFTER rol' },
@@ -862,6 +891,55 @@ app.put("/update-contrato", verificarToken, autorizarRol(['admin', 'contratacion
 });
 
 const ROLES_CONTRATOS_LECTURA = ['admin', 'contratacion', 'director'];
+
+app.post(
+  '/contratos/:numero_contrato/cancelar',
+  verificarToken,
+  autorizarRol(['admin', 'contratacion']),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+
+    const canceladoPor = String(req.user?.email || req.user?.nombre || '').trim() || null;
+
+    try {
+      const rows = await dbQuery(
+        `SELECT numero_contrato, fecha_fin, COALESCE(cancelado, 0) AS cancelado
+           FROM contratos_generales
+          WHERE numero_contrato = ?
+          LIMIT 1`,
+        [numero]
+      );
+      if (!rows.length) return res.status(404).json({ message: 'Contrato no encontrado.' });
+
+      const c = rows[0];
+      if (Number(c.cancelado) === 1) {
+        return res.status(400).json({ message: 'El contrato ya está cancelado.' });
+      }
+      const vencido = await dbQuery(
+        `SELECT 1 AS ok FROM contratos_generales
+          WHERE numero_contrato = ? AND fecha_fin IS NOT NULL AND fecha_fin < CURDATE()
+          LIMIT 1`,
+        [numero]
+      );
+      if (vencido.length) {
+        return res.status(400).json({ message: 'Los contratos vencidos no se pueden cancelar; use eliminar.' });
+      }
+
+      await dbQuery(
+        `UPDATE contratos_generales
+            SET cancelado = 1, cancelado_en = NOW(), cancelado_por = ?
+          WHERE numero_contrato = ?`,
+        [canceladoPor, numero]
+      );
+
+      return res.json({ ok: true, numero_contrato: numero, estado: 'Cancelado' });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+    }
+  }
+);
 
 app.post(
   '/contratos/:numero_contrato/archivar',
@@ -4056,6 +4134,7 @@ app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autoriza
 Promise.all([
   ensurePasswordResetTable(),
   ensureContratoCorreoColumn(),
+  ensureContratoCanceladoColumns(),
   ensureUsuariosSecurityAuditColumns(),
   ensureContratosArchivoTables(),
 ])

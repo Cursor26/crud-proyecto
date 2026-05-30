@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { EditTableActionButton, DeleteTableActionButton, RenewTableActionButton } from './TableActionIconButtons';
+import { EditTableActionButton, DeleteTableActionButton, CancelTableActionButton, RenewTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
 import AppSelect from './AppSelect';
 
@@ -586,6 +586,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   };
 
   const getEstadoContrato = (contrato) => {
+    if (Number(contrato?.cancelado) === 1) return 'Cancelado';
     const dias = diasParaVencer(contrato.fecha_fin);
     if (dias == null) return 'Sin fecha';
     if (dias < 0) return 'Vencido';
@@ -605,6 +606,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   };
 
   const getBadgeClass = (estado) => {
+    if (estado === 'Cancelado') return 'bg-dark';
     if (estado === 'Vencido') return 'bg-danger';
     if (estado === 'Por vencer') return 'bg-warning text-dark';
     if (estado === 'En seguimiento') return 'bg-info text-dark';
@@ -799,32 +801,102 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       });
   };
 
-  const archivarContrato = (val) => {
+  const esContratoVencido = (con) => con?.estado === 'Vencido';
+  const esContratoCancelado = (con) => con?.estado === 'Cancelado' || Number(con?.cancelado) === 1;
+  const muestraBotonEliminar = (con) => esContratoVencido(con) || esContratoCancelado(con);
+
+  const marcarContratoCanceladoEnServidor = (val) =>
+    Axios.post(`${API_BASE}/contratos/${encodeURIComponent(val.numero_contrato)}/cancelar`)
+      .then(() => {
+        getContratos();
+        Swal.fire(
+          'Contrato cancelado',
+          'Quedó en estado Cancelado. Use eliminar cuando desee archivarlo definitivamente.',
+          'success'
+        );
+      })
+      .catch((error) => {
+        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+      });
+
+  const archivarContratoEnServidor = (val, motivo, exito) => {
+    const pdfs = getPdfsContrato(val.numero_contrato);
+    return Axios.post(`${API_BASE}/contratos/${encodeURIComponent(val.numero_contrato)}/archivar`, {
+      motivo: motivo || null,
+      documentos: pdfs.map((p) => ({ id: p.id, nombre: p.nombre, dataUrl: p.dataUrl })),
+    })
+      .then(() => {
+        eliminarPdfContrato(val.numero_contrato);
+        getContratos();
+        Swal.fire(exito.title, exito.text, 'success');
+      })
+      .catch((error) => {
+        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+      });
+  };
+
+  const eliminarContrato = (val) => {
+    const esCancelado = esContratoCancelado(val);
     Swal.fire({
-      title: '¿Archivar contrato?',
-      html: 'El contrato se archivará por <strong>5 años</strong> (datos y PDFs en servidor) y dejará de aparecer en la lista activa.',
+      title: esCancelado ? '¿Eliminar contrato cancelado?' : '¿Eliminar contrato vencido?',
+      html: `
+        <p class="mb-2">Contrato <strong>${val.numero_contrato}</strong> — ${String(val.empresa || '').trim() || 'Sin empresa'}</p>
+        <p class="mb-0">Se archivará por <strong>5 años</strong> (datos y PDFs en servidor) y dejará de aparecer en la lista activa.</p>
+      `,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'Sí, archivar',
-      cancelButtonText: 'Cancelar',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'No',
+      confirmButtonColor: '#b91c1c',
       input: 'text',
       inputPlaceholder: 'Motivo de baja (opcional)',
       inputAttributes: { maxlength: 500 },
     }).then((result) => {
       if (!result.isConfirmed) return;
-      const pdfs = getPdfsContrato(val.numero_contrato);
-      Axios.post(`${API_BASE}/contratos/${encodeURIComponent(val.numero_contrato)}/archivar`, {
-        motivo: result.value ? String(result.value).trim() : null,
-        documentos: pdfs.map((p) => ({ id: p.id, nombre: p.nombre, dataUrl: p.dataUrl })),
-      })
-        .then(() => {
-          eliminarPdfContrato(val.numero_contrato);
-          getContratos();
-          Swal.fire('Archivado', 'Contrato archivado por 5 años.', 'success');
-        })
-        .catch((error) => {
-          Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+      archivarContratoEnServidor(val, result.value ? String(result.value).trim() : null, {
+        title: 'Eliminado',
+        text: esCancelado ? 'Contrato cancelado archivado por 5 años.' : 'Contrato vencido archivado por 5 años.',
+      });
+    });
+  };
+
+  const cancelarContrato = (val) => {
+    Swal.fire({
+      title: '¿Cancelar contrato?',
+      html: `
+        <p class="mb-2">Contrato <strong>${val.numero_contrato}</strong> — ${String(val.empresa || '').trim() || 'Sin empresa'}</p>
+        <p class="mb-0 small text-muted">
+          <strong>Cancelar y eliminar contrato:</strong> se archiva por 5 años (datos y PDFs en servidor) y deja de aparecer en la lista activa.<br />
+          <strong>Solo cancelar contrato:</strong> marca el contrato como <strong>Cancelado</strong> en la tabla; luego podrá eliminarlo con el icono de papelera.
+        </p>
+      `,
+      icon: 'warning',
+      showCloseButton: true,
+      closeButtonAriaLabel: 'Cerrar sin cambios',
+      customClass: {
+        popup: 'swal-cancel-contrato',
+        closeButton: 'swal-cancel-contrato__close',
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Cancelar y eliminar contrato',
+      cancelButtonText: 'Solo cancelar contrato',
+      confirmButtonColor: '#b91c1c',
+      cancelButtonColor: '#64748b',
+      reverseButtons: true,
+      input: 'text',
+      inputPlaceholder: 'Motivo de baja (opcional)',
+      inputAttributes: { maxlength: 500 },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        archivarContratoEnServidor(val, result.value ? String(result.value).trim() : null, {
+          title: 'Contrato archivado',
+          text: 'Se archivó por 5 años y ya no aparece en contratos activos.',
         });
+        return;
+      }
+      if (result.dismiss === Swal.DismissReason.cancel) {
+        marcarContratoCanceladoEnServidor(val);
+      }
     });
   };
 
@@ -2360,6 +2432,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                     <option value="En seguimiento">En seguimiento</option>
                     <option value="Por vencer">Por vencer</option>
                     <option value="Vencido">Vencido</option>
+                    <option value="Cancelado">Cancelado</option>
                   </AppSelect>
                 </div>
                 <div className="col-6 col-md-2">
@@ -2427,7 +2500,11 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                           <div className="d-inline-flex align-items-center gap-1 flex-nowrap">
                             <EditTableActionButton onClick={() => editarContratoTabla(con)} />
                             <RenewTableActionButton onClick={() => renovarContrato(con)} />
-                            <DeleteTableActionButton onClick={() => archivarContrato(con)} />
+                            {muestraBotonEliminar(con) ? (
+                              <DeleteTableActionButton onClick={() => eliminarContrato(con)} />
+                            ) : (
+                              <CancelTableActionButton onClick={() => cancelarContrato(con)} />
+                            )}
                           </div>
                         </td>
                       </tr>

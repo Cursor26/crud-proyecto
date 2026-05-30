@@ -20,6 +20,9 @@ const SQL_CONTRATO_SELECT = `SELECT c.numero_contrato,
   COALESCE(tc.nombre, '') AS tipo_contrato,
   c.fecha_inicio,
   c.fecha_fin,
+  COALESCE(c.cancelado, 0) AS cancelado,
+  c.cancelado_en,
+  c.cancelado_por,
   CASE WHEN c.fecha_fin IS NOT NULL AND c.fecha_fin < CURDATE() THEN 1 ELSE 0 END AS vencido
   FROM contratos_generales c
   INNER JOIN catalogo_tipo_contraparte cp ON cp.id_contraparte = c.id_contraparte
