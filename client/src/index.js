@@ -2,8 +2,11 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 import './axiosConfig';
+import { applyPreferencesToDocument, getStoredUserEmail, loadStoredPreferences } from './lib/appPreferences';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+
+applyPreferencesToDocument(loadStoredPreferences(getStoredUserEmail()));
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

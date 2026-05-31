@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
@@ -35,9 +35,15 @@ import CambiosCargo from './components/CambiosCargo';
 import ReporteConsolidado from './components/ReporteConsolidado';
 import ProduccionHistorico from './components/ProduccionHistorico';
 import GestionUsuarios from './components/GestionUsuarios';
+import ConfigCorreoServicio from './components/ConfigCorreoServicio';
+import AppConfiguracion from './components/AppConfiguracion';
 import { PuedeEscribirProvider } from './context/PuedeEscribirContext';
+import { AppPreferencesProvider, useAppPreferences } from './context/AppPreferencesContext';
+import { NavPrefsInitializer, useDashboardNavHandlers } from './hooks/useDashboardNav';
+import { formatAppDate, formatAppTime } from './lib/formatAppDate';
 import RrhhModuloHerramientas6Modal from './components/RrhhModuloHerramientas6Modal';
 import logoAepg from './images/logo-aepg.png';
+import UserProfileAvatar from './components/UserProfileAvatar';
 import DnaThreeWidget from './components/DnaThreeWidget';
 
 const TOKEN_KEY = 'token';
@@ -63,19 +69,11 @@ function normalizarUsuarioGuardado(raw, authToken) {
     email: parsed?.email || payload?.email || '',
     nombre: parsed?.nombre || payload?.nombre || '',
     rol,
+    fotoPerfil: parsed?.fotoPerfil || null,
   };
 }
 
-/** Vista inicial al entrar o al cambiar de rol */
-function getDefaultKeyForRol(rol) {
-  if (rol === 'admin') return 'usuarios';
-  if (rol === 'contratacion') return 'contratos-resumen';
-  if (rol === 'rrhh') return 'empleados';
-  if (rol === 'estadistica' || rol === 'produccion') return 'sacrificio';
-  if (rol === 'director') return 'produccion-historico';
-  return '';
-}
-
+/** Vista inicial al entrar o al cambiar de rol — ver useDashboardNav.js */
 const SIDEBAR_RRHH_KEYS = new Set([
   'empleados',
   'bajas-empleados',
@@ -139,6 +137,8 @@ function App() {
 
   const moduloLabel = {
     usuarios: 'Gestión de usuarios',
+    'config-correo': 'Correo del sistema',
+    'app-configuracion': 'Configuración de la aplicación',
     contratos: 'Contratación',
     'contratos-resumen': 'Contratación · Resumen',
     'contratos-lista': 'Contratación · Contratos',
@@ -190,7 +190,7 @@ function App() {
 
   const handleNavSelect = (selectedKey) => {
     setKey(selectedKey);
-    if (selectedKey === 'usuarios' || selectedKey === 'contratos') {
+    if (selectedKey === 'usuarios' || selectedKey === 'config-correo' || selectedKey === 'app-configuracion' || selectedKey === 'contratos') {
       setSidebarMenuOpen(null);
     } else if (SIDEBAR_RRHH_KEYS.has(selectedKey)) {
       setSidebarMenuOpen('rrhh');
@@ -234,23 +234,18 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
+    const tmr = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(tmr);
   }, []);
 
-  useEffect(() => {
-    if (!user?.rol) return;
-    const k = getDefaultKeyForRol(user.rol);
-    setKey(k);
-    if (SIDEBAR_RRHH_KEYS.has(k)) setSidebarMenuOpen('rrhh');
-    else if (SIDEBAR_CONTRATOS_KEYS.has(k)) setSidebarMenuOpen('contratos');
-    else if (SIDEBAR_PROD_KEYS.has(k)) setSidebarMenuOpen('prod');
-    else setSidebarMenuOpen(null);
-  }, [user?.rol, user?.email]);
-
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     try {
-      const response = await Axios.post('/login', { email, password });
+      const loginId = String(identifier || '').trim();
+      const response = await Axios.post('/login', {
+        identifier: loginId,
+        email: loginId,
+        password,
+      });
       const { token: newToken, usuario } = response.data;
       const usuarioNormalizado = {
         ...usuario,
@@ -261,12 +256,6 @@ function App() {
       setAuthToken(newToken);
       setToken(newToken);
       setUser(usuarioNormalizado);
-      const k = getDefaultKeyForRol(usuarioNormalizado.rol);
-      setKey(k);
-      if (SIDEBAR_RRHH_KEYS.has(k)) setSidebarMenuOpen('rrhh');
-      else if (SIDEBAR_CONTRATOS_KEYS.has(k)) setSidebarMenuOpen('contratos');
-      else if (SIDEBAR_PROD_KEYS.has(k)) setSidebarMenuOpen('prod');
-      else setSidebarMenuOpen(null);
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message || 'Error al conectar' };
@@ -281,6 +270,15 @@ function App() {
     setUser(null);
     setKey('');
     setSidebarMenuOpen(null);
+  };
+
+  const handleProfilePhotoUpdated = (fotoPerfil) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, fotoPerfil: fotoPerfil || null };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
   };
 
   const rol = user?.rol;
@@ -315,6 +313,18 @@ function App() {
   const mostrarLeche = mostrarProduccion;
   const esDirectorLectura = rol === 'director';
 
+  const allowedModuleKeys = useMemo(() => {
+    const keys = new Set(['app-configuracion']);
+    if (mostrarUsuarios) {
+      keys.add('usuarios');
+      keys.add('config-correo');
+    }
+    if (mostrarContratos) SIDEBAR_CONTRATOS_KEYS.forEach((k) => keys.add(k));
+    if (mostrarRHum) SIDEBAR_RRHH_KEYS.forEach((k) => keys.add(k));
+    if (mostrarProduccion) SIDEBAR_PROD_KEYS.forEach((k) => keys.add(k));
+    return keys;
+  }, [mostrarUsuarios, mostrarContratos, mostrarRHum, mostrarProduccion]);
+
   const rolEtiqueta = (r) => {
     if (r === 'estadistica' || r === 'produccion') return 'Estadística';
     if (r === 'admin') return 'Administrador';
@@ -337,9 +347,92 @@ function App() {
   }
 
   return (
+    <AppPreferencesProvider userEmail={user.email}>
     <PuedeEscribirProvider puedeEscribir={user?.rol !== 'director'}>
+    <NavPrefsInitializer
+      user={user}
+      allowedKeys={allowedModuleKeys}
+      setKey={setKey}
+      setSidebarMenuOpen={setSidebarMenuOpen}
+    />
+    <DashboardShell
+      user={user}
+      logout={logout}
+      navKey={key}
+      setKey={setKey}
+      sidebarMenuOpen={sidebarMenuOpen}
+      setSidebarMenuOpen={setSidebarMenuOpen}
+      handleNavSelect={handleNavSelect}
+      handleContratosSectionChange={handleContratosSectionChange}
+      handleSidebarContratosToggle={handleSidebarContratosToggle}
+      handleSidebarRrhhToggle={handleSidebarRrhhToggle}
+      handleSidebarProdToggle={handleSidebarProdToggle}
+      now={now}
+      rrhhAnaliticaOpen={rrhhAnaliticaOpen}
+      setRrhhAnaliticaOpen={setRrhhAnaliticaOpen}
+      moduloLabel={moduloLabel}
+      rolEtiqueta={rolEtiqueta}
+      esDirectorLectura={esDirectorLectura}
+      allowedModuleKeys={allowedModuleKeys}
+      onProfilePhotoUpdated={handleProfilePhotoUpdated}
+      mostrarUsuarios={mostrarUsuarios}
+      mostrarContratos={mostrarContratos}
+      mostrarRHum={mostrarRHum}
+      mostrarProduccion={mostrarProduccion}
+      mostrarEmpleados={mostrarEmpleados}
+      mostrarAsistencias={mostrarAsistencias}
+      mostrarCertificaciones={mostrarCertificaciones}
+      mostrarCursos={mostrarCursos}
+      mostrarEvalcapacitacion={mostrarEvalcapacitacion}
+      mostrarEvaluaciones={mostrarEvaluaciones}
+      mostrarObjetivos={mostrarObjetivos}
+      mostrarSalarios={mostrarSalarios}
+      mostrarVacaciones={mostrarVacaciones}
+      mostrarTurnosTrabajo={mostrarTurnosTrabajo}
+      mostrarGruposTrabajo={mostrarGruposTrabajo}
+      mostrarSanciones={mostrarSanciones}
+      mostrarReconocimientos={mostrarReconocimientos}
+      mostrarJubilaciones={mostrarJubilaciones}
+      mostrarSegSeguridad={mostrarSegSeguridad}
+      mostrarSeguridad={mostrarSeguridad}
+      mostrarCargos={mostrarCargos}
+      mostrarDepartamentos={mostrarDepartamentos}
+      mostrarCertMedicos={mostrarCertMedicos}
+      mostrarEvalMedicas={mostrarEvalMedicas}
+      mostrarSacrificio={mostrarSacrificio}
+      mostrarMatadero={mostrarMatadero}
+      mostrarLeche={mostrarLeche}
+    />
+    </PuedeEscribirProvider>
+    </AppPreferencesProvider>
+  );
+}
+
+function DashboardShell(props) {
+  const { preferences, resolved } = useAppPreferences();
+  const { handleNavSelect, dropdownShow } = useDashboardNavHandlers({
+    user: props.user,
+    setKey: props.setKey,
+    setSidebarMenuOpen: props.setSidebarMenuOpen,
+    baseNavSelect: props.handleNavSelect,
+  });
+  const sidebarWidth = resolved.sidebarWidth.width;
+  const {
+    user, logout, navKey: key, sidebarMenuOpen, now, rrhhAnaliticaOpen, setRrhhAnaliticaOpen,
+    moduloLabel, rolEtiqueta, esDirectorLectura,
+    handleContratosSectionChange, handleSidebarContratosToggle, handleSidebarRrhhToggle, handleSidebarProdToggle,
+    mostrarUsuarios, mostrarContratos, mostrarRHum, mostrarProduccion, mostrarEmpleados,
+    mostrarAsistencias, mostrarCertificaciones, mostrarCursos, mostrarEvalcapacitacion,
+    mostrarEvaluaciones, mostrarObjetivos, mostrarSalarios, mostrarVacaciones,
+    mostrarTurnosTrabajo, mostrarGruposTrabajo, mostrarSanciones, mostrarReconocimientos,
+    mostrarJubilaciones, mostrarSegSeguridad, mostrarSeguridad, mostrarCargos,
+    mostrarDepartamentos, mostrarCertMedicos, mostrarEvalMedicas, mostrarSacrificio,
+    mostrarMatadero, mostrarLeche, onProfilePhotoUpdated,
+  } = props;
+
+  return (
     <div className="dashboard-shell d-flex vh-100" style={{ overflow: 'hidden' }}>
-      <div className="dashboard-sidebar vh-100 p-4 d-flex flex-column shadow-lg" style={{ width: '280px', minWidth: '280px' }}>
+      <div className="dashboard-sidebar vh-100 p-4 d-flex flex-column shadow-lg" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
         <div className="text-white mb-2 pb-4 border-bottom dashboard-sidebar-divider">
           <div className="dashboard-sidebar-brand mb-2">
             <img src={logoAepg} alt="Logo AEPG" className="dashboard-sidebar-brand-logo" />
@@ -348,13 +441,20 @@ function App() {
           <p className="mb-0 opacity-75">Bienvenido, {user.nombre} </p>
         </div>
 
-        <Nav className="flex-column flex-grow-1" activeKey={key} onSelect={handleNavSelect}>
+        <Nav className="flex-column flex-grow-1 dashboard-sidebar-nav" activeKey={key} onSelect={handleNavSelect}>
           {mostrarUsuarios && (
-            <Nav.Item className="mb-2">
-              <Nav.Link eventKey="usuarios" className="dashboard-nav-link rounded-3 p-1">
-                <i className="bi bi-person-badge me-2" aria-hidden="true"></i>Usuarios
-              </Nav.Link>
-            </Nav.Item>
+            <>
+              <Nav.Item className="mb-2">
+                <Nav.Link eventKey="usuarios" className="dashboard-nav-link rounded-3 p-1">
+                  <i className="bi bi-person-badge me-2" aria-hidden="true"></i>Usuarios
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item className="mb-2">
+                <Nav.Link eventKey="config-correo" className="dashboard-nav-link rounded-3 p-1">
+                  <i className="bi bi-envelope-at me-2" aria-hidden="true"></i>Correo del sistema
+                </Nav.Link>
+              </Nav.Item>
+            </>
           )}
 
           {mostrarContratos && (
@@ -367,8 +467,8 @@ function App() {
               id="sidebar-dropdown-contratos"
               className="mi-dropdown-sidebar"
               autoClose={false}
-              show={sidebarMenuOpen === 'contratos'}
-              onToggle={handleSidebarContratosToggle}
+              show={dropdownShow('contratos', sidebarMenuOpen)}
+              onToggle={(next) => !preferences.pinSubmenus && handleSidebarContratosToggle(next)}
             >
               <NavDropdown.Item eventKey="contratos-resumen" active={key === 'contratos-resumen'}>
                 <i className="bi bi-speedometer2 me-2" aria-hidden="true"></i>Resumen ejecutivo
@@ -405,8 +505,8 @@ function App() {
               id="sidebar-dropdown-rrhh"
               className="mi-dropdown-sidebar"
               autoClose={false}
-              show={sidebarMenuOpen === 'rrhh'}
-              onToggle={handleSidebarRrhhToggle}
+              show={dropdownShow('rrhh', sidebarMenuOpen)}
+              onToggle={(next) => !preferences.pinSubmenus && handleSidebarRrhhToggle(next)}
             >
               {mostrarEmpleados && (
                 <NavDropdown.Item eventKey="empleados" active={key === 'empleados'}>
@@ -541,8 +641,8 @@ function App() {
               id="sidebar-dropdown-prod"
               className="mi-dropdown-sidebar"
               autoClose={false}
-              show={sidebarMenuOpen === 'prod'}
-              onToggle={handleSidebarProdToggle}
+              show={dropdownShow('prod', sidebarMenuOpen)}
+              onToggle={(next) => !preferences.pinSubmenus && handleSidebarProdToggle(next)}
             >
               {mostrarSacrificio && (
                 <NavDropdown.Item eventKey="sacrificio" active={key === 'sacrificio'}>
@@ -567,22 +667,35 @@ function App() {
             </NavDropdown>
           )}
         </Nav>
+
+        <div className="dashboard-sidebar-footer mt-auto pt-3">
+          <button
+            type="button"
+            className={`dashboard-sidebar-config-btn w-100${key === 'app-configuracion' ? ' is-active' : ''}`}
+            onClick={() => handleNavSelect('app-configuracion')}
+            aria-current={key === 'app-configuracion' ? 'page' : undefined}
+          >
+            <i className="bi bi-gear-wide-connected me-2" aria-hidden="true" />
+            Configuración
+          </button>
+        </div>
       </div>
 
       <div className="dashboard-main dashboard-main--contratos flex-grow-1 ps-4 pb-4 pe-0">
         <div className="dashboard-topbar-wave" aria-hidden="true" />
-        <Navbar expand="lg" className="dashboard-topbar shadow-none mb-2 py-2 px-4">
+        <Navbar expand="lg" className="dashboard-topbar shadow-none py-1 px-4">
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <div className="dashboard-topbar-avatar-wrap">
+              <UserProfileAvatar user={user} onPhotoUpdated={onProfilePhotoUpdated} />
               <div className="dashboard-topbar-user-meta">
                 <span className="dashboard-topbar-user-name">{user.nombre}</span>
                 <span className="dashboard-topbar-user-role">{rolEtiqueta(user.rol)}</span>
               </div>
-              <img src="/images/usuario.png" alt="" width="52" height="52" className="dashboard-user-avatar" />
             </div>
             <Nav className="ms-auto align-items-center gap-2 dashboard-topbar-actions">
               <button type="button" className="btn btn-cerrar mb-0" onClick={logout}>
+                <i className="bi bi-box-arrow-right" aria-hidden="true" />
                 Cerrar sesión
               </button>
             </Nav>
@@ -617,6 +730,10 @@ function App() {
               <GestionContratos vistaInicial="archivo" user={user} onSectionChange={handleContratosSectionChange} />
             )}
             {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
+            {key === 'config-correo' && mostrarUsuarios && <ConfigCorreoServicio currentUser={user} />}
+            {key === 'app-configuracion' && (
+              <AppConfiguracion />
+            )}
             {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
             {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
             {key === 'leche' && mostrarLeche && <Leche />}
@@ -655,11 +772,9 @@ function App() {
               <p className="dashboard-side-info__line">
                 Módulo: <strong>{moduloLabel[key] || 'Panel principal'}</strong>
               </p>
-              <p className="dashboard-side-info__date">
-                {now.toLocaleDateString('es-ES')}
-              </p>
+              <p className="dashboard-side-info__date">{formatAppDate(now, preferences.dateFormat)}</p>
               <p className="dashboard-side-info__time">
-                {now.toLocaleTimeString('es-ES')}
+                {formatAppTime(now, preferences.timeFormat)}
               </p>
             </div>
             <div className="dashboard-side-info__dna" aria-hidden="true">
@@ -699,7 +814,6 @@ function App() {
         )}
       </div>
     </div>
-    </PuedeEscribirProvider>
   );
 }
 

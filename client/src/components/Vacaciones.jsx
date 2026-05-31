@@ -70,7 +70,7 @@ const Vacaciones = () => {
         setIdOriginal('');
     };
 
-    const calcularDias = () => {
+    useEffect(() => {
         if (fechaInicio && fechaFin) {
             const inicio = new Date(fechaInicio);
             const fin = new Date(fechaFin);
@@ -78,10 +78,6 @@ const Vacaciones = () => {
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
             setDiasTotales(diffDays);
         }
-    };
-
-    useEffect(() => {
-        calcularDias();
     }, [fechaInicio, fechaFin]);
 
     const handleSubmit = (e) => {

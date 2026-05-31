@@ -20,6 +20,9 @@ import {
   MSJ_OBLIGATORIO_NO_SOLO_BLANCOS,
 } from '../utils/validation';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { useAppPreferences } from '../context/AppPreferencesContext';
+import { isColumnVisible } from '../lib/appPreferences';
+import { registroActivo } from '../utils/registroActivo';
 import { NIVEL_ESCOLAR_OPCIONES } from '../constants/hrCatalogos';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 
@@ -29,6 +32,8 @@ function Hint({ children, variant = 'muted' }) {
 }
 
 function GestionEmpleados() {
+  const { preferences } = useAppPreferences();
+  const showCol = (id) => isColumnVisible(preferences, 'empleados', id);
   const puedeEscribir = usePuedeEscribir();
   const [empCarnet, setEmpCarnet] = useState('');
   const [empNombre, setEmpNombre] = useState('');
@@ -389,7 +394,7 @@ function GestionEmpleados() {
     setLicDescrip(row.descripcion || '');
     setLicFecha(row.fecha_registro || '');
     setLicObs(row.observaciones || '');
-    setLicActivo(row.activo == 1);
+    setLicActivo(registroActivo(row.activo));
     setShowLicModal(true);
   };
 
@@ -736,26 +741,29 @@ function GestionEmpleados() {
           <table className="table table-data-compact table-bordered table-striped">
             <thead>
               <tr>
-                <th>Carnet</th>
-                <th>Nombre</th>
-                <th>Apellidos</th>
-                <th>Puesto</th>
-                <th>Teléfono</th>
-                <th>Nivel escolar</th>
-                <th>Superación</th>
-                <th>Acciones</th>
+                {showCol('carnet') ? <th>Carnet</th> : null}
+                {showCol('nombre') ? <th>Nombre</th> : null}
+                {showCol('apellidos') ? <th>Apellidos</th> : null}
+                {showCol('puesto') ? <th>Puesto</th> : null}
+                {showCol('telefono') ? <th>Teléfono</th> : null}
+                {showCol('nivelEscolar') ? <th>Nivel escolar</th> : null}
+                {showCol('superacion') ? <th>Superación</th> : null}
+                {showCol('acciones') ? <th>Acciones</th> : null}
               </tr>
             </thead>
             <tbody>
               {empleadosFiltrados.map((emp) => (
                 <tr key={emp.carnet_identidad}>
-                  <td>{emp.carnet_identidad}</td>
-                  <td>{emp.nombre}</td>
-                  <td>{emp.apellidos}</td>
-                  <td>{emp.puesto}</td>
-                  <td>{emp.telefono}</td>
-                  <td>{emp.nivel_escolar || '—'}</td>
-                  <td style={{ maxWidth: 200, whiteSpace: 'pre-wrap' }}>{emp.superacion_en_proceso || '—'}</td>
+                  {showCol('carnet') ? <td>{emp.carnet_identidad}</td> : null}
+                  {showCol('nombre') ? <td>{emp.nombre}</td> : null}
+                  {showCol('apellidos') ? <td>{emp.apellidos}</td> : null}
+                  {showCol('puesto') ? <td>{emp.puesto}</td> : null}
+                  {showCol('telefono') ? <td>{emp.telefono}</td> : null}
+                  {showCol('nivelEscolar') ? <td>{emp.nivel_escolar || '—'}</td> : null}
+                  {showCol('superacion') ? (
+                    <td style={{ maxWidth: 200, whiteSpace: 'pre-wrap' }}>{emp.superacion_en_proceso || '—'}</td>
+                  ) : null}
+                  {showCol('acciones') ? (
                   <td>
                     <button
                       type="button"
@@ -768,6 +776,7 @@ function GestionEmpleados() {
                     <EditTableActionButton onClick={() => editarEmpleadoTabla(emp)} className="me-2" />
                     <DeleteTableActionButton onClick={() => deleteEmpleado(emp)} />
                   </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -818,7 +827,7 @@ function GestionEmpleados() {
                     </td>
                     <td>{r.carnet_identidad}</td>
                     <td style={{ maxWidth: 280, whiteSpace: 'pre-wrap' }}>{r.descripcion}</td>
-                    <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
+                    <td>{registroActivo(r.activo) ? 'Sí' : 'No'}</td>
                     <td>
                       <EditTableActionButton onClick={() => editarLic(r)} className="me-2" />
                       <DeleteTableActionButton onClick={() => eliminarLic(r)} />

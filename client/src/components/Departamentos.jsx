@@ -7,6 +7,7 @@ import AppSelect from './AppSelect';
 import { FormModal } from './FormModal';
 import ListSearchToolbar from './ListSearchToolbar';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { registroActivo } from '../utils/registroActivo';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
@@ -100,7 +101,7 @@ const Departamentos = () => {
     setNombre(d.nombre || '');
     setDescripcion(d.descripcion || '');
     setIdPadre(d.id_padre != null ? String(d.id_padre) : '');
-    setActivo(d.activo == 1);
+    setActivo(registroActivo(d.activo));
     setShowDeptoModal(true);
   };
 
@@ -218,7 +219,7 @@ const Departamentos = () => {
       d.descripcion != null && d.descripcion !== '' ? String(d.descripcion) : '—',
       d.nombre_padre != null && d.nombre_padre !== '' ? String(d.nombre_padre) : '—',
       d.num_empleados != null && d.num_empleados !== '' ? String(d.num_empleados) : '0',
-      d.activo == 1 ? 'Sí' : 'No',
+      registroActivo(d.activo) ? 'Sí' : 'No',
     ]);
     return { headers, dataRows };
   }, [departamentosFiltrados]);
@@ -367,7 +368,7 @@ const Departamentos = () => {
                     </td>
                     <td>{d.nombre_padre || '—'}</td>
                     <td>{d.num_empleados != null ? d.num_empleados : 0}</td>
-                    <td>{d.activo == 1 ? 'Sí' : 'No'}</td>
+                    <td>{registroActivo(d.activo) ? 'Sí' : 'No'}</td>
                     <td>
                       <button type="button" className="btn btn-sm btn-outline-warning me-1" onClick={() => editarDepto(d)} disabled={!puedeEscribir}>
                         Editar

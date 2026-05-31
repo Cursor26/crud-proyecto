@@ -9,6 +9,7 @@ import { FormModal } from './FormModal';
 import ListSearchToolbar from './ListSearchToolbar';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
 import { parseNonNegativeNumber } from '../utils/validation';
+import { registroActivo } from '../utils/registroActivo';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
@@ -110,7 +111,7 @@ const Cargos = () => {
       setDeptoSel('__otro__');
       setDeptoOtro(dep);
     }
-    setActivo(reg.activo == 1);
+    setActivo(registroActivo(reg.activo));
     setShowModal(true);
   };
 

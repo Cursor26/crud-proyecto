@@ -9,6 +9,7 @@ import { fmtFechaTabla } from '../utils/formatDates';
 import AppSelect from './AppSelect';
 import ListSearchToolbar from './ListSearchToolbar';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { registroActivo } from '../utils/registroActivo';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
@@ -117,7 +118,7 @@ const GruposTrabajo = () => {
     setIdGrupoEdit(g.id_grupo);
     setGNombre(g.nombre || '');
     setGDescripcion(g.descripcion || '');
-    setGActivo(g.activo == 1);
+    setGActivo(registroActivo(g.activo));
     setShowGrupoModal(true);
   };
 
@@ -280,7 +281,7 @@ const GruposTrabajo = () => {
       g.nombre != null ? String(g.nombre) : '—',
       g.descripcion != null && g.descripcion !== '' ? String(g.descripcion) : '—',
       g.num_miembros != null && g.num_miembros !== '' ? String(g.num_miembros) : '0',
-      g.activo == 1 ? 'Sí' : 'No',
+      registroActivo(g.activo) ? 'Sí' : 'No',
     ]);
     return { headers, dataRows };
   }, [gruposFiltrados]);
@@ -405,7 +406,7 @@ const GruposTrabajo = () => {
                       {g.descripcion && <small className="text-muted">{g.descripcion}</small>}
                     </td>
                     <td>{g.num_miembros ?? 0}</td>
-                    <td>{g.activo == 1 ? 'Sí' : 'No'}</td>
+                    <td>{registroActivo(g.activo) ? 'Sí' : 'No'}</td>
                     <td>
                       <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => abrirMiembros(g)}>
                         Miembros

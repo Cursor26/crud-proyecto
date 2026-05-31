@@ -8,6 +8,7 @@ import AppSelect from './AppSelect';
 import { FormModal } from './FormModal';
 import ListSearchToolbar from './ListSearchToolbar';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { registroActivo } from '../utils/registroActivo';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { TIPO_CHEQUEO_MED, RESULTADO_CHEQUEO } from '../constants/hrCatalogos';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
@@ -127,7 +128,7 @@ const EvaluacionesMedicas = () => {
     setMedicoNombre(r.medico_nombre || '');
     setProximoChequeo(r.proximo_chequeo || '');
     setObservaciones(r.observaciones || '');
-    setActivo(r.activo == 1);
+    setActivo(registroActivo(r.activo));
     setShowModal(true);
   };
 
@@ -180,7 +181,7 @@ const EvaluacionesMedicas = () => {
       r.medico_nombre != null ? String(r.medico_nombre) : '—',
       r.proximo_chequeo != null && r.proximo_chequeo !== '' ? String(r.proximo_chequeo) : '—',
       r.observaciones != null && r.observaciones !== '' ? String(r.observaciones) : '—',
-      r.activo == 1 ? 'Sí' : 'No',
+      registroActivo(r.activo) ? 'Sí' : 'No',
     ]);
     return { headers, dataRows };
   }, [filtrados]);
@@ -242,7 +243,7 @@ const EvaluacionesMedicas = () => {
                     <td>{r.resultado}</td>
                     <td>{r.medico_nombre}</td>
                     <td className="text-nowrap">{r.proximo_chequeo ? fmtFechaTabla(r.proximo_chequeo) : '—'}</td>
-                    <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
+                    <td>{registroActivo(r.activo) ? 'Sí' : 'No'}</td>
                     <td>
                       <EditTableActionButton onClick={() => editarRegistro(r)} className="me-1" />
                       <DeleteTableActionButton onClick={() => eliminarRegistro(r)} />

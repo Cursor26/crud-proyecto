@@ -143,6 +143,8 @@ export function razonesRevisarTextoAreaExpediente(s) {
   if (esTextoIrregularSinLetras(t)) {
     r.push('no contiene letras (solo cifras o signos)');
   }
+  // Detecta caracteres de control ASCII poco habitales en texto pegado desde otros sistemas.
+  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(t)) {
     r.push('incluye caracteres de control poco habituales');
   }

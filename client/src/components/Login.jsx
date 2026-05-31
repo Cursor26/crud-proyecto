@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
+import { DEFAULT_LOGIN_LOGO, fetchLoginAvatar } from '../lib/profilePhoto';
 
 function Login({ onLogin }) {
   const [captchaText, setCaptchaText] = useState('');
@@ -12,8 +13,38 @@ function Login({ onLogin }) {
   const [resetPassword, setResetPassword] = useState('');
   const [confirmResetPassword, setConfirmResetPassword] = useState('');
   const [submittingReset, setSubmittingReset] = useState(false);
-  const [logoSrc, setLogoSrc] = useState('/images/LOGOTIPO.png');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [profilePhotoSrc, setProfilePhotoSrc] = useState(null);
+  const [isProfileReveal, setIsProfileReveal] = useState(false);
   const timerRef = useRef(null);
+  const avatarLookupTimerRef = useRef(null);
+  const avatarLookupSeqRef = useRef(0);
+  const profileHideTimerRef = useRef(null);
+  const loginInputRef = useRef(null);
+
+  const PROFILE_ANIM_MS = 560;
+
+  const revealProfilePhoto = (foto) => {
+    if (profileHideTimerRef.current) {
+      clearTimeout(profileHideTimerRef.current);
+      profileHideTimerRef.current = null;
+    }
+    setProfilePhotoSrc(foto);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setIsProfileReveal(true));
+    });
+  };
+
+  const hideProfilePhoto = () => {
+    if (profileHideTimerRef.current) {
+      clearTimeout(profileHideTimerRef.current);
+    }
+    setIsProfileReveal(false);
+    profileHideTimerRef.current = setTimeout(() => {
+      setProfilePhotoSrc(null);
+      profileHideTimerRef.current = null;
+    }, PROFILE_ANIM_MS);
+  };
 
   const isResetMode = useMemo(() => Boolean(resetToken && resetEmail), [resetToken, resetEmail]);
 
@@ -69,7 +100,7 @@ function Login({ onLogin }) {
     }, 1000);
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Inicializa captcha e intervalo solo al montar (no en modo reset de contraseña)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = String(params.get('resetToken') || '').trim();
@@ -87,12 +118,74 @@ function Login({ onLogin }) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- init captcha una vez al montar
 
   useEffect(() => {
     if (!isResetMode) return;
     if (timerRef.current) clearInterval(timerRef.current);
   }, [isResetMode]);
+
+  // El autocompletado del navegador no dispara onChange; leemos el valor del DOM.
+  useEffect(() => {
+    if (isResetMode) return undefined;
+
+    const syncIdentifierFromDom = () => {
+      const el = loginInputRef.current;
+      if (!el) return;
+      const domValue = String(el.value || '');
+      setLoginIdentifier((prev) => (prev === domValue ? prev : domValue));
+    };
+
+    syncIdentifierFromDom();
+    const timers = [120, 350, 750, 1200].map((ms) => setTimeout(syncIdentifierFromDom, ms));
+
+    const el = loginInputRef.current;
+    const onAutoFill = (e) => {
+      if (e.animationName === 'loginInputAutofillStart') syncIdentifierFromDom();
+    };
+    el?.addEventListener('animationstart', onAutoFill);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      el?.removeEventListener('animationstart', onAutoFill);
+    };
+  }, [isResetMode]);
+
+  useEffect(() => {
+    if (isResetMode) return undefined;
+
+    const trimmed = String(loginIdentifier || '').trim();
+    if (avatarLookupTimerRef.current) clearTimeout(avatarLookupTimerRef.current);
+
+    if (!trimmed) {
+      hideProfilePhoto();
+      return undefined;
+    }
+
+    avatarLookupTimerRef.current = setTimeout(async () => {
+      const seq = avatarLookupSeqRef.current + 1;
+      avatarLookupSeqRef.current = seq;
+      const foto = await fetchLoginAvatar(trimmed);
+      if (seq !== avatarLookupSeqRef.current) return;
+
+      if (foto) {
+        revealProfilePhoto(foto);
+      } else {
+        hideProfilePhoto();
+      }
+    }, 320);
+
+    return () => {
+      if (avatarLookupTimerRef.current) clearTimeout(avatarLookupTimerRef.current);
+    };
+  }, [loginIdentifier, isResetMode]);
+
+  useEffect(
+    () => () => {
+      if (profileHideTimerRef.current) clearTimeout(profileHideTimerRef.current);
+    },
+    []
+  );
 
   const validateCaptcha = () => {
     if (String(userCaptcha || '').trim() !== String(captchaText || '').trim()) {
@@ -106,10 +199,10 @@ function Login({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const email = formData.get('email');
+    const identifier = formData.get('identifier');
     const password = formData.get('password');
     if (!validateCaptcha()) return;
-    const result = await onLogin(email, password);
+    const result = await onLogin(identifier, password);
     if (!result.success) Swal.fire('Error', result.message, 'error');
   };
 
@@ -223,12 +316,24 @@ function Login({ onLogin }) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-logo-wrap">
+        <div className={`login-logo-wrap${isProfileReveal ? ' login-logo-wrap--profile-visible' : ''}`}>
+          {profilePhotoSrc ? (
+            <img
+              src={profilePhotoSrc}
+              alt=""
+              className="login-logo-profile"
+              aria-hidden="true"
+              onError={hideProfilePhoto}
+            />
+          ) : null}
           <img
-            src={logoSrc}
+            src={DEFAULT_LOGIN_LOGO}
             alt="PECUARIA GENETICA Valle del Peru"
-            className="login-logo-img"
-            onError={() => setLogoSrc('/images/usuario.png')}
+            className="login-logo-brand"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = '/images/usuario.png';
+            }}
           />
         </div>
 
@@ -282,11 +387,16 @@ function Login({ onLogin }) {
             <div className="login-field-row">
               <i className="bi bi-person login-field-icon" aria-hidden />
               <input
-                type="email"
-                name="email"
+                ref={loginInputRef}
+                type="text"
+                name="identifier"
                 className="login-input"
-                placeholder="Usuario"
+                placeholder="Usuario o correo"
                 autoComplete="username"
+                value={loginIdentifier}
+                onChange={(e) => setLoginIdentifier(e.target.value)}
+                onInput={(e) => setLoginIdentifier(e.target.value)}
+                onBlur={(e) => setLoginIdentifier(e.target.value)}
                 required
               />
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Axios, { API_BASE } from '../axiosConfig';
 import Swal from 'sweetalert2';
@@ -8,6 +8,9 @@ import autoTable from 'jspdf-autotable';
 import { EditTableActionButton, DeleteTableActionButton, CancelTableActionButton, RenewTableActionButton } from './TableActionIconButtons';
 import { FormModal } from './FormModal';
 import AppSelect from './AppSelect';
+import { useAppPreferences } from '../context/AppPreferencesContext';
+import { CONTRATOS_LIST_COLUMNS, isColumnVisible } from '../lib/appPreferences';
+import { formatAppDate } from '../lib/formatAppDate';
 
 /** Valores legacy numéricos en BD → etiquetas del formulario (Alimento, Servicio, Compra, Otro). */
 const MAP_TIPO_CONTRATO_NUM = {
@@ -55,7 +58,44 @@ const ARCHIVO_EXCEL_HEADERS = [
   'Motivo',
 ];
 
+function contratoToISODate(value) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
+function diasParaVencer(fechaFin) {
+  if (!fechaFin) return null;
+  const fin = new Date(`${contratoToISODate(fechaFin)}T00:00:00`);
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const ms = fin.getTime() - hoy.getTime();
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+}
+
+function getEstadoContrato(contrato) {
+  if (Number(contrato?.cancelado) === 1) return 'Cancelado';
+  const dias = diasParaVencer(contrato.fecha_fin);
+  if (dias === null) return 'Sin fecha';
+  if (dias < 0) return 'Vencido';
+  if (dias <= 30) return 'Por vencer';
+  if (dias <= 90) return 'En seguimiento';
+  return 'Activo';
+}
+
+function getAlertaContrato(contrato) {
+  const dias = diasParaVencer(contrato.fecha_fin);
+  if (dias === null) return 'Sin fecha fin';
+  if (dias < 0) return `Venció hace ${Math.abs(dias)} día(s)`;
+  if (dias <= 7) return `Crítico: ${dias} día(s)`;
+  if (dias <= 30) return `Atención: ${dias} día(s)`;
+  if (dias <= 90) return `Seguimiento: ${dias} día(s)`;
+  return `Vigente: ${dias} día(s)`;
+}
+
 function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
+  const { preferences } = useAppPreferences();
+  const showCol = (id) => isColumnVisible(preferences, 'contratos', id);
+  const visibleContratoColCount = CONTRATOS_LIST_COLUMNS.filter((c) => showCol(c.id)).length;
   const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
   const CONTRATOS_PDF_STORAGE_KEY = 'contratos_pdf_archivos_v1';
   const [contratoNumero, setContratoNumero] = useState('');
@@ -67,8 +107,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const [contratoVigencia, setContratoVigencia] = useState('');
   const [contratoTipo, setContratoTipo] = useState('');
   const [contratoFechaInicio, setContratoFechaInicio] = useState('');
-  const [contratoFechaFin, setContratoFechaFin] = useState('');
-  const [contratoVencido, setContratoVencido] = useState(false);
   const [editarContrato, setEditarContrato] = useState(false);
   const [contratosList, setContratos] = useState([]);
   const [showContratoModal, setShowContratoModal] = useState(false);
@@ -253,12 +291,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   useEffect(() => {
     getContratos();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- carga inicial
 
   useEffect(() => {
     if (activeSection !== 'archivo') return;
     cargarArchivo();
-  }, [activeSection, archivoBusqueda, archivoAnio]);
+  }, [activeSection, archivoBusqueda, archivoAnio]); // eslint-disable-line react-hooks/exhaustive-deps -- cargarArchivo estable por sección
 
   useEffect(() => {
     const nextSection = vistaInicial || 'contratos';
@@ -364,11 +402,11 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     return [];
   };
 
-  const getPdfsContrato = (numeroContrato) => {
+  const getPdfsContrato = useCallback((numeroContrato) => {
     const key = normalizarNumeroContratoKey(numeroContrato);
     if (!key) return [];
     return normalizarListaPdfs(contratoPdfs[key]);
-  };
+  }, [contratoPdfs]);
 
   const getPdfContrato = (numeroContrato) => {
     const list = getPdfsContrato(numeroContrato);
@@ -737,34 +775,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     return String(value).slice(0, 10);
   };
 
-  const diasParaVencer = (fechaFin) => {
-    if (!fechaFin) return null;
-    const fin = new Date(`${toISODate(fechaFin)}T00:00:00`);
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    const ms = fin.getTime() - hoy.getTime();
-    return Math.ceil(ms / (1000 * 60 * 60 * 24));
-  };
-
-  const getEstadoContrato = (contrato) => {
-    if (Number(contrato?.cancelado) === 1) return 'Cancelado';
-    const dias = diasParaVencer(contrato.fecha_fin);
-    if (dias == null) return 'Sin fecha';
-    if (dias < 0) return 'Vencido';
-    if (dias <= 30) return 'Por vencer';
-    if (dias <= 90) return 'En seguimiento';
-    return 'Activo';
-  };
-
-  const getAlertaContrato = (contrato) => {
-    const dias = diasParaVencer(contrato.fecha_fin);
-    if (dias == null) return 'Sin fecha fin';
-    if (dias < 0) return `Venció hace ${Math.abs(dias)} día(s)`;
-    if (dias <= 7) return `Crítico: ${dias} día(s)`;
-    if (dias <= 30) return `Atención: ${dias} día(s)`;
-    if (dias <= 90) return `Seguimiento: ${dias} día(s)`;
-    return `Vigente: ${dias} día(s)`;
-  };
+  const fmtDisplayDate = (value) => formatAppDate(value, preferences.dateFormat) || toISODate(value);
 
   const getBadgeClass = (estado) => {
     if (estado === 'Cancelado') return 'bg-dark';
@@ -823,7 +834,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setNombreArchivoPdf(
       pdfs.length === 0 ? '' : pdfs.length === 1 ? pdfs[0].nombre : `${pdfs.length} PDFs adjuntos`
     );
-  }, [contratoNumero, contratoPdfs]);
+  }, [contratoNumero, contratoPdfs, getPdfsContrato]);
 
   const limpiarContrato = () => {
     setContratoNumero('');
@@ -835,8 +846,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoVigencia('');
     setContratoTipo('');
     setContratoFechaInicio('');
-    setContratoFechaFin('');
-    setContratoVencido(false);
     setEditarContrato(false);
     setNombreArchivoIcono('');
     setNombreArchivoPdf('');
@@ -1005,9 +1014,16 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       });
   };
 
-  const eliminarContrato = (val) => {
+  const eliminarContrato = async (val) => {
     const esCancelado = esContratoCancelado(val);
-    Swal.fire({
+    if (!preferences.confirmBeforeDelete) {
+      archivarContratoEnServidor(val, null, {
+        title: 'Eliminado',
+        text: esCancelado ? 'Contrato cancelado archivado por 5 años.' : 'Contrato vencido archivado por 5 años.',
+      });
+      return;
+    }
+    const result = await Swal.fire({
       title: esCancelado ? '¿Eliminar contrato cancelado?' : '¿Eliminar contrato vencido?',
       html: `
         <p class="mb-2">Contrato <strong>${val.numero_contrato}</strong> — ${String(val.empresa || '').trim() || 'Sin empresa'}</p>
@@ -1021,12 +1037,11 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       input: 'text',
       inputPlaceholder: 'Motivo de baja (opcional)',
       inputAttributes: { maxlength: 500 },
-    }).then((result) => {
-      if (!result.isConfirmed) return;
-      archivarContratoEnServidor(val, result.value ? String(result.value).trim() : null, {
-        title: 'Eliminado',
-        text: esCancelado ? 'Contrato cancelado archivado por 5 años.' : 'Contrato vencido archivado por 5 años.',
-      });
+    });
+    if (!result.isConfirmed) return;
+    archivarContratoEnServidor(val, result.value ? String(result.value).trim() : null, {
+      title: 'Eliminado',
+      text: esCancelado ? 'Contrato cancelado archivado por 5 años.' : 'Contrato vencido archivado por 5 años.',
     });
   };
 
@@ -1239,8 +1254,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoTipo(val.tipo_contrato);
     const fechaInicio = val.fecha_inicio ? val.fecha_inicio.substring(0, 10) : '';
     setContratoFechaInicio(fechaInicio);
-    setContratoFechaFin(val.fecha_fin ? val.fecha_fin.substring(0, 10) : '');
-    setContratoVencido(val.vencido === 1);
     setShowContratoModal(true);
   };
 
@@ -1510,7 +1523,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     const sinPdf = contratosEnriquecidos.filter((c) => getPdfsContrato(c.numero_contrato).length === 0).length;
     const pctDocumental = Math.round(((total - sinCorreo + total - sinPdf) / (total * 2)) * 100);
     return { sinCorreo, sinPdf, pctDocumental, total };
-  }, [contratosEnriquecidos, contratoPdfs]);
+  }, [contratosEnriquecidos, getPdfsContrato]);
 
   const cockpitSalud = useMemo(() => {
     const total = resumen.total || 1;
@@ -1694,49 +1707,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       sinCorreo,
       sinPdf,
     };
-  }, [contratosFiltradosReporte, contratoPdfs]);
-
-  const renovarMasivos = () => {
-    const objetivo = contratosEnriquecidos.filter((c) => c.diasRestantes != null && c.diasRestantes <= 30);
-    if (objetivo.length === 0) {
-      Swal.fire('Sin pendientes', 'No hay contratos en ventana de renovación (<= 30 días).', 'info');
-      return;
-    }
-
-    Swal.fire({
-      title: 'Renovación masiva',
-      text: `Se renovarán ${objetivo.length} contrato(s) críticos o por vencer.`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, renovar todos',
-    }).then(async (result) => {
-      if (!result.isConfirmed) return;
-      try {
-        await Promise.all(
-          objetivo.map((contrato) => {
-            const baseInicio = toISODate(contrato.fecha_fin) || toISODate(contrato.fecha_inicio);
-            const nuevaFechaFin = sumarTiempoConVigencia(baseInicio, contrato.vigencia);
-            return Axios.put(`${API_BASE}/update-contrato`, {
-              numero_contrato: contrato.numero_contrato,
-              proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
-              empresa: contrato.empresa,
-              correo_notificacion: contrato.correo_notificacion || null,
-              suplementos: contrato.suplementos || '',
-              vigencia: contrato.vigencia,
-              tipo_contrato: contrato.tipo_contrato,
-              fecha_inicio: toISODate(contrato.fecha_inicio),
-              fecha_fin: nuevaFechaFin,
-              vencido: 0,
-            });
-          })
-        );
-        getContratos();
-        Swal.fire('Completado', 'Renovación masiva aplicada correctamente.', 'success');
-      } catch (error) {
-        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
-      }
-    });
-  };
+  }, [contratosFiltradosReporte, getPdfsContrato]);
 
   const verTodosPorVencer = () => {
     if (contratosPorVencer.length === 0) {
@@ -2630,7 +2601,16 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 <table className="table table-data-compact table-bordered table-striped">
                   <thead>
                     <tr>
-                      <th>N° Contrato</th><th>Tipo</th><th>Empresa</th><th>Vigencia</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Estado</th><th>Días</th><th>Documento</th><th className="contratos-th-actions">Acciones</th>
+                      {showCol('numero') ? <th>N° Contrato</th> : null}
+                      {showCol('tipo') ? <th>Tipo</th> : null}
+                      {showCol('empresa') ? <th>Empresa</th> : null}
+                      {showCol('vigencia') ? <th>Vigencia</th> : null}
+                      {showCol('fechaInicio') ? <th>Fecha Inicio</th> : null}
+                      {showCol('fechaFin') ? <th>Fecha Fin</th> : null}
+                      {showCol('estado') ? <th>Estado</th> : null}
+                      {showCol('dias') ? <th>Días</th> : null}
+                      {showCol('documento') ? <th>Documento</th> : null}
+                      {showCol('acciones') ? <th className="contratos-th-actions">Acciones</th> : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -2639,6 +2619,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       const isSelected = contratoSeleccionado === rowId;
                       return (
                       <tr key={rowId} className={isSelected ? 'contratos-row-selected' : ''}>
+                        {showCol('numero') ? (
                         <td>
                           <span className="contratos-numero-wrap">
                             <button
@@ -2653,19 +2634,23 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                             <span className="contratos-numero-wrap__num">{con.numero_contrato}</span>
                           </span>
                         </td>
-                        <td>{con.proveedor_cliente ? 'Proveedor' : 'Cliente'}</td>
+                        ) : null}
+                        {showCol('tipo') ? <td>{con.proveedor_cliente ? 'Proveedor' : 'Cliente'}</td> : null}
+                        {showCol('empresa') ? (
                         <td>
                           <div className="d-inline-flex align-items-center gap-2">
                             <AvatarEmpresaClic empresa={con.empresa} />
                             <span>{con.empresa || 'Sin empresa'}</span>
                           </div>
                         </td>
-                        <td>{con.vigencia != null && String(con.vigencia).trim() !== '' ? `${con.vigencia} años` : '—'}</td>
-                        <td>{toISODate(con.fecha_inicio)}</td>
-                        <td>{toISODate(con.fecha_fin)}</td>
-                        <td><span className={`badge ${getBadgeClass(con.estado)}`}>{con.estado}</span></td>
-                        <td>{con.diasRestantes == null ? '-' : con.diasRestantes < 0 ? `-${Math.abs(con.diasRestantes)}` : con.diasRestantes}</td>
-                        <td className="text-center">{renderCeldaDocumentoPdf(con.numero_contrato)}</td>
+                        ) : null}
+                        {showCol('vigencia') ? <td>{con.vigencia != null && String(con.vigencia).trim() !== '' ? `${con.vigencia} años` : '—'}</td> : null}
+                        {showCol('fechaInicio') ? <td>{fmtDisplayDate(con.fecha_inicio)}</td> : null}
+                        {showCol('fechaFin') ? <td>{fmtDisplayDate(con.fecha_fin)}</td> : null}
+                        {showCol('estado') ? <td><span className={`badge ${getBadgeClass(con.estado)}`}>{con.estado}</span></td> : null}
+                        {showCol('dias') ? <td>{con.diasRestantes == null ? '-' : con.diasRestantes < 0 ? `-${Math.abs(con.diasRestantes)}` : con.diasRestantes}</td> : null}
+                        {showCol('documento') ? <td className="text-center">{renderCeldaDocumentoPdf(con.numero_contrato)}</td> : null}
+                        {showCol('acciones') ? (
                         <td className="contratos-td-actions">
                           <div className="d-inline-flex align-items-center gap-1 flex-nowrap">
                             <EditTableActionButton onClick={() => editarContratoTabla(con)} />
@@ -2677,10 +2662,11 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                             )}
                           </div>
                         </td>
+                        ) : null}
                       </tr>
                     );})}
                     {contratosFiltrados.length === 0 && (
-                      <tr><td colSpan={10} className="text-center text-muted py-3">No se encontraron contratos con los filtros aplicados.</td></tr>
+                      <tr><td colSpan={visibleContratoColCount} className="text-center text-muted py-3">No se encontraron contratos con los filtros aplicados.</td></tr>
                     )}
                   </tbody>
                 </table>

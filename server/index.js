@@ -24,6 +24,14 @@ const {
   removeDirIfExists,
   calcRetencionHasta,
 } = require('./lib/contratosDocumentosStorage');
+const {
+  envSmtpConfig,
+  buildMailerFromSmtp,
+  getEffectiveCorreoConfig,
+  saveCorreoConfigToDb,
+  publicCorreoConfig,
+  decryptPass,
+} = require('./lib/sistemaCorreo');
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -88,72 +96,19 @@ const uniquePush = (arr, item, keyFn) => {
   if (!arr.some((x) => keyFn(x) === key)) arr.push(item);
 };
 
-const createMailer = () => {
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = Number(process.env.SMTP_PORT || 587);
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpSecure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
-  const smtpConnTimeout = Number(process.env.SMTP_CONNECTION_TIMEOUT || 15000);
-  const smtpGreetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT || 12000);
-  const smtpSocketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT || 20000);
-  const smtpAltHost = String(process.env.SMTP_ALT_HOST || '').trim();
-  const smtpAltPort = Number(process.env.SMTP_ALT_PORT || 587);
-  const smtpAltSecure = String(process.env.SMTP_ALT_SECURE || 'false').toLowerCase() === 'true';
-  const smtpAltUser = String(process.env.SMTP_ALT_USER || '').trim();
-  const smtpAltPass = String(process.env.SMTP_ALT_PASS || '').trim();
+const createMailer = () => buildMailerFromSmtp(envSmtpConfig());
 
-  if (smtpHost && smtpUser && smtpPass) {
-    const accountConfigs = [{ host: smtpHost, user: smtpUser, pass: smtpPass, preferredPort: smtpPort, preferredSecure: smtpSecure }];
-    if (smtpAltHost && smtpAltUser && smtpAltPass) {
-      accountConfigs.push({
-        host: smtpAltHost,
-        user: smtpAltUser,
-        pass: smtpAltPass,
-        preferredPort: smtpAltPort,
-        preferredSecure: smtpAltSecure,
-      });
-    }
+let mailer = createMailer();
 
-    const transporters = [];
-    accountConfigs.forEach((account) => {
-      const fallbacks = [];
-      uniquePush(fallbacks, { port: account.preferredPort, secure: account.preferredSecure }, (x) => `${x.port}-${x.secure}`);
-      uniquePush(fallbacks, { port: 587, secure: false }, (x) => `${x.port}-${x.secure}`);
-      uniquePush(fallbacks, { port: 465, secure: true }, (x) => `${x.port}-${x.secure}`);
-
-      fallbacks.forEach((cfg) => {
-        transporters.push({
-          label: `${account.host}:${cfg.port} secure=${cfg.secure ? 'true' : 'false'}`,
-          transporter: nodemailer.createTransport({
-            host: account.host,
-            port: cfg.port,
-            secure: cfg.secure,
-            requireTLS: !cfg.secure,
-            auth: { user: account.user, pass: account.pass },
-            connectionTimeout: smtpConnTimeout,
-            greetingTimeout: smtpGreetingTimeout,
-            socketTimeout: smtpSocketTimeout,
-          }),
-        });
-      });
-    });
-
-    return {
-      mode: 'smtp',
-      transporters,
-      transporter: transporters[0].transporter,
-      from: process.env.SMTP_FROM || smtpUser,
-    };
-  }
-  return {
-    mode: 'dev',
-    transporter: nodemailer.createTransport({ jsonTransport: true }),
-    from: process.env.SMTP_FROM || 'no-reply@localhost',
-  };
+const reloadMailerFromConfig = async () => {
+  const cfg = await getEffectiveCorreoConfig(dbQuery);
+  const next = buildMailerFromSmtp(cfg);
+  mailer.mode = next.mode;
+  mailer.transporters = next.transporters;
+  mailer.transporter = next.transporter;
+  mailer.from = next.from;
+  mailer.source = next.source;
 };
-
-const mailer = createMailer();
 
 const verifyMailer = async () => {
   if (mailer.mode === 'smtp') {
@@ -272,6 +227,7 @@ const ensureUsuariosSecurityAuditColumns = async () => {
     { name: 'created_at', sql: 'ALTER TABLE usuarios ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER created_by' },
     { name: 'updated_by', sql: 'ALTER TABLE usuarios ADD COLUMN updated_by VARCHAR(255) NULL AFTER created_at' },
     { name: 'updated_at', sql: 'ALTER TABLE usuarios ADD COLUMN updated_at DATETIME NULL AFTER updated_by' },
+    { name: 'foto_perfil', sql: 'ALTER TABLE usuarios ADD COLUMN foto_perfil MEDIUMTEXT NULL AFTER updated_at' },
   ];
 
   for (const def of defs) {
@@ -299,6 +255,18 @@ const ensureContratosArchivoTables = async () => {
     await dbQuery(stmt);
   }
   fs.mkdirSync(STORAGE_ROOT, { recursive: true });
+};
+
+const ensureConfigSistemaTable = async () => {
+  const sqlPath = path.join(__dirname, 'sql', 'config_sistema.sql');
+  const raw = fs.readFileSync(sqlPath, 'utf8');
+  await dbQuery(raw.trim());
+};
+
+const ensureUserPreferencesTable = async () => {
+  const sqlPath = path.join(__dirname, 'sql', 'user_preferences.sql');
+  const raw = fs.readFileSync(sqlPath, 'utf8');
+  await dbQuery(raw.trim());
 };
 
 const ROLES_PERMITIDOS_USUARIO = ['admin', 'rrhh', 'contratacion', 'produccion', 'estadistica', 'director'];
@@ -347,12 +315,18 @@ const autorizarRol = (rolesPermitidos) => (req, res, next) => {
 };
 // ==================== RUTAS DE AUTENTICACIÓN ====================
 
-// LOGIN (público)
+// LOGIN (público): correo o nombre de usuario
 app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  const sqlLogin = `${SQL_USUARIO_AUTH} WHERE u.email = ?`;
+  const identifier = String(req.body?.identifier || req.body?.email || req.body?.usuario || '').trim();
+  const password = req.body?.password;
+  const sqlLogin = `${SQL_USUARIO_AUTH} WHERE (LOWER(TRIM(u.email)) = LOWER(TRIM(?)) OR LOWER(TRIM(u.nombre)) = LOWER(TRIM(?)))`;
+
+  if (!identifier || !password) {
+    return res.status(400).json({ message: 'Usuario y contraseña son obligatorios.' });
+  }
+
   try {
-    db.query(sqlLogin, [email], async (err, results) => {
+    db.query(sqlLogin, [identifier, identifier], async (err, results) => {
       if (err) {
         console.error('Error en /login (BD):', err.message || err);
         return res.status(500).json({ message: 'Error en BD' });
@@ -389,6 +363,35 @@ app.post('/login', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error del servidor' });
+  }
+});
+
+// Vista previa de avatar en login (público): solo devuelve foto si el identificador coincide exactamente.
+app.get('/auth/login-avatar', async (req, res) => {
+  try {
+    const identifier = String(req.query?.identifier || '').trim();
+    if (!identifier || identifier.length < 2) {
+      return res.json({ fotoPerfil: null });
+    }
+
+    const rows = await dbQuery(
+      `SELECT foto_perfil FROM usuarios
+       WHERE (LOWER(TRIM(email)) = LOWER(TRIM(?)) OR LOWER(TRIM(nombre)) = LOWER(TRIM(?)))
+         AND COALESCE(activo, 1) = 1
+       LIMIT 1`,
+      [identifier, identifier]
+    );
+
+    if (!rows?.length) {
+      return res.json({ fotoPerfil: null });
+    }
+
+    const raw = rows[0]?.foto_perfil;
+    const fotoPerfil = raw && String(raw).trim() ? String(raw) : null;
+    return res.json({ fotoPerfil });
+  } catch (err) {
+    console.error('Error en /auth/login-avatar:', err.message || err);
+    return res.status(500).json({ message: 'Error al consultar avatar' });
   }
 });
 
@@ -678,6 +681,179 @@ app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (r
 
 
 
+
+// ==================== CONFIGURACIÓN CORREO (admin) ====================
+
+app.get('/config/correo', verificarToken, autorizarRol(['admin']), async (req, res) => {
+  try {
+    const cfg = await getEffectiveCorreoConfig(dbQuery);
+    let passwordSet = Boolean(cfg.smtp_pass);
+    if (cfg.source === 'db') {
+      const row = await dbQuery('SELECT valor FROM config_sistema WHERE clave = ? LIMIT 1', ['smtp_pass']);
+      passwordSet = Boolean(row[0]?.valor && decryptPass(row[0].valor));
+    } else {
+      passwordSet = Boolean(process.env.SMTP_PASS);
+    }
+    return res.json({
+      ...publicCorreoConfig(cfg, passwordSet),
+      mailerMode: mailer.mode,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || String(err) });
+  }
+});
+
+app.put('/config/correo', verificarToken, autorizarRol(['admin']), async (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const useDb = body.use_db_config === true || body.use_db_config === 1 || body.use_db_config === '1';
+
+  if (useDb) {
+    if (!String(body.smtp_host || '').trim() || !String(body.smtp_user || '').trim()) {
+      return res.status(400).json({ message: 'Host SMTP y usuario son obligatorios.' });
+    }
+    const hasNewPass = Boolean(String(body.smtp_pass || '').trim());
+    if (!hasNewPass) {
+      const prev = await dbQuery('SELECT valor FROM config_sistema WHERE clave = ? LIMIT 1', ['smtp_pass']);
+      const prevPass = prev[0]?.valor ? decryptPass(prev[0].valor) : '';
+      if (!prevPass) {
+        return res.status(400).json({ message: 'Indique la contraseña SMTP al activar la configuración en base de datos.' });
+      }
+    }
+  }
+
+  try {
+    const updatedBy = String(req.user?.email || req.user?.nombre || '').trim() || null;
+    await saveCorreoConfigToDb(dbQuery, body, updatedBy);
+    await reloadMailerFromConfig();
+    const cfg = await getEffectiveCorreoConfig(dbQuery);
+    const row = await dbQuery('SELECT valor FROM config_sistema WHERE clave = ? LIMIT 1', ['smtp_pass']);
+    const passwordSet =
+      cfg.source === 'db'
+        ? Boolean(row[0]?.valor && decryptPass(row[0].valor))
+        : Boolean(process.env.SMTP_PASS);
+    return res.json({
+      ok: true,
+      message: useDb
+        ? 'Correo de servicio guardado. Los recordatorios usarán esta cuenta.'
+        : 'Se usará la configuración de server/.env.',
+      ...publicCorreoConfig(cfg, passwordSet),
+      mailerMode: mailer.mode,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || String(err) });
+  }
+});
+
+app.post('/config/correo/probar', verificarToken, autorizarRol(['admin']), async (req, res) => {
+  const destino = normalizeEmail(req.body?.email || req.user?.email);
+  if (!destino || !isValidEmail(destino)) {
+    return res.status(400).json({ message: 'Indique un correo de prueba válido.' });
+  }
+  try {
+    await sendMailWithFallback({
+      from: mailer.from,
+      to: destino,
+      subject: 'Prueba — correo de servicio del sistema',
+      text:
+        'Este es un correo de prueba del sistema de gestión.\n' +
+        'Si lo recibió, la configuración SMTP del remitente es correcta.\n',
+      html: '<p>Este es un correo de <strong>prueba</strong> del sistema de gestión.</p><p>Si lo recibió, la configuración SMTP del remitente es correcta.</p>',
+    });
+    return res.json({ ok: true, message: `Correo de prueba enviado a ${destino}.` });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || String(err) });
+  }
+});
+
+function isValidProfilePhotoDataUrl(value) {
+  if (value === null || value === undefined || value === '') return true;
+  if (typeof value !== 'string') return false;
+  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return false;
+  if (value.length > 600000) return false;
+  return true;
+}
+
+app.get('/user/profile-photo', verificarToken, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.user?.email);
+    if (!email) return res.status(400).json({ message: 'Usuario no identificado' });
+    const rows = await dbQuery('SELECT foto_perfil FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1', [
+      email,
+    ]);
+    const raw = rows?.[0]?.foto_perfil;
+    const fotoPerfil = raw && String(raw).trim() ? String(raw) : null;
+    return res.json({ fotoPerfil });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || String(err) });
+  }
+});
+
+app.put('/user/profile-photo', verificarToken, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.user?.email);
+    if (!email) return res.status(400).json({ message: 'Usuario no identificado' });
+    const fotoPerfil = req.body?.fotoPerfil ?? null;
+    if (!isValidProfilePhotoDataUrl(fotoPerfil)) {
+      return res.status(400).json({ message: 'Imagen no válida. Use JPG, PNG o WebP (máx. ~400 KB).' });
+    }
+    await dbQuery(
+      'UPDATE usuarios SET foto_perfil = ?, updated_by = ?, updated_at = NOW() WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+      [fotoPerfil, email, email]
+    );
+    return res.json({ ok: true, fotoPerfil: fotoPerfil || null });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || String(err) });
+  }
+});
+
+// ==================== PREFERENCIAS DE USUARIO ====================
+
+app.get('/user/preferences', verificarToken, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.user?.email);
+    if (!email) return res.status(400).json({ message: 'Usuario no identificado' });
+    const rows = await dbQuery(
+      'SELECT preferences_json, updated_at FROM user_preferences WHERE email = ? LIMIT 1',
+      [email]
+    );
+    if (!rows?.length) return res.json({ preferences: null, updated_at: null });
+    let preferences = null;
+    try {
+      preferences = JSON.parse(rows[0].preferences_json || '{}');
+    } catch (_) {
+      preferences = null;
+    }
+    return res.json({ preferences, updated_at: rows[0].updated_at });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || String(err) });
+  }
+});
+
+app.put('/user/preferences', verificarToken, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.user?.email);
+    if (!email) return res.status(400).json({ message: 'Usuario no identificado' });
+    const preferences = req.body?.preferences;
+    if (!preferences || typeof preferences !== 'object') {
+      return res.status(400).json({ message: 'Preferencias inválidas' });
+    }
+    await dbQuery(
+      `INSERT INTO user_preferences (email, preferences_json) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE preferences_json = VALUES(preferences_json), updated_at = CURRENT_TIMESTAMP`,
+      [email, JSON.stringify(preferences)]
+    );
+    return res.json({ ok: true, message: 'Preferencias guardadas' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || String(err) });
+  }
+});
 
 app.post("/create", verificarToken, autorizarRol(['admin']), (req, res)=>{
     const nombre = req.body.nombre;
@@ -4187,8 +4363,15 @@ Promise.all([
   ensureContratoCanceladoColumns(),
   ensureUsuariosSecurityAuditColumns(),
   ensureContratosArchivoTables(),
+  ensureConfigSistemaTable(),
+  ensureUserPreferencesTable(),
 ])
   .then(async () => {
+    try {
+      await reloadMailerFromConfig();
+    } catch (err) {
+      console.warn('No se pudo cargar config correo desde BD:', err?.message || err);
+    }
     let smtpReady = false;
     try {
       await verifyMailer();
@@ -4200,6 +4383,7 @@ Promise.all([
     const port = Number(process.env.PORT) || 3001;
     app.listen(port, () => {
       console.log(`Corriendo en el puerto ${port}`);
+      console.log(`Correo remitente: ${mailer.from} (origen: ${mailer.source || 'env'}, modo: ${mailer.mode})`);
       if (mailer.mode === 'dev') {
         console.log('Recuperación de contraseña: modo desarrollo (sin SMTP real).');
       } else if (smtpReady) {

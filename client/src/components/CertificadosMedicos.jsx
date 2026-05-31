@@ -12,6 +12,7 @@ import ListSearchToolbar from './ListSearchToolbar';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
 import { TIPO_CERT_MED } from '../constants/hrCatalogos';
 import { parseNonNegativeNumber } from '../utils/validation';
+import { registroActivo } from '../utils/registroActivo';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
@@ -128,7 +129,7 @@ const CertificadosMedicos = () => {
     setCategoria(p.categoria);
     setCategoriaOtro(p.otro);
     setDescBody(p.body);
-    setActivo(reg.activo == 1);
+    setActivo(registroActivo(reg.activo));
     setShowModal(true);
   };
 

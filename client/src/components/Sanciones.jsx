@@ -8,6 +8,7 @@ import { fmtFechaTabla } from '../utils/formatDates';
 import AppSelect from './AppSelect';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { registroActivo } from '../utils/registroActivo';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
@@ -108,7 +109,7 @@ const Sanciones = () => {
     setFechaAplicacion(r.fecha_aplicacion || '');
     setDiasSuspension(r.dias_suspension != null ? String(r.dias_suspension) : '');
     setObservaciones(r.observaciones || '');
-    setActivo(r.activo == 1);
+    setActivo(registroActivo(r.activo));
     setShowSancionModal(true);
   };
 
@@ -152,7 +153,7 @@ const Sanciones = () => {
       r.motivo != null ? String(r.motivo) : '—',
       r.dias_suspension != null && r.dias_suspension !== '' ? String(r.dias_suspension) : '—',
       r.observaciones != null && r.observaciones !== '' ? String(r.observaciones) : '—',
-      r.activo == 1 ? 'Sí' : 'No',
+      registroActivo(r.activo) ? 'Sí' : 'No',
     ]);
     return { headers, dataRows };
   }, [registros]);
@@ -243,7 +244,7 @@ const Sanciones = () => {
                     <td>{r.tipo_sancion}</td>
                     <td style={{ maxWidth: 240, whiteSpace: 'pre-wrap' }}>{r.motivo}</td>
                     <td>{r.dias_suspension != null ? r.dias_suspension : '—'}</td>
-                    <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
+                    <td>{registroActivo(r.activo) ? 'Sí' : 'No'}</td>
                     <td className="text-center">
                       <EditTableActionButton onClick={() => editarRegistro(r)} className="me-1" />
                       <DeleteTableActionButton onClick={() => eliminarRegistro(r)} />

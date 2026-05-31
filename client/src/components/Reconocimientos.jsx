@@ -8,6 +8,7 @@ import { fmtFechaTabla } from '../utils/formatDates';
 import AppSelect from './AppSelect';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { registroActivo } from '../utils/registroActivo';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
@@ -108,7 +109,7 @@ const Reconocimientos = () => {
     setFechaOtorgamiento(r.fecha_otorgamiento || '');
     setValorEstimulo(r.valor_estimulo != null ? String(r.valor_estimulo) : '');
     setObservaciones(r.observaciones || '');
-    setActivo(r.activo == 1);
+    setActivo(registroActivo(r.activo));
     setShowReconocimientoModal(true);
   };
 
@@ -152,7 +153,7 @@ const Reconocimientos = () => {
       r.descripcion != null ? String(r.descripcion) : '—',
       r.valor_estimulo != null && r.valor_estimulo !== '' ? String(r.valor_estimulo) : '—',
       r.observaciones != null && r.observaciones !== '' ? String(r.observaciones) : '—',
-      r.activo == 1 ? 'Sí' : 'No',
+      registroActivo(r.activo) ? 'Sí' : 'No',
     ]);
     return { headers, dataRows };
   }, [registros]);
@@ -243,7 +244,7 @@ const Reconocimientos = () => {
                     <td>{r.tipo_reconocimiento}</td>
                     <td style={{ maxWidth: 260, whiteSpace: 'pre-wrap' }}>{r.descripcion}</td>
                     <td>{r.valor_estimulo != null ? r.valor_estimulo : '—'}</td>
-                    <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
+                    <td>{registroActivo(r.activo) ? 'Sí' : 'No'}</td>
                     <td className="text-center">
                       <EditTableActionButton onClick={() => editarRegistro(r)} className="me-1" />
                       <DeleteTableActionButton onClick={() => eliminarRegistro(r)} />

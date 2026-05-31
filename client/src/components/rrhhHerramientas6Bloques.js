@@ -6,6 +6,7 @@ import { Alert, Table } from 'react-bootstrap';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line,
 } from 'recharts';
+import { registroInactivo } from '../utils/registroActivo';
 import {
   agregadoPorCategoria,
   bajasPorMes,
@@ -322,7 +323,7 @@ function sanciones(i, p) {
   if (i === 0) return <BarP title="1 · Tipología de sanción" data={porCampo(s, (r) => r.tipo_sancion || '—', 8)} xk="name" yk="value" />;
   if (i === 1) return <BarP title="2 · Hechos por mes de aplicación" data={mesDesdeFecha(s, 'fecha_aplicacion')} xk="name" yk="value" />;
   if (i === 2) return <Kpi t="3 · Suspensiones con días informados" v={s.filter((r) => r.dias_suspension != null && String(r.dias_suspension) !== '').length} s={`Sobre ${s.length} hechos`} />;
-  if (i === 3) return <PieP title="4 · Vigencia del acto (activo/inactivo)" data={porCampo(s, (r) => (r.activo == 0 || r.activo === false ? 'Archivada' : 'Vigente'))} nameK="name" valueK="value" />;
+  if (i === 3) return <PieP title="4 · Vigencia del acto (activo/inactivo)" data={porCampo(s, (r) => (registroInactivo(r.activo) ? 'Archivada' : 'Vigente'))} nameK="name" valueK="value" />;
   if (i === 4) return <LineP title="5 · Días de suspensión (primeros 15 con dato)" data={s.filter((r) => r.dias_suspension).slice(0, 15).map((r, j) => ({ k: j + 1, d: Number(r.dias_suspension) || 0 }))} xk="k" yk="d" />;
   if (i === 5) return <BarP title="6 · Empleados con más antecedentes" data={topCarnetCount(s).slice(0, 6)} xk="name" yk="value" />;
   return null;
@@ -485,7 +486,7 @@ function segLab(i, p) {
 function cargos(i, p) {
   const c = p.cargos || [];
   if (i === 0) return <BarP title="1 · Nombre de puesto" data={porCampo(c, (r) => (r.nombre || '—').slice(0, 20), 8)} xk="name" yk="value" />;
-  if (i === 1) return <PieP title="2 · Cargos activos" data={porCampo(c, (r) => (r.activo == 0 ? 'Baja' : 'Alta en catálogo'))} nameK="name" valueK="value" />;
+  if (i === 1) return <PieP title="2 · Cargos activos" data={porCampo(c, (r) => (registroInactivo(r.activo) ? 'Baja' : 'Alta en catálogo'))} nameK="name" valueK="value" />;
   if (i === 2) return <Kpi t="3 · Posiciones en catálogo" v={c.length} s="" />;
   if (i === 3) return <Kpi t="4 · Descripciones rellenadas" v={c.filter((r) => String(r.descripcion || '').length > 10).length} s="" />;
   if (i === 4) return <LineP title="5 · Carga" data={c.map((r, j) => ({ a: j + 1, b: 1 }))} xk="a" yk="b" h={90} />;

@@ -11,7 +11,9 @@ import { fmtFechaTabla } from '../utils/formatDates';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 
-const esActivo = (e) => e.activo == null || e.activo === 1 || e.activo === '1';
+import { registroActivoONulo } from '../utils/registroActivo';
+
+const esActivo = (e) => registroActivoONulo(e.activo);
 
 const CambiosCargo = () => {
   const puedeEscribir = usePuedeEscribir();
@@ -56,7 +58,7 @@ const CambiosCargo = () => {
     cargar();
     cargarHistorial();
     Axios.get('/cargos')
-      .then((r) => setCargos((r.data || []).filter((c) => c.activo == 1 || c.activo == null)))
+      .then((r) => setCargos((r.data || []).filter((c) => registroActivoONulo(c.activo))))
       .catch(() => setCargos([]));
   }, []);
 

@@ -30,7 +30,6 @@ export function useAuth() {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(localStorage.getItem('token'));
 
   // Configurar axios para incluir el token en cada petición
@@ -40,12 +39,16 @@ export const AuthProvider = ({ children }) => {
     } else {
       delete Axios.defaults.headers.common['Authorization'];
     }
-    setLoading(false);
   }, [token]);
 
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     try {
-      const response = await Axios.post('/login', { email, password });
+      const loginId = String(identifier || '').trim();
+      const response = await Axios.post('/login', {
+        identifier: loginId,
+        email: loginId,
+        password,
+      });
       const { token, usuario } = response.data;
       
       localStorage.setItem('token', token);

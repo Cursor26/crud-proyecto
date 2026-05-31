@@ -7,6 +7,7 @@ import ModuleTitleBar from './ModuleTitleBar';
 import AppSelect from './AppSelect';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { registroActivo } from '../utils/registroActivo';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
 import { AEPG_TITULO_RRHH } from '../utils/exportAepgPlantilla';
 
@@ -117,7 +118,7 @@ const TurnosTrabajo = () => {
     setDiasAplicacion(reg.dias_aplicacion || 'Lunes a viernes');
     setHorasDiarias(reg.horas_diarias != null ? String(reg.horas_diarias) : '');
     setObservaciones(reg.observaciones || '');
-    setActivo(reg.activo == 1);
+    setActivo(registroActivo(reg.activo));
     setShowTurnoModal(true);
   };
 
@@ -163,7 +164,7 @@ const TurnosTrabajo = () => {
       r.dias_aplicacion != null ? String(r.dias_aplicacion) : '—',
       r.horas_diarias != null && r.horas_diarias !== '' ? String(r.horas_diarias) : '—',
       r.observaciones != null && r.observaciones !== '' ? String(r.observaciones) : '—',
-      r.activo == 1 ? 'Sí' : 'No',
+      registroActivo(r.activo) ? 'Sí' : 'No',
     ]);
     return { headers, dataRows };
   }, [registros]);
@@ -258,7 +259,7 @@ const TurnosTrabajo = () => {
                     <td>{r.hora_salida}</td>
                     <td>{r.dias_aplicacion}</td>
                     <td>{r.horas_diarias != null ? r.horas_diarias : '—'}</td>
-                    <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
+                    <td>{registroActivo(r.activo) ? 'Sí' : 'No'}</td>
                     <td className="text-center">
                       <EditTableActionButton onClick={() => editarRegistro(r)} className="me-1" />
                       <DeleteTableActionButton onClick={() => eliminarRegistro(r.id_turno)} />

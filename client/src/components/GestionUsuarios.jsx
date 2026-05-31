@@ -24,14 +24,6 @@ function GestionUsuarios() {
   const [loadError, setLoadError] = useState('');
   const [formErrors, setFormErrors] = useState({});
 
-  const rolActual = useMemo(() => {
-    try {
-      return String(JSON.parse(localStorage.getItem('user') || '{}')?.rol || '').toLowerCase();
-    } catch {
-      return '';
-    }
-  }, []);
-
   const sesionEmail = useMemo(() => {
     try {
       return String(JSON.parse(localStorage.getItem('user') || '{}')?.email || '')
@@ -122,7 +114,7 @@ function GestionUsuarios() {
 
   const addUsuario = () => {
     if (!validarFormulario()) return;
-    Axios.post('${API_BASE}/create-usuario', {
+    Axios.post(`${API_BASE}/create-usuario`, {
       email: userEmail.trim().toLowerCase(),
       nombre: userNombre.trim(),
       password: userPassword,

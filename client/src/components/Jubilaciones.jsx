@@ -8,6 +8,7 @@ import AppSelect from './AppSelect';
 import { FormModal } from './FormModal';
 import ListSearchToolbar from './ListSearchToolbar';
 import { usePuedeEscribir } from '../context/PuedeEscribirContext';
+import { registroActivo } from '../utils/registroActivo';
 import { EditTableActionButton, DeleteTableActionButton } from './TableActionIconButtons';
 import { TIPOS_SALIDA_JUBIL } from '../constants/hrCatalogos';
 import ExportacionAepgGrupo from './ExportacionAepgGrupo';
@@ -118,7 +119,7 @@ const Jubilaciones = () => {
     setFechaEfectiva(r.fecha_efectiva || '');
     setMotivo(r.motivo || '');
     setObservaciones(r.observaciones || '');
-    setActivo(r.activo == 1);
+    setActivo(registroActivo(r.activo));
     setShowModal(true);
   };
 
@@ -164,7 +165,7 @@ const Jubilaciones = () => {
         r.fecha_efectiva != null && r.fecha_efectiva !== '' ? String(r.fecha_efectiva) : '—',
         r.motivo != null ? String(r.motivo) : '—',
         r.observaciones != null && r.observaciones !== '' ? String(r.observaciones) : '—',
-        r.activo == 1 ? 'Sí' : 'No',
+        registroActivo(r.activo) ? 'Sí' : 'No',
       ];
     });
     return { headers, dataRows };
@@ -223,7 +224,7 @@ const Jubilaciones = () => {
                     </td>
                     <td>{r.tipo_salida}</td>
                     <td className="text-nowrap">{fmtFechaTabla(r.fecha_efectiva)}</td>
-                    <td>{r.activo == 1 ? 'Sí' : 'No'}</td>
+                    <td>{registroActivo(r.activo) ? 'Sí' : 'No'}</td>
                     <td>
                       <EditTableActionButton onClick={() => editarRegistro(r)} className="me-1" />
                       <DeleteTableActionButton onClick={() => eliminarRegistro(r)} />
