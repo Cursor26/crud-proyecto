@@ -113,8 +113,9 @@ export function AppPreferencesProvider({ userEmail, children }) {
   );
 
   const resetPreferences = useCallback(() => {
-    const next = normalizePreferences(DEFAULT_PREFERENCES);
+    const next = normalizePreferences({ ...DEFAULT_PREFERENCES, themeId: 'institutional' });
     setPreferences(next);
+    applyPreferencesToDocument(next);
     if (email) {
       saveStoredPreferences(email, next);
       scheduleSync(next);

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 import ModuleTitleBar from './ModuleTitleBar';
 import {
@@ -6,16 +6,28 @@ import {
   FONT_FAMILIES,
   FONT_SIZES,
   LINE_HEIGHT_OPTIONS,
-  SIDEBAR_TONES,
   SIDEBAR_WIDTH_OPTIONS,
   THEME_PRESETS,
   UI_SCALE_OPTIONS,
 } from '../lib/appPreferences';
 import { DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS } from '../lib/formatAppDate';
 import { useAppPreferences } from '../context/AppPreferencesContext';
-function OptionCard({ active, title, description, swatch, onClick }) {
+
+function OptionCard({ active, title, description, swatch, onClick, previewVars }) {
   return (
-    <button type="button" className={`app-config-option-card${active ? ' is-active' : ''}`} onClick={onClick}>
+    <button
+      type="button"
+      className={`app-config-option-card${active ? ' is-active' : ''}`}
+      onClick={onClick}
+      style={previewVars}
+    >
+      <span className="app-config-option-card__preview" aria-hidden="true">
+        <span className="app-config-option-card__preview-topbar" />
+        <span className="app-config-option-card__preview-body">
+          <span className="app-config-option-card__preview-sidebar" />
+          <span className="app-config-option-card__preview-card" />
+        </span>
+      </span>
       {swatch?.length ? (
         <span className="app-config-option-card__swatch" aria-hidden="true">
           {swatch.map((color) => (
@@ -66,11 +78,11 @@ function ColorPickRow({ label, value, fallback, onChange, onReset }) {
 function AppConfiguracion() {
   const { preferences, resolved, syncState, updatePreference, resetPreferences, syncNow } =
     useAppPreferences();
+  const [personalizacionOpen, setPersonalizacionOpen] = useState(false);
   const themeList = useMemo(() => Object.values(THEME_PRESETS), []);
   const fontList = useMemo(() => Object.values(FONT_FAMILIES), []);
   const fontSizeList = useMemo(() => Object.values(FONT_SIZES), []);
   const radiusList = useMemo(() => Object.values(BORDER_RADIUS_OPTIONS), []);
-  const sidebarList = useMemo(() => Object.values(SIDEBAR_TONES), []);
 
   const sidebarWidthList = useMemo(() => Object.values(SIDEBAR_WIDTH_OPTIONS), []);
   const uiScaleList = useMemo(() => Object.values(UI_SCALE_OPTIONS), []);
@@ -157,71 +169,138 @@ function AppConfiguracion() {
                 title={theme.label}
                 description={theme.description}
                 swatch={theme.swatch}
+                previewVars={{
+                  '--opt-bg': theme.vars['--dashboard-bg'],
+                  '--opt-surface': theme.vars['--dashboard-surface'],
+                  '--opt-border': theme.vars['--dashboard-border'],
+                  '--opt-text': theme.vars['--dashboard-text'],
+                  '--opt-muted': theme.vars['--dashboard-muted'],
+                  '--opt-accent': theme.id === 'institutional' ? '#14532d' : theme.vars['--ui-primary'],
+                  '--opt-accent-deep': theme.id === 'institutional' ? '#0f3d24' : theme.vars['--ui-primary-deep'],
+                  '--opt-accent-rgb': theme.id === 'institutional' ? '20, 83, 45' : theme.vars['--ui-primary-rgb'],
+                }}
                 onClick={() => updatePreference('themeId', theme.id)}
               />
             ))}
           </div>
         </ConfigSection>
 
-        <ConfigSection title="Color de fondo personalizado" description="Opcional. Sobrescribe el fondo del área principal.">
-          <div className="row g-3 align-items-center">
-            <div className="col-md-4">
-              <input
-                type="color"
-                className="form-control form-control-color w-100 app-config-color-input"
-                value={preferences.backgroundColor || resolved.theme.vars['--dashboard-bg']}
-                onChange={(e) => updatePreference('backgroundColor', e.target.value)}
-                aria-label="Color de fondo"
-              />
-            </div>
-            <div className="col-md-8 d-flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
-                onClick={() => updatePreference('backgroundColor', '')}
-              >
-                Usar color del tema
-              </button>
-              <span className="text-muted small align-self-center">
-                Actual: {preferences.backgroundColor || 'color del tema seleccionado'}
-              </span>
-            </div>
-          </div>
-        </ConfigSection>
-
         <ConfigSection
-          title="Color del texto"
-          description="Opcional. Cambia el color de las letras sin alterar el resto del tema (fondos y acentos)."
+          title="Personalización"
+          description="Colores del diseño (fondo, texto, acento y menú). Haz clic para desplegar."
         >
-          <div className="row g-3 align-items-center">
-            <div className="col-md-4">
-              <input
-                type="color"
-                className="form-control form-control-color w-100 app-config-color-input"
-                value={preferences.textColor || resolved.theme.vars['--dashboard-text']}
-                onChange={(e) => updatePreference('textColor', e.target.value)}
-                aria-label="Color del texto"
+          <button
+            type="button"
+            className={`app-config-disclosure${personalizacionOpen ? ' is-open' : ''}`}
+            onClick={() => setPersonalizacionOpen((v) => !v)}
+            aria-expanded={personalizacionOpen}
+          >
+            <span className="app-config-disclosure__chev" aria-hidden="true">
+              {personalizacionOpen ? '▾' : '▸'}
+            </span>
+            <span className="app-config-disclosure__label">
+              {personalizacionOpen ? 'Ocultar opciones de colores' : 'Mostrar opciones de colores'}
+            </span>
+          </button>
+
+          {personalizacionOpen ? (
+            <div className="mt-3">
+              <h6 className="fw-bold mb-2">Colores principales</h6>
+              <ColorPickRow
+                label="Fondo (área principal)"
+                value={preferences.backgroundColor}
+                fallback={resolved.theme.vars['--dashboard-bg']}
+                onChange={(v) => updatePreference('backgroundColor', v)}
+                onReset={() => updatePreference('backgroundColor', '')}
+              />
+              <ColorPickRow
+                label="Texto"
+                value={preferences.textColor}
+                fallback={resolved.theme.vars['--dashboard-text']}
+                onChange={(v) => updatePreference('textColor', v)}
+                onReset={() => updatePreference('textColor', '')}
+              />
+              <ColorPickRow
+                label="Tarjetas / superficies"
+                value={preferences.surfaceColor}
+                fallback={resolved.theme.vars['--dashboard-surface']}
+                onChange={(v) => updatePreference('surfaceColor', v)}
+                onReset={() => updatePreference('surfaceColor', '')}
+              />
+              <ColorPickRow
+                label="Acento / botones principales"
+                value={preferences.accentColor}
+                fallback={resolved.theme.vars['--ui-primary']}
+                onChange={(v) => updatePreference('accentColor', v)}
+                onReset={() => updatePreference('accentColor', '')}
+              />
+              <ColorPickRow
+                label="Texto secundario"
+                value={preferences.mutedTextColor}
+                fallback={resolved.theme.vars['--dashboard-muted']}
+                onChange={(v) => updatePreference('mutedTextColor', v)}
+                onReset={() => updatePreference('mutedTextColor', '')}
+              />
+
+              <h6 className="fw-bold mt-4 mb-2">Menú lateral</h6>
+              <ColorPickRow
+                label="Fondo del menú lateral"
+                value={preferences.sidebarBg}
+                fallback="#111111"
+                onChange={(v) => updatePreference('sidebarBg', v)}
+                onReset={() => updatePreference('sidebarBg', '')}
+              />
+              <ColorPickRow
+                label="Fondo del item (normal)"
+                value={preferences.sidebarItemBg}
+                fallback="#111111"
+                onChange={(v) => updatePreference('sidebarItemBg', v)}
+                onReset={() => updatePreference('sidebarItemBg', '')}
+              />
+              <ColorPickRow
+                label="Texto del item (normal)"
+                value={preferences.sidebarItemTextColor}
+                fallback="#f4f4f5"
+                onChange={(v) => updatePreference('sidebarItemTextColor', v)}
+                onReset={() => updatePreference('sidebarItemTextColor', '')}
+              />
+              <ColorPickRow
+                label="Fondo del item (hover)"
+                value={preferences.sidebarHoverBg}
+                fallback={resolved.theme.vars['--ui-primary']}
+                onChange={(v) => updatePreference('sidebarHoverBg', v)}
+                onReset={() => updatePreference('sidebarHoverBg', '')}
+              />
+              <ColorPickRow
+                label="Texto del item (hover)"
+                value={preferences.sidebarHoverTextColor}
+                fallback="#ffffff"
+                onChange={(v) => updatePreference('sidebarHoverTextColor', v)}
+                onReset={() => updatePreference('sidebarHoverTextColor', '')}
+              />
+              <ColorPickRow
+                label="Fondo del item activo"
+                value={preferences.sidebarActiveBg}
+                fallback={resolved.theme.vars['--brand-red']}
+                onChange={(v) => updatePreference('sidebarActiveBg', v)}
+                onReset={() => updatePreference('sidebarActiveBg', '')}
+              />
+              <ColorPickRow
+                label="Texto del item activo"
+                value={preferences.sidebarActiveTextColor}
+                fallback="#ffffff"
+                onChange={(v) => updatePreference('sidebarActiveTextColor', v)}
+                onReset={() => updatePreference('sidebarActiveTextColor', '')}
+              />
+              <ColorPickRow
+                label='Botón "Configuración" (activo) — color'
+                value={preferences.sidebarConfigActiveFrom}
+                fallback={resolved.theme.vars['--brand-red']}
+                onChange={(v) => updatePreference('sidebarConfigActiveFrom', v)}
+                onReset={() => updatePreference('sidebarConfigActiveFrom', '')}
               />
             </div>
-            <div className="col-md-8 d-flex flex-wrap gap-2 align-items-center">
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
-                onClick={() => updatePreference('textColor', '')}
-              >
-                Usar color del tema
-              </button>
-              <span
-                className="app-config-text-sample small fw-semibold"
-                style={{ color: preferences.textColor || resolved.theme.vars['--dashboard-text'] }}
-              >
-                Texto de ejemplo — Aa Bb 123
-              </span>
-              <span className="text-muted small">
-                Actual: {preferences.textColor || 'color del tema seleccionado'}
-              </span>
-            </div>
-          </div>
+          ) : null}
         </ConfigSection>
 
         <ConfigSection title="Tipografía" description="Familia y tamaño base del texto en toda la aplicación.">
@@ -252,45 +331,6 @@ function AppConfiguracion() {
               </button>
             ))}
           </div>
-        </ConfigSection>
-
-        <ConfigSection title="Menú lateral" description="Estilo visual de la barra de navegación izquierda.">
-          <div className="app-config-chip-row">
-            {sidebarList.map((tone) => (
-              <button
-                key={tone.id}
-                type="button"
-                className={`app-config-chip${preferences.sidebarTone === tone.id ? ' is-active' : ''}`}
-                onClick={() => updatePreference('sidebarTone', tone.id)}
-              >
-                {tone.label}
-              </button>
-            ))}
-          </div>
-        </ConfigSection>
-
-        <ConfigSection title="Colores avanzados" description="Personaliza tarjetas, acentos y texto secundario sin cambiar el tema base.">
-          <ColorPickRow
-            label="Tarjetas / superficies"
-            value={preferences.surfaceColor}
-            fallback={resolved.theme.vars['--dashboard-surface']}
-            onChange={(v) => updatePreference('surfaceColor', v)}
-            onReset={() => updatePreference('surfaceColor', '')}
-          />
-          <ColorPickRow
-            label="Acento / botones principales"
-            value={preferences.accentColor}
-            fallback={resolved.theme.vars['--ui-primary']}
-            onChange={(v) => updatePreference('accentColor', v)}
-            onReset={() => updatePreference('accentColor', '')}
-          />
-          <ColorPickRow
-            label="Texto secundario"
-            value={preferences.mutedTextColor}
-            fallback={resolved.theme.vars['--dashboard-muted']}
-            onChange={(v) => updatePreference('mutedTextColor', v)}
-            onReset={() => updatePreference('mutedTextColor', '')}
-          />
         </ConfigSection>
 
         <ConfigSection title="Escala y menú lateral">

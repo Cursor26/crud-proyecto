@@ -1,16 +1,9 @@
 import { Children, useMemo } from 'react';
 import Select from 'react-select';
+import { useAppPreferences } from '../context/AppPreferencesContext';
+import { getThemeAccentFromDocument } from '../lib/appPreferences';
 
-const BRAND_GREEN = { primary: '#14532d', primaryRgb: '20, 83, 45' };
-
-const ACCENT = {
-  default: BRAND_GREEN,
-  contratos: BRAND_GREEN,
-  modal: BRAND_GREEN,
-};
-
-function makeAppSelectStyles(variant) {
-  const { primary, primaryRgb } = ACCENT[variant] || ACCENT.default;
+function makeAppSelectStyles({ primary, primaryRgb }) {
   return {
     control: (base, state) => ({
       ...base,
@@ -75,11 +68,15 @@ function AppSelect({
   options,
   menuPortalTarget,
   isSearchable = false,
-  /** 'default' = navy; 'contratos' | 'modal' = verde de marca / modales (#14532d) */
+  /** Reservado para compatibilidad; el color sigue el tema activo */
   variant = 'default',
   ...rest
 }) {
-  const appSelectStyles = useMemo(() => makeAppSelectStyles(variant), [variant]);
+  const { preferences } = useAppPreferences();
+  const appSelectStyles = useMemo(() => {
+    const accent = getThemeAccentFromDocument();
+    return makeAppSelectStyles(accent);
+  }, [preferences.themeId, preferences.accentColor, variant]);
   const { options: optionsFromChildren, placeholderFromOption } = parseChildrenOptions(children);
   const resolvedOptions = options && options.length ? options : optionsFromChildren;
   const selectedOption = resolvedOptions.find((option) => String(option.value) === String(value)) || null;

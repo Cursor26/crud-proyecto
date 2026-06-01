@@ -88,6 +88,16 @@ margin-top: 15px;
   --dashboard-border: #9f9f9f;
   --dashboard-text: #0f172a;
   --dashboard-muted: #30363d;
+  --theme-accent: #14532d;
+  --theme-accent-deep: #0f3d24;
+  --theme-accent-rgb: 20, 83, 45;
+  --theme-accent-light: #28a745;
+  --theme-accent-soft: #dcfce7;
+  --theme-accent-muted-bg: #bbf7d0;
+  --theme-accent-muted-border: #4ade80;
+  --theme-on-accent: #ffffff;
+  --theme-on-accent-muted: #374151;
+  --contratos-navy-text: #ffffff;
   --brand-black: #111111;
   --brand-black-soft: #1c1c1c;
   --brand-red: #b91c1c;
@@ -113,10 +123,10 @@ margin-top: 15px;
   --accion-aceptar: #218838;
   --accion-aceptar-hover: #1c7430;
   --accion-aceptar-active: #185c29;
-  --accion-anadir: #14532d;
-  --accion-anadir-hover: #0f3d24;
-  --accion-anadir-border: #0f3d24;
-  --accion-anadir-rgb: 20, 83, 45;
+  --accion-anadir: var(--theme-accent, #14532d);
+  --accion-anadir-hover: var(--theme-accent-deep, #0f3d24);
+  --accion-anadir-border: var(--theme-accent-deep, #0f3d24);
+  --accion-anadir-rgb: var(--theme-accent-rgb, 20, 83, 45);
   --accion-editar: #ffc107;
   --accion-editar-hover: #e0a800;
   --accion-editar-text: #212529;
@@ -137,9 +147,9 @@ margin-top: 15px;
   --accion-eliminar-active: #bd2130;
   --accion-eliminar-disabled: #ea868f;
   /* Modales: acento estructural (filo, titular, focus) — alineado con tablas Contratos */
-  --modal-accent: #14532d;
-  --modal-accent-deep: #0f3d24;
-  --modal-accent-rgb: 20, 83, 45;
+  --modal-accent: var(--theme-accent, #14532d);
+  --modal-accent-deep: var(--theme-accent-deep, #0f3d24);
+  --modal-accent-rgb: var(--theme-accent-rgb, 20, 83, 45);
   /* Botones: esquinas rectas + sombras tipo Windows 11 (capas, sin “lift” fuerte) */
   --btn-win11-radius: 0;
   --btn-win11-shadow-neutral: 0 1px 2px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
@@ -175,7 +185,7 @@ input[type='password']::-webkit-password-reveal-button {
   --sidebar-nav-row-min-height: 2.65rem;
   position: relative;
   z-index: 20;
-  background: linear-gradient(180deg, #1c1c1c 0%, #141414 52%, #111111 100%) !important;
+  background: var(--sidebar-bg, linear-gradient(180deg, #1c1c1c 0%, #141414 52%, #111111 100%)) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   min-height: 0;
 }
@@ -198,8 +208,8 @@ input[type='password']::-webkit-password-reveal-button {
 }
 
 .dashboard-sidebar .nav-link.dashboard-nav-link {
-  background-color: rgba(255, 255, 255, 0.04) !important;
-  color: #f4f4f5 !important;
+  background-color: var(--sidebar-item-bg, rgba(255, 255, 255, 0.04)) !important;
+  color: var(--sidebar-item-text, #f4f4f5) !important;
   border: none !important;
   font-size: 1.06rem;
   line-height: 1.35;
@@ -215,25 +225,24 @@ input[type='password']::-webkit-password-reveal-button {
 
 .dashboard-sidebar .nav-link.dashboard-nav-link:hover,
 .dashboard-sidebar .nav-link.dashboard-nav-link:focus {
-  background-color: rgba(255, 255, 255, 0.14) !important;
-  color: #ffffff !important;
+  background-color: var(--sidebar-hover-bg, rgba(255, 255, 255, 0.14)) !important;
+  color: var(--sidebar-hover-text, #ffffff) !important;
   font-size: 1.14rem;
 }
 
 .dashboard-sidebar .nav-link.dashboard-nav-link.active {
-  background: linear-gradient(
-    135deg,
-    rgba(var(--brand-red-rgb), 0.95) 0%,
-    rgba(138, 0, 24, 0.98) 100%
+  background: var(
+    --sidebar-active-bg,
+    linear-gradient(135deg, rgba(var(--brand-red-rgb), 0.95) 0%, rgba(138, 0, 24, 0.98) 100%)
   ) !important;
-  color: #ffffff !important;
+  color: var(--sidebar-active-text, var(--theme-on-accent, #ffffff)) !important;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
 }
 
 .mi-dropdown-sidebar .dropdown-toggle {
   /* Misma base que los enlaces del sidebar (coherente con submenús) */
-  background-color: rgba(255, 255, 255, 0.04) !important;
-  color: #f4f4f5 !important;
+  background-color: var(--sidebar-item-bg, rgba(255, 255, 255, 0.04)) !important;
+  color: var(--sidebar-item-text, #f4f4f5) !important;
   border: none !important;
   border-color: transparent !important;
   font-size: 1.06rem;
@@ -254,8 +263,8 @@ input[type='password']::-webkit-password-reveal-button {
 .mi-dropdown-sidebar .dropdown-toggle:hover,
 .mi-dropdown-sidebar .dropdown-toggle:focus,
 .mi-dropdown-sidebar .dropdown-toggle:focus-visible {
-  background-color: rgba(255, 255, 255, 0.14) !important;
-  color: #ffffff !important;
+  background-color: var(--sidebar-hover-bg, rgba(255, 255, 255, 0.14)) !important;
+  color: var(--sidebar-hover-text, #ffffff) !important;
   font-size: 1.14rem;
 }
 
@@ -326,8 +335,8 @@ input[type='password']::-webkit-password-reveal-button {
 }
 
 .mi-dropdown-sidebar .dropdown-item:hover:not(.active) {
-  background-color: rgba(255, 255, 255, 0.14) !important;
-  color: white !important;
+  background-color: var(--sidebar-hover-bg, rgba(255, 255, 255, 0.14)) !important;
+  color: var(--sidebar-hover-text, #ffffff) !important;
   font-size: 1.14rem;
 }
 
@@ -338,8 +347,8 @@ input[type='password']::-webkit-password-reveal-button {
 .mi-dropdown-sidebar .dropdown-item.active,
 .mi-dropdown-sidebar .dropdown-item.active:hover,
 .mi-dropdown-sidebar .dropdown-item.active:focus {
-  background-color: rgba(var(--brand-red-rgb), 0.92) !important;
-  color: #ffffff !important;
+  background: var(--sidebar-active-bg, rgba(var(--brand-red-rgb), 0.92)) !important;
+  color: var(--sidebar-active-text, var(--theme-on-accent, #ffffff)) !important;
 }
 
 .mi-dropdown-sidebar .dropdown-item.active:hover,
@@ -1076,7 +1085,7 @@ input[type='password']::-webkit-password-reveal-button {
 .dashboard-main .card > h6 {
   margin: 0 0 0.72rem;
   color: #ffffff !important;
-  background: #14532d !important;
+  background: var(--theme-accent, #14532d) !important;
   border: none !important;
   border-radius: 0 !important;
   font-size: 0.95rem;
@@ -1520,9 +1529,9 @@ input[type='password']::-webkit-password-reveal-button {
 
 .dashboard-main .table.table-data-compact thead th,
 .dashboard-main .table.table-data-compact thead.table-light th {
-  background-color: #0b9b43 !important;
+  background-color: var(--theme-accent, #0b9b43) !important;
   background-image: none !important;
-  color: #ffffff !important;
+  color: var(--dashboard-table-head-text, var(--theme-on-accent, #ffffff)) !important;
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -2637,7 +2646,7 @@ input[type='password']::-webkit-password-reveal-button {
   width: 54px;
   height: 54px;
   border-radius: 50%;
-  background: conic-gradient(#16a34a var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+  background: conic-gradient(var(--theme-accent-light, #16a34a) var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -2645,7 +2654,7 @@ input[type='password']::-webkit-password-reveal-button {
 }
 
 .login-timer.login-timer--safe {
-  background: conic-gradient(#22c55e var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
+  background: conic-gradient(var(--theme-accent-light, #22c55e) var(--timer-deg, 360deg), rgba(148, 163, 184, 0.35) 0deg);
 }
 
 .login-timer.login-timer--warn {
@@ -2725,22 +2734,22 @@ input[type='password']::-webkit-password-reveal-button {
   width: 100%;
   height: 50px;
   margin-top: 4px;
-  border: 1px solid #0f3d24;
+  border: 1px solid var(--theme-accent-deep, #0f3d24);
   border-radius: var(--btn-win11-radius);
-  background: linear-gradient(180deg, #1b6a3a 0%, #14532d 100%);
+  background: linear-gradient(180deg, var(--theme-accent-light, #1b6a3a) 0%, var(--theme-accent, #14532d) 100%);
   color: #ffffff;
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
   font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 6px 18px rgba(20, 83, 45, 0.38);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 6px 18px rgba(var(--theme-accent-rgb, 20, 83, 45), 0.38);
   transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.15s ease;
 }
 
 .login-submit:hover {
-  background: linear-gradient(180deg, #23884b 0%, #166534 100%);
-  border-color: #14532d;
-  box-shadow: var(--btn-win11-shadow-hover), 0 10px 24px rgba(20, 83, 45, 0.44);
+  background: linear-gradient(180deg, var(--theme-accent-light, #23884b) 0%, var(--theme-accent-deep, #166534) 100%);
+  border-color: var(--theme-accent, #14532d);
+  box-shadow: var(--btn-win11-shadow-hover), 0 10px 24px rgba(var(--theme-accent-rgb, 20, 83, 45), 0.44);
   filter: brightness(1.02);
 }
 
@@ -2751,7 +2760,7 @@ input[type='password']::-webkit-password-reveal-button {
 
 .login-submit:focus-visible {
   outline: none;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(20, 83, 45, 0.42);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--theme-accent-rgb, 20, 83, 45), 0.42);
 }
 
 .login-forgot {
@@ -3237,12 +3246,12 @@ body .btn:not(.btn-link) {
  * ============================================================ */
 
 .dashboard-main.dashboard-main--contratos {
-  /* Mismo verde que el thead de la tabla .table-data-compact */
-  --contratos-navy: #14532d;
-  --contratos-navy-hover: #0f3d24;
-  --contratos-navy-rgb: 20, 83, 45;
+  /* Acento del tema: verde institucional por defecto; azul en Océano, etc. */
+  --contratos-navy: var(--theme-accent, #14532d);
+  --contratos-navy-hover: var(--theme-accent-deep, #0f3d24);
+  --contratos-navy-rgb: var(--theme-accent-rgb, 20, 83, 45);
   --contratos-bg: #eceef2;
-  --contratos-green: #28a745;
+  --contratos-green: var(--theme-accent-light, #28a745);
   background: var(--contratos-bg) !important;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif !important;
@@ -3258,8 +3267,12 @@ body .btn:not(.btn-link) {
 }
 
 .dashboard-main.dashboard-main--contratos h4 {
-  background: var(--contratos-navy, #14532d) !important;
-  color: #ffffff !important;
+  background: var(--contratos-navy, var(--theme-accent, #14532d)) !important;
+  color: var(--contratos-navy-text, var(--theme-on-accent, #ffffff)) !important;
+}
+
+.dashboard-main.dashboard-main--contratos .dashboard-module-red-title-anchor--overlay > h4 {
+  background: var(--contratos-navy, var(--theme-accent, #14532d)) !important;
 }
 
 .dashboard-main.dashboard-main--contratos .content-wrapper > .mb-4 > h4,
@@ -3489,7 +3502,7 @@ body .btn:not(.btn-link) {
 .dashboard-main--contratos .btn.contratos-btn-primary {
   background: var(--contratos-navy, #14532d) !important;
   border-color: var(--contratos-navy, #14532d) !important;
-  color: #ffffff !important;
+  color: var(--contratos-navy-text, var(--theme-on-accent, #ffffff)) !important;
   border-radius: 8px !important;
   font-weight: 600;
   padding: 0.4rem 0.9rem;
@@ -3622,7 +3635,7 @@ body .btn:not(.btn-link) {
   border-top: 0;
   border-left: 0;
   border-right: 0;
-  border-bottom: 2px solid #16a34a !important;
+  border-bottom: 2px solid var(--theme-accent-light, #16a34a) !important;
 }
 
 .dashboard-main--contratos .contratos-tabs-card {
@@ -3668,14 +3681,14 @@ body .btn:not(.btn-link) {
 
 .contratos-tab--active {
   background: var(--contratos-navy, #14532d);
-  color: #ffffff !important;
+  color: var(--contratos-navy-text, var(--theme-on-accent, #111827)) !important;
   border-radius: 999px;
-  box-shadow: inset 0 -6px 0 #16a34a;
+  box-shadow: inset 0 -6px 0 var(--theme-accent-light, #16a34a);
 }
 
 .contratos-tab--active:hover {
   background: var(--contratos-navy-hover, #0f3d24);
-  color: #ffffff !important;
+  color: var(--contratos-navy-text, var(--theme-on-accent, #111827)) !important;
 }
 
 /* Responsivo del encabezado */
@@ -3974,7 +3987,7 @@ body .btn:not(.btn-link) {
 }
 
 .renov-progress__bar--navy {
-  background: #14532d;
+  background: var(--theme-accent, var(--contratos-navy, #14532d));
 }
 
 .renov-progress__bar--burgundy {
@@ -4185,8 +4198,8 @@ body .btn:not(.btn-link) {
   color: #ffffff !important;
 }
 .dashboard-main--contratos .contratos-filter-card .app-select__option--is-selected {
-  background-color: #ecfdf5 !important;
-  color: #14532d !important;
+  background-color: var(--theme-accent-soft, #ecfdf5) !important;
+  color: var(--contratos-navy, #14532d) !important;
 }
 
 .dashboard-main--contratos .btn-contratos-limpiar-filtros {
@@ -4209,9 +4222,9 @@ body .btn:not(.btn-link) {
   font-size: 0.75rem !important;
   letter-spacing: 0.02em !important;
   /* Encabezado: verde oscuro (un tono más claro que #0d2818) */
-  background-color: #14532d !important;
+  background-color: var(--contratos-navy, #14532d) !important;
   background-image: none !important;
-  color: #ecfdf5 !important;
+  color: var(--contratos-navy-text, var(--theme-on-accent, #ecfdf5)) !important;
 }
 
 .dashboard-main--contratos .table.table-data-compact tbody td {
@@ -4240,13 +4253,13 @@ body .btn:not(.btn-link) {
 }
 
 .dashboard-main--contratos .contratos-row-check.is-selected {
-  background: #16a34a;
-  border-color: #15803d;
+  background: var(--theme-accent-light, #16a34a);
+  border-color: var(--theme-accent, #15803d);
   color: #ffffff;
 }
 
 .dashboard-main--contratos .table.table-data-compact tbody tr.contratos-row-selected > td {
-  background-color: #dcfce7 !important;
+  background-color: var(--theme-accent-soft, #dcfce7) !important;
 }
 
 .dashboard-main--contratos .contratos-numero-wrap {
@@ -4410,33 +4423,33 @@ body .btn:not(.btn-link) {
 }
 
 .dashboard-main--contratos .btn-table-icon-action--renew {
-  color: #14532d;
-  border-color: #4ade80;
-  background-color: #bbf7d0;
+  color: var(--contratos-navy, #14532d);
+  border-color: var(--theme-accent-muted-border, #4ade80);
+  background-color: var(--theme-accent-muted-bg, #bbf7d0);
   filter: none;
 }
 
 .dashboard-main--contratos .btn-table-icon-action--renew:hover {
   color: #ffffff;
-  background-color: #15803d;
-  border-color: #14532d;
+  background-color: var(--theme-accent, #15803d);
+  border-color: var(--contratos-navy, #14532d);
 }
 
 .dashboard-main--contratos .btn-table-icon-action--renew:focus-visible {
-  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(22, 101, 52, 0.45);
+  box-shadow: var(--btn-win11-shadow-neutral), 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--theme-accent-rgb, 22, 101, 52), 0.45);
 }
 
 .dashboard-main--contratos .btn-contrato-renovar-text {
-  color: #14532d;
-  border-color: #4ade80;
-  background-color: #bbf7d0;
+  color: var(--contratos-navy, #14532d);
+  border-color: var(--theme-accent-muted-border, #4ade80);
+  background-color: var(--theme-accent-muted-bg, #bbf7d0);
   font-weight: 600;
 }
 
 .dashboard-main--contratos .btn-contrato-renovar-text:hover {
   color: #ffffff;
-  background-color: #15803d;
-  border-color: #14532d;
+  background-color: var(--theme-accent, #15803d);
+  border-color: var(--contratos-navy, #14532d);
 }
 
 .dashboard-main--contratos .btn-table-icon-action--delete {
@@ -4893,7 +4906,7 @@ button.renov-empresa-avatar:focus-visible {
   height: 0.5rem;
   width: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #16a34a 0%, #facc15 50%, #dc2626 100%);
+  background: linear-gradient(90deg, var(--theme-accent-light, #16a34a) 0%, #facc15 50%, #dc2626 100%);
 }
 
 .renov-time-bar__marker {
@@ -4921,7 +4934,7 @@ button.renov-empresa-avatar:focus-visible {
 }
 
 .renov-time-label.is-ok {
-  color: #28a745;
+  color: var(--theme-accent-light, #28a745);
   font-weight: 600;
 }
 
@@ -4940,9 +4953,9 @@ button.renov-empresa-avatar:focus-visible {
 }
 
 .renov-badge--activo {
-  background: #16a34a;
+  background: var(--theme-accent-light, #16a34a);
   color: #ffffff;
-  border-color: #15803d;
+  border-color: var(--theme-accent, #15803d);
 }
 
 .renov-badge--revision {
@@ -5001,20 +5014,20 @@ button.renov-empresa-avatar:focus-visible {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  background: #14532d !important;
-  border: 1px solid #14532d !important;
+  background: var(--theme-accent, #14532d) !important;
+  border: 1px solid var(--theme-accent, #14532d) !important;
   color: #ffffff !important;
   font-size: 1rem;
 }
 
 .renov-actions .renov-actions__eye:hover {
-  background: #0f3d24 !important;
-  border-color: #0f3d24 !important;
+  background: var(--theme-accent-deep, #0f3d24) !important;
+  border-color: var(--theme-accent-deep, #0f3d24) !important;
   color: #ffffff !important;
 }
 
 .renov-actions .renov-actions__eye:focus-visible {
-  box-shadow: 0 0 0 0.2rem rgba(20, 83, 45, 0.4);
+  box-shadow: 0 0 0 0.2rem rgba(var(--theme-accent-rgb, 20, 83, 45), 0.4);
 }
 
 /* Contorno negro fuerte sobre el glifo del ojo para que se lea bien */
@@ -5042,27 +5055,27 @@ button.renov-empresa-avatar:focus-visible {
   box-shadow: none;
 }
 
-/* Botón "Renovar" — verde mockup #28a745 */
+/* Botón "Renovar" — acento del tema activo */
 .renov-actions .btn.btn-primary,
 .dashboard-main--contratos .renov-actions .btn.btn-primary {
-  background: #28a745 !important;
-  border-color: #28a745 !important;
+  background: var(--theme-accent-light, #28a745) !important;
+  border-color: var(--theme-accent-light, #28a745) !important;
   color: #ffffff !important;
-  box-shadow: 0 1px 2px rgba(40, 167, 69, 0.25) !important;
+  box-shadow: 0 1px 2px rgba(var(--theme-accent-rgb, 40, 167, 69), 0.25) !important;
   padding: 0.22rem 0.3rem !important;
   min-width: 0;
 }
 
 .renov-actions .btn.btn-primary:hover,
 .dashboard-main--contratos .renov-actions .btn.btn-primary:hover {
-  background: #218838 !important;
-  border-color: #1e7e34 !important;
-  box-shadow: 0 4px 10px rgba(40, 167, 69, 0.28) !important;
+  background: var(--theme-accent, #218838) !important;
+  border-color: var(--theme-accent-deep, #1e7e34) !important;
+  box-shadow: 0 4px 10px rgba(var(--theme-accent-rgb, 40, 167, 69), 0.28) !important;
 }
 
 .renov-actions .btn.btn-primary:active {
-  background: #1c7430 !important;
-  border-color: #1c7430 !important;
+  background: var(--theme-accent-deep, #1c7430) !important;
+  border-color: var(--theme-accent-deep, #1c7430) !important;
 }
 
 /* ---- Gráfico de barras (Contratos por Mes) ---- */
@@ -5107,7 +5120,7 @@ button.renov-empresa-avatar:focus-visible {
 }
 
 .renov-bar--green {
-  background: #16a34a;
+  background: var(--theme-accent-light, #16a34a);
 }
 
 .renov-bar-legend {
@@ -5137,7 +5150,7 @@ button.renov-empresa-avatar:focus-visible {
 }
 
 .renov-bar-legend__dot--green {
-  background: #16a34a;
+  background: var(--theme-accent-light, var(--contratos-green, #16a34a));
 }
 
 .renov-chart-caption {
@@ -5527,7 +5540,7 @@ button.renov-empresa-avatar:focus-visible {
 .reportes-hbar-fill {
   height: 100%;
   border-radius: 6px;
-  background: linear-gradient(90deg, var(--contratos-navy, #14532d), #22c55e);
+  background: linear-gradient(90deg, var(--contratos-navy, #14532d), var(--theme-accent-light, #22c55e));
   min-width: 4px;
   transition: width 0.2s ease;
 }
@@ -5555,7 +5568,7 @@ button.renov-empresa-avatar:focus-visible {
 }
 
 .reportes-split-bar__seg--prov {
-  background: linear-gradient(180deg, #14532d, #166534);
+  background: linear-gradient(180deg, var(--contratos-navy, #14532d), var(--theme-accent-deep, #166534));
 }
 
 .reportes-split-bar__seg--cli {
@@ -5570,7 +5583,7 @@ button.renov-empresa-avatar:focus-visible {
 }
 
 .reportes-split-dot--prov {
-  background: #14532d;
+  background: var(--theme-accent, var(--contratos-navy, #14532d));
 }
 
 .reportes-split-dot--cli {
@@ -5700,18 +5713,18 @@ html {
 }
 
 .dashboard-sidebar-config-btn.is-active {
-  background: linear-gradient(135deg, rgba(var(--brand-red-rgb), 0.95) 0%, rgba(138, 0, 24, 0.98) 100%);
+  background: var(--sidebar-config-active-from, rgba(var(--brand-red-rgb), 0.95));
   border-color: transparent;
-  color: #fff;
+  color: var(--sidebar-config-active-text, var(--theme-on-accent, #fff));
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
 }
 
 html[data-app-sidebar-tone='charcoal'] .dashboard-sidebar {
-  background: linear-gradient(180deg, #2a2d31 0%, #222428 52%, #1a1c1f 100%) !important;
+  background: var(--sidebar-bg, linear-gradient(180deg, #2a2d31 0%, #222428 52%, #1a1c1f 100%)) !important;
 }
 
 html[data-app-sidebar-tone='brand'] .dashboard-sidebar {
-  background: linear-gradient(180deg, #3f1518 0%, #2a0f12 52%, #1a090b 100%) !important;
+  background: var(--sidebar-bg, linear-gradient(180deg, #3f1518 0%, #2a0f12 52%, #1a090b 100%)) !important;
 }
 
 html[data-app-theme='dark'] .dashboard-main .card,
@@ -5723,6 +5736,99 @@ html[data-app-theme='dark'] .app-config-preview {
 html[data-app-theme='dark'] .dashboard-main .table {
   --bs-table-bg: var(--dashboard-surface);
   --bs-table-color: var(--dashboard-text);
+}
+
+/* Dark theme: evita textos negros hardcodeados (Contratos/Renovaciones) */
+html[data-app-theme='dark'] .dashboard-main--contratos h6.fw-bold.renov-card-title,
+html[data-app-theme='dark'] .dashboard-main--contratos .renov-kpi-card h6,
+html[data-app-theme='dark'] .dashboard-main--contratos .renov-alerts-card h6,
+html[data-app-theme='dark'] .dashboard-main--contratos .renov-cola-card h6,
+html[data-app-theme='dark'] .dashboard-main--contratos .renov-stats-card h6,
+html[data-app-theme='dark'] .dashboard-main--contratos .contratos-page__title,
+html[data-app-theme='dark'] .dashboard-main--contratos .contratos-tab:not(.contratos-tab--active),
+html[data-app-theme='dark'] .dashboard-main--contratos .contratos-tab:not(.contratos-tab--active):hover,
+html[data-app-theme='dark'] .dashboard-main--contratos .renov-donut__val {
+  color: var(--dashboard-text) !important;
+}
+
+html[data-app-theme='dark'] .dashboard-main--contratos .contratos-tab--active,
+html[data-app-theme='dark'] .dashboard-main--contratos .contratos-tab--active:hover {
+  color: var(--contratos-navy-text, var(--theme-on-accent, #111827)) !important;
+}
+
+html[data-app-theme='dark'] .dashboard-main--contratos .renov-donut {
+  color: var(--dashboard-text);
+}
+
+html[data-app-theme='dark'] .dashboard-main--contratos .renov-donut text.renov-donut__text-muted {
+  opacity: 0.78;
+}
+
+/* Tema personalizado: solo cuando el usuario elige otro preset o colores propios */
+body.app-custom-theme .dashboard-main,
+body.app-custom-theme .dashboard-main .dashboard-main-scroll {
+  background: var(--dashboard-bg) !important;
+  color: var(--dashboard-text);
+}
+
+body.app-custom-theme .dashboard-main.dashboard-main--contratos {
+  --contratos-bg: var(--dashboard-bg);
+  background: var(--dashboard-bg) !important;
+}
+
+body.app-custom-theme .dashboard-main.dashboard-main--contratos .dashboard-main-scroll {
+  background: var(--dashboard-bg);
+}
+
+body.app-custom-theme .dashboard-main .card,
+body.app-custom-theme .dashboard-main .table-responsive,
+body.app-custom-theme .dashboard-main.dashboard-main--contratos .card,
+body.app-custom-theme .dashboard-main.dashboard-main--contratos .table-responsive {
+  background: var(--dashboard-surface) !important;
+  color: var(--dashboard-text);
+}
+
+body.app-custom-theme .dashboard-main .form-control,
+body.app-custom-theme .dashboard-main .form-select,
+body.app-custom-theme .dashboard-main textarea.form-control {
+  background-color: var(--dashboard-form-bg, #ffffff);
+  color: var(--dashboard-text);
+  border-color: var(--dashboard-border, #b0b0b0);
+}
+
+body.app-custom-theme .dashboard-main .table.table-data-compact {
+  --bs-table-bg: var(--dashboard-table-bg, var(--dashboard-surface));
+  --bs-table-color: var(--dashboard-table-text, var(--dashboard-text));
+  --bs-table-accent-bg: var(--dashboard-table-bg, var(--dashboard-surface));
+  --bs-table-striped-bg: var(--dashboard-table-bg, var(--dashboard-surface));
+  --bs-table-hover-bg: var(--dashboard-table-hover-bg, var(--dashboard-surface));
+  background-color: var(--dashboard-table-bg, var(--dashboard-surface));
+  color: var(--dashboard-table-text, var(--dashboard-text));
+}
+
+body.app-custom-theme .dashboard-main .table.table-data-compact tbody td,
+body.app-custom-theme .dashboard-main .table.table-data-compact.table-striped > tbody > tr:nth-of-type(odd) > *,
+body.app-custom-theme .dashboard-main .table.table-data-compact.table-striped > tbody > tr:nth-of-type(even) > * {
+  background-color: var(--dashboard-table-bg, var(--dashboard-surface)) !important;
+  color: var(--dashboard-table-text, var(--dashboard-text));
+}
+
+body.app-custom-theme .dashboard-main .table.table-data-compact.table-hover tbody tr:hover td,
+body.app-custom-theme .dashboard-main .table.table-data-compact tbody tr:hover td {
+  background-color: var(--dashboard-table-hover-bg, var(--dashboard-surface)) !important;
+}
+
+body.app-custom-theme .dashboard-main .table.table-data-compact thead th,
+body.app-custom-theme .dashboard-main .table.table-data-compact thead.table-light th {
+  background-color: var(--dashboard-table-head-bg, var(--ui-primary)) !important;
+  color: var(--dashboard-table-head-text, #ffffff) !important;
+}
+
+body.app-custom-theme .app-config-page,
+body.app-custom-theme .app-config-section,
+body.app-custom-theme .app-config-preview {
+  background: var(--dashboard-surface);
+  color: var(--dashboard-text);
 }
 
 body.app-compact .dashboard-main .card-body {
@@ -5795,22 +5901,57 @@ body.app-high-contrast .dashboard-sidebar .nav-link.dashboard-nav-link {
   gap: 0.35rem;
   width: 100%;
   padding: 0.85rem;
-  border: 2px solid var(--dashboard-border);
-  border-radius: var(--app-card-radius, 0);
-  background: var(--dashboard-surface);
-  color: var(--dashboard-text);
+  border: 1px solid var(--opt-border, var(--dashboard-border));
+  border-radius: 0.9rem;
+  background: linear-gradient(180deg, var(--opt-bg, var(--dashboard-bg)) 0%, var(--opt-surface, var(--dashboard-surface)) 90%);
+  color: var(--opt-text, var(--dashboard-text));
   text-align: left;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, filter 0.2s ease;
 }
 
 .app-config-option-card:hover {
-  border-color: rgba(var(--ui-primary-rgb), 0.55);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  border-color: rgba(var(--opt-accent-rgb, var(--ui-primary-rgb)), 0.65);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
 }
 
 .app-config-option-card.is-active {
-  border-color: var(--ui-primary);
-  box-shadow: 0 0 0 1px var(--ui-primary);
+  border-color: var(--opt-accent, var(--ui-primary));
+  box-shadow: 0 0 0 2px rgba(var(--opt-accent-rgb, var(--ui-primary-rgb)), 0.35), 0 12px 24px rgba(0, 0, 0, 0.12);
+}
+
+.app-config-option-card__preview {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  background: var(--opt-bg, var(--dashboard-bg));
+}
+
+.app-config-option-card__preview-topbar {
+  display: block;
+  height: 0.55rem;
+  background: linear-gradient(90deg, var(--opt-accent, var(--ui-primary)), var(--opt-accent-deep, var(--ui-primary-deep)));
+}
+
+.app-config-option-card__preview-body {
+  display: flex;
+  gap: 0.45rem;
+  padding: 0.55rem;
+}
+
+.app-config-option-card__preview-sidebar {
+  width: 28%;
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.app-config-option-card__preview-card {
+  flex: 1 1 auto;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .app-config-option-card__swatch {
@@ -5822,7 +5963,7 @@ body.app-high-contrast .dashboard-sidebar .nav-link.dashboard-nav-link {
   width: 1.1rem;
   height: 1.1rem;
   border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.18);
 }
 
 .app-config-option-card__title {
@@ -5832,7 +5973,7 @@ body.app-high-contrast .dashboard-sidebar .nav-link.dashboard-nav-link {
 
 .app-config-option-card__desc {
   font-size: 0.78rem;
-  color: var(--dashboard-muted);
+  color: var(--opt-muted, var(--dashboard-muted));
   line-height: 1.35;
 }
 
@@ -5861,6 +6002,39 @@ body.app-high-contrast .dashboard-sidebar .nav-link.dashboard-nav-link {
   border-color: var(--ui-primary);
   color: var(--ui-primary-deep);
   font-weight: 600;
+}
+
+.app-config-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--dashboard-border);
+  background: var(--dashboard-surface);
+  color: var(--dashboard-text);
+  border-radius: 0.65rem;
+  padding: 0.42rem 0.75rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.app-config-disclosure:hover,
+.app-config-disclosure:focus-visible {
+  border-color: rgba(var(--ui-primary-rgb), 0.55);
+  outline: none;
+}
+
+.app-config-disclosure.is-open {
+  background: rgba(var(--ui-primary-rgb), 0.12);
+  border-color: var(--ui-primary);
+  color: var(--ui-primary-deep);
+}
+
+.app-config-disclosure__chev {
+  width: 1rem;
+  display: inline-flex;
+  justify-content: center;
 }
 
 .app-config-toggle-list {

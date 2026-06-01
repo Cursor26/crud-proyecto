@@ -9,7 +9,7 @@ import { EditTableActionButton, DeleteTableActionButton, CancelTableActionButton
 import { FormModal } from './FormModal';
 import AppSelect from './AppSelect';
 import { useAppPreferences } from '../context/AppPreferencesContext';
-import { CONTRATOS_LIST_COLUMNS, isColumnVisible } from '../lib/appPreferences';
+import { CONTRATOS_LIST_COLUMNS, isColumnVisible, getThemeAccentFromDocument } from '../lib/appPreferences';
 import { formatAppDate } from '../lib/formatAppDate';
 
 /** Valores legacy numéricos en BD → etiquetas del formulario (Alimento, Servicio, Compra, Otro). */
@@ -94,6 +94,10 @@ function getAlertaContrato(contrato) {
 
 function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const { preferences } = useAppPreferences();
+  const themeAccent = useMemo(
+    () => getThemeAccentFromDocument().primary,
+    [preferences.themeId, preferences.accentColor]
+  );
   const showCol = (id) => isColumnVisible(preferences, 'contratos', id);
   const visibleContratoColCount = CONTRATOS_LIST_COLUMNS.filter((c) => showCol(c.id)).length;
   const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
@@ -3146,7 +3150,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                             <span className="renov-chart-caption">Total de Contratos por Estado</span>
                             <RenovDonut
                               segments={[
-                                { value: resumen.activos, color: '#14532d', label: 'Activos' },
+                                { value: resumen.activos, color: themeAccent, label: 'Activos' },
                                 { value: resumen.porVencer + resumen.seguimiento, color: '#ffc107', label: 'Seguimiento / próx.' },
                                 { value: resumen.vencidos, color: '#dc3545', label: 'Vencidos' },
                               ]}
@@ -3558,10 +3562,18 @@ function RenovDonut({ segments = [], total = 0, size = 140, stroke = 22 }) {
             />
           );
         })}
-        <text x="50%" y="46%" textAnchor="middle" dominantBaseline="central" fontSize="22" fontWeight="700" fill="#000000">
+        <text x="50%" y="46%" textAnchor="middle" dominantBaseline="central" fontSize="22" fontWeight="700" fill="currentColor">
           {total}
         </text>
-        <text x="50%" y="62%" textAnchor="middle" dominantBaseline="central" fontSize="10" fill="#495057">
+        <text
+          x="50%"
+          y="62%"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize="10"
+          fill="currentColor"
+          className="renov-donut__text-muted"
+        >
           Contratos
         </text>
       </svg>

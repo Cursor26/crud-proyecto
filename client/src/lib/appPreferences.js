@@ -19,6 +19,15 @@ export const DEFAULT_PREFERENCES = {
   surfaceColor: '',
   accentColor: '',
   mutedTextColor: '',
+  sidebarItemBg: '',
+  sidebarItemTextColor: '',
+  sidebarHoverBg: '',
+  sidebarHoverTextColor: '',
+  sidebarActiveBg: '',
+  sidebarActiveTextColor: '',
+  sidebarBg: '',
+  sidebarConfigActiveFrom: '',
+  sidebarConfigActiveTo: '',
   sidebarTone: 'dark',
   sidebarWidth: 'normal',
   uiScale: 'compact',
@@ -85,20 +94,21 @@ export const THEME_PRESETS = {
   dark: {
     id: 'dark',
     label: 'Oscuro',
-    description: 'Modo oscuro para entornos con poca luz',
-    swatch: ['#0f172a', '#1e293b', '#38bdf8'],
+    description: 'Escala de grises (alto contraste)',
+    swatch: ['#0b0f14', '#161b22', '#e5e7eb'],
     vars: {
-      '--dashboard-bg': '#0f172a',
-      '--dashboard-surface': '#1e293b',
-      '--dashboard-border': '#334155',
-      '--dashboard-text': '#e2e8f0',
-      '--dashboard-muted': '#94a3b8',
-      '--brand-red': '#f87171',
-      '--brand-red-deep': '#ef4444',
-      '--brand-red-rgb': '248, 113, 113',
-      '--ui-primary': '#38bdf8',
-      '--ui-primary-deep': '#0ea5e9',
-      '--ui-primary-rgb': '56, 189, 248',
+      '--dashboard-bg': '#0b0f14',
+      '--dashboard-surface': '#161b22',
+      '--dashboard-border': '#2b313a',
+      '--dashboard-text': '#f3f4f6',
+      '--dashboard-muted': '#cbd5e1',
+      // En modo oscuro pediste sin acentos de color: todo en grises.
+      '--brand-red': '#e5e7eb',
+      '--brand-red-deep': '#cbd5e1',
+      '--brand-red-rgb': '229, 231, 235',
+      '--ui-primary': '#e5e7eb',
+      '--ui-primary-deep': '#cbd5e1',
+      '--ui-primary-rgb': '229, 231, 235',
     },
   },
   ocean: {
@@ -223,6 +233,170 @@ function hexToRgbParts(hex) {
   };
 }
 
+function mixHex(hexA, hexB, weightB = 0.15) {
+  const a = hexToRgbParts(hexA);
+  const b = hexToRgbParts(hexB);
+  if (!a || !b) return hexA || hexB || '#d6d6d6';
+  const w = Math.min(1, Math.max(0, weightB));
+  const r = Math.round(a.r * (1 - w) + b.r * w);
+  const g = Math.round(a.g * (1 - w) + b.g * w);
+  const bl = Math.round(a.b * (1 - w) + b.b * w);
+  return `#${[r, g, bl].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function readCssVar(root, name, fallback) {
+  const inline = root.style.getPropertyValue(name);
+  const computed = inline || getComputedStyle(root).getPropertyValue(name);
+  const value = String(computed || fallback).trim();
+  return value || fallback;
+}
+
+function relativeLuminance(hex) {
+  const rgb = hexToRgbParts(hex);
+  if (!rgb) return 0;
+  return (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+}
+
+function contrastTextForBackground(hex) {
+  return relativeLuminance(hex) > 0.58 ? '#111827' : '#f9fafb';
+}
+
+function mutedTextOnBackground(hex) {
+  return relativeLuminance(hex) > 0.58 ? '#374151' : '#d1d5db';
+}
+
+function applySidebarContrastColors(root, resolved) {
+  const brandAccent = readCssVar(root, '--brand-red', '#b91c1c');
+
+  const deriveText = (bgHex, textPref, textVar) => {
+    if (textPref) return;
+    if (bgHex) root.style.setProperty(textVar, contrastTextForBackground(bgHex));
+    else root.style.removeProperty(textVar);
+  };
+
+  deriveText(resolved.sidebarItemBg, resolved.sidebarItemTextColor, '--sidebar-item-text');
+  deriveText(resolved.sidebarHoverBg, resolved.sidebarHoverTextColor, '--sidebar-hover-text');
+  deriveText(resolved.sidebarActiveBg, resolved.sidebarActiveTextColor, '--sidebar-active-text');
+
+  const configBg = resolved.sidebarConfigActiveFrom || brandAccent;
+  root.style.setProperty('--sidebar-config-active-text', contrastTextForBackground(configBg));
+}
+
+function applyContrastTokens(root) {
+  const accent = readCssVar(root, '--ui-primary', '#007bff');
+  const navy = readCssVar(root, '--contratos-navy', readCssVar(root, '--theme-accent', accent));
+  const onAccent = contrastTextForBackground(accent);
+  const onNavy = contrastTextForBackground(navy);
+
+  root.style.setProperty('--theme-on-accent', onAccent);
+  root.style.setProperty('--theme-on-accent-muted', mutedTextOnBackground(accent));
+  root.style.setProperty('--contratos-navy-text', onNavy);
+}
+
+function applyDerivedPreferenceColors(root) {
+  const bg = readCssVar(root, '--dashboard-bg', '#b8b8b8');
+  const surface = readCssVar(root, '--dashboard-surface', '#d6d6d6');
+  const text = readCssVar(root, '--dashboard-text', '#0f172a');
+  const accent = readCssVar(root, '--ui-primary', '#14532d');
+  const accentDeep = readCssVar(root, '--ui-primary-deep', '#0f3d24');
+  const accentRgb = readCssVar(root, '--ui-primary-rgb', '20, 83, 45');
+  const accentLight = mixHex(accent, '#ffffff', 0.32);
+  const accentSoft = mixHex(accent, '#ffffff', 0.88);
+  const accentMutedBg = mixHex(accent, '#ffffff', 0.78);
+  const accentMutedBorder = mixHex(accent, '#ffffff', 0.52);
+
+  root.style.setProperty('--theme-accent', accent);
+  root.style.setProperty('--theme-accent-deep', accentDeep);
+  root.style.setProperty('--theme-accent-rgb', accentRgb);
+  root.style.setProperty('--theme-accent-light', accentLight);
+  root.style.setProperty('--theme-accent-soft', accentSoft);
+  root.style.setProperty('--theme-accent-muted-bg', accentMutedBg);
+  root.style.setProperty('--theme-accent-muted-border', accentMutedBorder);
+  root.style.setProperty('--accion-anadir', accent);
+  root.style.setProperty('--accion-anadir-hover', accentDeep);
+  root.style.setProperty('--accion-anadir-border', accentDeep);
+  root.style.setProperty('--modal-accent', accent);
+  root.style.setProperty('--modal-accent-deep', accentDeep);
+
+  root.style.setProperty('--dashboard-table-bg', surface);
+  root.style.setProperty('--dashboard-table-text', text);
+  root.style.setProperty('--dashboard-table-hover-bg', mixHex(surface, text, 0.12));
+  root.style.setProperty('--dashboard-table-head-bg', accent);
+  root.style.setProperty('--dashboard-table-head-text', contrastTextForBackground(accent));
+  root.style.setProperty('--contratos-navy-text', contrastTextForBackground(accent));
+  root.style.setProperty('--theme-on-accent', contrastTextForBackground(accent));
+  root.style.setProperty('--theme-on-accent-muted', mutedTextOnBackground(accent));
+  root.style.setProperty('--dashboard-form-bg', mixHex(surface, '#ffffff', 0.55));
+  root.style.setProperty('--contratos-bg', bg);
+  root.style.setProperty('--contratos-navy', accent);
+  root.style.setProperty('--contratos-navy-hover', accentDeep);
+  root.style.setProperty('--contratos-green', accentLight);
+
+  const rgbParts = hexToRgbParts(accent);
+  if (rgbParts) {
+    root.style.setProperty('--contratos-navy-rgb', `${rgbParts.r}, ${rgbParts.g}, ${rgbParts.b}`);
+  }
+}
+
+const INLINE_THEME_VARS = [
+  '--dashboard-bg',
+  '--dashboard-surface',
+  '--dashboard-border',
+  '--dashboard-text',
+  '--dashboard-muted',
+  '--brand-red',
+  '--brand-red-deep',
+  '--brand-red-rgb',
+  '--ui-primary',
+  '--ui-primary-deep',
+  '--ui-primary-rgb',
+  '--theme-accent',
+  '--theme-accent-deep',
+  '--theme-accent-rgb',
+  '--theme-accent-light',
+  '--theme-accent-soft',
+  '--theme-accent-muted-bg',
+  '--theme-accent-muted-border',
+  '--accion-anadir',
+  '--accion-anadir-hover',
+  '--accion-anadir-border',
+  '--modal-accent',
+  '--modal-accent-deep',
+  '--dashboard-table-bg',
+  '--dashboard-table-text',
+  '--dashboard-table-hover-bg',
+  '--dashboard-table-head-bg',
+  '--dashboard-table-head-text',
+  '--dashboard-form-bg',
+  '--contratos-bg',
+  '--contratos-navy',
+  '--contratos-navy-hover',
+  '--contratos-green',
+  '--contratos-navy-rgb',
+  '--contratos-navy-text',
+  '--theme-on-accent',
+  '--theme-on-accent-muted',
+  '--sidebar-config-active-text',
+];
+
+function hasCustomColors(resolved) {
+  return Boolean(
+    resolved.backgroundColor ||
+      resolved.surfaceColor ||
+      resolved.textColor ||
+      resolved.accentColor ||
+      resolved.mutedTextColor
+  );
+}
+
+function usesCustomTheme(resolved) {
+  return resolved.effectiveThemeId !== 'institutional' || hasCustomColors(resolved);
+}
+
+function clearInlineThemeVars(root) {
+  INLINE_THEME_VARS.forEach((key) => root.style.removeProperty(key));
+}
+
 function mergePreferences(raw) {
   const merged = { ...DEFAULT_PREFERENCES, ...(raw || {}) };
   merged.visibleColumns = {
@@ -310,34 +484,72 @@ export function resolvePreferences(prefs) {
   };
 }
 
+export function getThemeAccentFromDocument() {
+  const root = document.documentElement;
+  const primary = readCssVar(root, '--theme-accent', readCssVar(root, '--ui-primary', '#14532d'));
+  const primaryRgb = readCssVar(
+    root,
+    '--theme-accent-rgb',
+    readCssVar(root, '--ui-primary-rgb', '20, 83, 45')
+  );
+  return { primary, primaryRgb };
+}
+
 export function applyPreferencesToDocument(prefs) {
   const resolved = resolvePreferences(prefs);
   const root = document.documentElement;
   const body = document.body;
+  const customTheme = usesCustomTheme(resolved);
 
-  Object.entries(resolved.theme.vars).forEach(([key, value]) => {
-    root.style.setProperty(key, value);
-  });
-
-  const setHex = (key, value) => {
+  const setOrClearHex = (key, value) => {
     if (value && /^#[0-9a-fA-F]{6}$/.test(value)) root.style.setProperty(key, value);
+    else root.style.removeProperty(key);
   };
 
-  setHex('--dashboard-bg', resolved.backgroundColor);
-  setHex('--dashboard-surface', resolved.surfaceColor);
-  setHex('--dashboard-text', resolved.textColor);
-  setHex('--dashboard-muted', resolved.mutedTextColor);
+  if (customTheme) {
+    Object.entries(resolved.theme.vars).forEach(([key, value]) => {
+      root.style.setProperty(key, value);
+    });
 
-  if (resolved.textColor && !resolved.mutedTextColor) {
-    const muted = mutedTextFromHex(resolved.textColor);
-    if (muted) root.style.setProperty('--dashboard-muted', muted);
+    const setHex = (key, value) => {
+      if (value && /^#[0-9a-fA-F]{6}$/.test(value)) root.style.setProperty(key, value);
+    };
+
+    setHex('--dashboard-bg', resolved.backgroundColor);
+    setHex('--dashboard-surface', resolved.surfaceColor);
+    setHex('--dashboard-text', resolved.textColor);
+    setHex('--dashboard-muted', resolved.mutedTextColor);
+
+    if (resolved.textColor && !resolved.mutedTextColor) {
+      const muted = mutedTextFromHex(resolved.textColor);
+      if (muted) root.style.setProperty('--dashboard-muted', muted);
+    }
+
+    if (resolved.accentColor) {
+      setHex('--ui-primary', resolved.accentColor);
+      const rgb = hexToRgbParts(resolved.accentColor);
+      if (rgb) root.style.setProperty('--ui-primary-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+      const deep = mixHex(resolved.accentColor, '#000000', 0.22);
+      root.style.setProperty('--ui-primary-deep', deep);
+    }
+
+    applyDerivedPreferenceColors(root);
+  } else {
+    clearInlineThemeVars(root);
   }
 
-  if (resolved.accentColor) {
-    setHex('--ui-primary', resolved.accentColor);
-    const rgb = hexToRgbParts(resolved.accentColor);
-    if (rgb) root.style.setProperty('--ui-primary-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
-  }
+  // Colores del menú lateral (siempre aplicables, incluso en tema institucional)
+  setOrClearHex('--sidebar-bg', resolved.sidebarBg);
+  setOrClearHex('--sidebar-item-bg', resolved.sidebarItemBg);
+  setOrClearHex('--sidebar-item-text', resolved.sidebarItemTextColor);
+  setOrClearHex('--sidebar-hover-bg', resolved.sidebarHoverBg);
+  setOrClearHex('--sidebar-hover-text', resolved.sidebarHoverTextColor);
+  setOrClearHex('--sidebar-active-bg', resolved.sidebarActiveBg);
+  setOrClearHex('--sidebar-active-text', resolved.sidebarActiveTextColor);
+  setOrClearHex('--sidebar-config-active-from', resolved.sidebarConfigActiveFrom);
+  setOrClearHex('--sidebar-config-active-to', resolved.sidebarConfigActiveTo);
+  applySidebarContrastColors(root, resolved);
+  applyContrastTokens(root);
 
   root.style.setProperty('--app-font-family', resolved.font.stack);
   root.style.setProperty('--app-font-scale', String(resolved.fontSize.scale));
@@ -354,6 +566,7 @@ export function applyPreferencesToDocument(prefs) {
   root.dataset.appUiScale = resolved.uiScale.id;
   root.lang = resolved.language === 'en' ? 'en' : 'es';
 
+  body.classList.toggle('app-custom-theme', customTheme);
   body.classList.toggle('app-compact', Boolean(resolved.compactMode));
   body.classList.toggle('app-reduce-motion', Boolean(resolved.reduceMotion));
   body.classList.toggle('app-high-contrast', Boolean(resolved.highContrast));
