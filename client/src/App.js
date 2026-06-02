@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import Axios from 'axios';
+import Axios, { API_BASE } from './axiosConfig';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import { Nav, Navbar, NavDropdown } from 'react-bootstrap';
@@ -35,6 +35,11 @@ import CambiosCargo from './components/CambiosCargo';
 import ReporteConsolidado from './components/ReporteConsolidado';
 import ProduccionHistorico from './components/ProduccionHistorico';
 import GestionUsuarios from './components/GestionUsuarios';
+import GestionRoles from './components/GestionRoles';
+import Auditoria from './components/Auditoria';
+import { PermissionsProvider, usePermissions } from './context/PermissionsContext';
+import { createLegacyCan } from './lib/legacyRolAccess';
+import { hasAnyPermission } from './lib/rbacModules';
 import ConfigCorreoServicio from './components/ConfigCorreoServicio';
 import AppConfiguracion from './components/AppConfiguracion';
 import { PuedeEscribirProvider } from './context/PuedeEscribirContext';
@@ -47,6 +52,16 @@ import UserProfileAvatar from './components/UserProfileAvatar';
 import DnaThreeWidget from './components/DnaThreeWidget';
 
 const TOKEN_KEY = 'token';
+const PERMISOS_KEY = 'permisos';
+
+function loadPermisosFromStorage() {
+  try {
+    const raw = localStorage.getItem(PERMISOS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 function parseJwtPayload(token) {
   try {
@@ -126,6 +141,7 @@ if (tokenInicial) {
 
 function App() {
   const [user, setUser] = useState(null);
+  const [permisos, setPermisos] = useState(loadPermisosFromStorage);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(tokenInicial);
 
@@ -137,6 +153,8 @@ function App() {
 
   const moduloLabel = {
     usuarios: 'Gestión de usuarios',
+    'gestion-roles': 'Roles y permisos',
+    auditoria: 'Auditoría de seguridad',
     'config-correo': 'Correo del sistema',
     'app-configuracion': 'Configuración de la aplicación',
     contratos: 'Contratación',
@@ -190,7 +208,14 @@ function App() {
 
   const handleNavSelect = (selectedKey) => {
     setKey(selectedKey);
-    if (selectedKey === 'usuarios' || selectedKey === 'config-correo' || selectedKey === 'app-configuracion' || selectedKey === 'contratos') {
+    if (
+      selectedKey === 'usuarios' ||
+      selectedKey === 'gestion-roles' ||
+      selectedKey === 'auditoria' ||
+      selectedKey === 'config-correo' ||
+      selectedKey === 'app-configuracion' ||
+      selectedKey === 'contratos'
+    ) {
       setSidebarMenuOpen(null);
     } else if (SIDEBAR_RRHH_KEYS.has(selectedKey)) {
       setSidebarMenuOpen('rrhh');
@@ -229,6 +254,24 @@ function App() {
           setUser(null);
         }
       }
+      const stored = loadPermisosFromStorage();
+      if (!stored || !hasAnyPermission(stored)) {
+        Axios.get(`${API_BASE}/rbac/me/permissions`)
+          .then((res) => {
+            const perms = res.data?.permisos;
+            if (perms && hasAnyPermission(perms)) {
+              localStorage.setItem(PERMISOS_KEY, JSON.stringify(perms));
+              setPermisos(perms);
+            } else {
+              localStorage.removeItem(PERMISOS_KEY);
+              setPermisos(null);
+            }
+          })
+          .catch(() => {
+            localStorage.removeItem(PERMISOS_KEY);
+            setPermisos(null);
+          });
+      }
     }
     setLoading(false);
   }, [token]);
@@ -246,28 +289,40 @@ function App() {
         email: loginId,
         password,
       });
-      const { token: newToken, usuario } = response.data;
+      const { token: newToken, usuario, permisos: permisosLogin } = response.data;
       const usuarioNormalizado = {
         ...usuario,
         rol: String(usuario?.rol || '').trim().toLowerCase(),
       };
+      const perms =
+        permisosLogin && hasAnyPermission(permisosLogin) ? permisosLogin : null;
       localStorage.setItem(TOKEN_KEY, newToken);
       localStorage.setItem('user', JSON.stringify(usuarioNormalizado));
+      if (perms) localStorage.setItem(PERMISOS_KEY, JSON.stringify(perms));
+      else localStorage.removeItem(PERMISOS_KEY);
       setAuthToken(newToken);
       setToken(newToken);
       setUser(usuarioNormalizado);
+      setPermisos(perms);
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message || 'Error al conectar' };
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await Axios.post('/auth/logout');
+    } catch {
+      /* registrar logout es best-effort */
+    }
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem('user');
+    localStorage.removeItem(PERMISOS_KEY);
     setAuthToken(null);
     setToken(null);
     setUser(null);
+    setPermisos(null);
     setKey('');
     setSidebarMenuOpen(null);
   };
@@ -281,13 +336,67 @@ function App() {
     });
   };
 
-  const rol = user?.rol;
-  const esAdmin = rol === 'admin';
-  const esEstadistica = rol === 'estadistica' || rol === 'produccion';
-  const mostrarUsuarios = esAdmin;
-  const mostrarContratos = esAdmin || rol === 'contratacion' || rol === 'director';
-  const mostrarRHum = esAdmin || rol === 'rrhh' || rol === 'director';
-  const mostrarProduccion = esAdmin || esEstadistica || rol === 'director';
+  const legacyCan = useMemo(() => (user?.rol ? createLegacyCan(user.rol) : null), [user?.rol]);
+
+  return (
+    <PermissionsProvider permisos={permisos} legacyCan={legacyCan}>
+      <AppWithPermissions
+        user={user}
+        permisos={permisos}
+        token={token}
+        loading={loading}
+        login={login}
+        logout={logout}
+        handleProfilePhotoUpdated={handleProfilePhotoUpdated}
+        navKey={key}
+        setKey={setKey}
+        sidebarMenuOpen={sidebarMenuOpen}
+        setSidebarMenuOpen={setSidebarMenuOpen}
+        now={now}
+        rrhhAnaliticaOpen={rrhhAnaliticaOpen}
+        setRrhhAnaliticaOpen={setRrhhAnaliticaOpen}
+        handleNavSelect={handleNavSelect}
+        handleContratosSectionChange={handleContratosSectionChange}
+        handleSidebarRrhhToggle={handleSidebarRrhhToggle}
+        handleSidebarProdToggle={handleSidebarProdToggle}
+        handleSidebarContratosToggle={handleSidebarContratosToggle}
+        moduloLabel={moduloLabel}
+      />
+    </PermissionsProvider>
+  );
+}
+
+function AppWithPermissions(props) {
+  const {
+    user,
+    loading,
+    login,
+    logout,
+    handleProfilePhotoUpdated,
+    navKey,
+    setKey,
+    sidebarMenuOpen,
+    setSidebarMenuOpen,
+    now,
+    rrhhAnaliticaOpen,
+    setRrhhAnaliticaOpen,
+    handleNavSelect,
+    handleContratosSectionChange,
+    handleSidebarRrhhToggle,
+    handleSidebarProdToggle,
+    handleSidebarContratosToggle,
+    moduloLabel,
+  } = props;
+
+  const { can, puedeEscribir } = usePermissions();
+
+  const mostrarUsuarios = can('usuarios', 'view');
+  const mostrarGestionRoles = can('usuarios', 'edit') || can('usuarios', 'create');
+  const mostrarAuditoria = can('auditoria', 'view');
+  const mostrarConfigCorreo = can('configuracion', 'view');
+  const mostrarContratos = can('contratos', 'view');
+  const mostrarRHum = can('empleados', 'view');
+  const mostrarProduccion = can('produccion', 'view');
   const mostrarEmpleados = mostrarRHum;
   const mostrarAsistencias = mostrarRHum;
   const mostrarCertificaciones = mostrarRHum;
@@ -306,24 +415,30 @@ function App() {
   const mostrarSeguridad = mostrarRHum;
   const mostrarCargos = mostrarRHum;
   const mostrarDepartamentos = mostrarRHum;
-  const mostrarCertMedicos = rol === 'rrhh' || esEstadistica || rol === 'director';
-  const mostrarEvalMedicas = mostrarCertMedicos;
+  const mostrarCertMedicos = mostrarRHum;
+  const mostrarEvalMedicas = mostrarRHum;
   const mostrarSacrificio = mostrarProduccion;
   const mostrarMatadero = mostrarProduccion;
   const mostrarLeche = mostrarProduccion;
-  const esDirectorLectura = rol === 'director';
 
   const allowedModuleKeys = useMemo(() => {
-    const keys = new Set(['app-configuracion']);
-    if (mostrarUsuarios) {
-      keys.add('usuarios');
-      keys.add('config-correo');
-    }
+    const keys = new Set();
+    if (can('configuracion', 'view')) keys.add('app-configuracion');
+    if (mostrarUsuarios) keys.add('usuarios');
+    if (mostrarGestionRoles) keys.add('gestion-roles');
+    if (mostrarAuditoria) keys.add('auditoria');
+    if (mostrarConfigCorreo) keys.add('config-correo');
     if (mostrarContratos) SIDEBAR_CONTRATOS_KEYS.forEach((k) => keys.add(k));
     if (mostrarRHum) SIDEBAR_RRHH_KEYS.forEach((k) => keys.add(k));
     if (mostrarProduccion) SIDEBAR_PROD_KEYS.forEach((k) => keys.add(k));
     return keys;
-  }, [mostrarUsuarios, mostrarContratos, mostrarRHum, mostrarProduccion]);
+  }, [can, mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarConfigCorreo, mostrarContratos, mostrarRHum, mostrarProduccion]);
+
+  useEffect(() => {
+    if (!navKey || allowedModuleKeys.has(navKey)) return;
+    const next = [...allowedModuleKeys][0];
+    if (next) setKey(next);
+  }, [navKey, allowedModuleKeys, setKey]);
 
   const rolEtiqueta = (r) => {
     if (r === 'estadistica' || r === 'produccion') return 'Estadística';
@@ -348,7 +463,7 @@ function App() {
 
   return (
     <AppPreferencesProvider userEmail={user.email}>
-    <PuedeEscribirProvider puedeEscribir={user?.rol !== 'director'}>
+    <PuedeEscribirProvider puedeEscribir={puedeEscribir}>
     <NavPrefsInitializer
       user={user}
       allowedKeys={allowedModuleKeys}
@@ -358,7 +473,7 @@ function App() {
     <DashboardShell
       user={user}
       logout={logout}
-      navKey={key}
+      navKey={navKey}
       setKey={setKey}
       sidebarMenuOpen={sidebarMenuOpen}
       setSidebarMenuOpen={setSidebarMenuOpen}
@@ -372,10 +487,13 @@ function App() {
       setRrhhAnaliticaOpen={setRrhhAnaliticaOpen}
       moduloLabel={moduloLabel}
       rolEtiqueta={rolEtiqueta}
-      esDirectorLectura={esDirectorLectura}
+      puedeEscribir={puedeEscribir}
       allowedModuleKeys={allowedModuleKeys}
       onProfilePhotoUpdated={handleProfilePhotoUpdated}
       mostrarUsuarios={mostrarUsuarios}
+      mostrarGestionRoles={mostrarGestionRoles}
+      mostrarAuditoria={mostrarAuditoria}
+      mostrarConfigCorreo={mostrarConfigCorreo}
       mostrarContratos={mostrarContratos}
       mostrarRHum={mostrarRHum}
       mostrarProduccion={mostrarProduccion}
@@ -419,9 +537,10 @@ function DashboardShell(props) {
   const sidebarWidth = resolved.sidebarWidth.width;
   const {
     user, logout, navKey: key, sidebarMenuOpen, now, rrhhAnaliticaOpen, setRrhhAnaliticaOpen,
-    moduloLabel, rolEtiqueta, esDirectorLectura,
+    moduloLabel, rolEtiqueta, puedeEscribir,
     handleContratosSectionChange, handleSidebarContratosToggle, handleSidebarRrhhToggle, handleSidebarProdToggle,
-    mostrarUsuarios, mostrarContratos, mostrarRHum, mostrarProduccion, mostrarEmpleados,
+    mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarConfigCorreo,
+    mostrarContratos, mostrarRHum, mostrarProduccion, mostrarEmpleados,
     mostrarAsistencias, mostrarCertificaciones, mostrarCursos, mostrarEvalcapacitacion,
     mostrarEvaluaciones, mostrarObjetivos, mostrarSalarios, mostrarVacaciones,
     mostrarTurnosTrabajo, mostrarGruposTrabajo, mostrarSanciones, mostrarReconocimientos,
@@ -443,18 +562,32 @@ function DashboardShell(props) {
 
         <Nav className="flex-column flex-grow-1 dashboard-sidebar-nav" activeKey={key} onSelect={handleNavSelect}>
           {mostrarUsuarios && (
-            <>
-              <Nav.Item className="mb-2">
-                <Nav.Link eventKey="usuarios" className="dashboard-nav-link rounded-3 p-1">
-                  <i className="bi bi-person-badge me-2" aria-hidden="true"></i>Usuarios
-                </Nav.Link>
-              </Nav.Item>
-              <Nav.Item className="mb-2">
-                <Nav.Link eventKey="config-correo" className="dashboard-nav-link rounded-3 p-1">
-                  <i className="bi bi-envelope-at me-2" aria-hidden="true"></i>Correo del sistema
-                </Nav.Link>
-              </Nav.Item>
-            </>
+            <Nav.Item className="mb-2">
+              <Nav.Link eventKey="usuarios" className="dashboard-nav-link rounded-3 p-1">
+                <i className="bi bi-person-badge me-2" aria-hidden="true"></i>Usuarios
+              </Nav.Link>
+            </Nav.Item>
+          )}
+          {mostrarGestionRoles && (
+            <Nav.Item className="mb-2">
+              <Nav.Link eventKey="gestion-roles" className="dashboard-nav-link rounded-3 p-1">
+                <i className="bi bi-shield-lock me-2" aria-hidden="true"></i>Roles y permisos
+              </Nav.Link>
+            </Nav.Item>
+          )}
+          {mostrarAuditoria && (
+            <Nav.Item className="mb-2">
+              <Nav.Link eventKey="auditoria" className="dashboard-nav-link rounded-3 p-1">
+                <i className="bi bi-journal-text me-2" aria-hidden="true"></i>Auditoría
+              </Nav.Link>
+            </Nav.Item>
+          )}
+          {mostrarConfigCorreo && (
+            <Nav.Item className="mb-2">
+              <Nav.Link eventKey="config-correo" className="dashboard-nav-link rounded-3 p-1">
+                <i className="bi bi-envelope-at me-2" aria-hidden="true"></i>Correo del sistema
+              </Nav.Link>
+            </Nav.Item>
           )}
 
           {mostrarContratos && (
@@ -702,7 +835,7 @@ function DashboardShell(props) {
           </Navbar.Collapse>
         </Navbar>
 
-        {esDirectorLectura ? (
+        {!puedeEscribir ? (
           <div className="alert alert-info py-2 px-4 mb-0 rounded-0 border-0 small" role="status">
             Modo solo consulta: podés revisar la información; no podés crear, editar ni eliminar registros.
           </div>
@@ -730,7 +863,9 @@ function DashboardShell(props) {
               <GestionContratos vistaInicial="archivo" user={user} onSectionChange={handleContratosSectionChange} />
             )}
             {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
-            {key === 'config-correo' && mostrarUsuarios && <ConfigCorreoServicio currentUser={user} />}
+            {key === 'gestion-roles' && mostrarGestionRoles && <GestionRoles />}
+            {key === 'auditoria' && mostrarAuditoria && <Auditoria />}
+            {key === 'config-correo' && mostrarConfigCorreo && <ConfigCorreoServicio currentUser={user} />}
             {key === 'app-configuracion' && (
               <AppConfiguracion />
             )}

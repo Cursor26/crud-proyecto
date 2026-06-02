@@ -7,19 +7,30 @@ Axios.defaults.baseURL = base;
 
 export default Axios;
 
+function usuarioPuedeEscribir() {
+  try {
+    const raw = localStorage.getItem('permisos');
+    if (!raw) return true;
+    const perms = JSON.parse(raw);
+    return Object.values(perms || {}).some(
+      (m) => m?.create || m?.edit || m?.delete || m?.approve
+    );
+  } catch {
+    return true;
+  }
+}
+
 Axios.interceptors.request.use((config) => {
   try {
-    const raw = localStorage.getItem('user');
-    const u = raw ? JSON.parse(raw) : null;
-    if (u && u.rol === 'director' && config.method) {
+    if (config.method) {
       const m = String(config.method).toLowerCase();
-      if (!['get', 'head', 'options'].includes(m)) {
+      if (!['get', 'head', 'options'].includes(m) && !usuarioPuedeEscribir()) {
         Swal.fire({
           icon: 'info',
           title: 'Solo consulta',
-          text: 'Tu rol (director) no puede modificar datos en el sistema.',
+          text: 'Tu rol no tiene permiso para modificar datos en el sistema.',
         });
-        return Promise.reject(new Error('ROL_LECTURA_DIRECTOR'));
+        return Promise.reject(new Error('ROL_SIN_ESCRITURA'));
       }
     }
   } catch (_) {

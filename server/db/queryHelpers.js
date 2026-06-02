@@ -2,7 +2,7 @@
  * Consultas y resolución de catálogos para BD normalizada.
  */
 
-const SQL_USUARIO_AUTH = `SELECT u.email, u.nombre, u.password, r.codigo AS rol, u.activo
+const SQL_USUARIO_AUTH = `SELECT u.email, u.nombre, u.password, r.codigo AS rol, r.id_rol, u.activo
   FROM usuarios u
   INNER JOIN roles r ON r.id_rol = u.id_rol`;
 

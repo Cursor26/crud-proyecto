@@ -35,6 +35,7 @@ function GestionUsuarios() {
   }, []);
 
   const [activoTogglePending, setActivoTogglePending] = useState(null);
+  const [rolesCatalog, setRolesCatalog] = useState([]);
 
   const getUsuarios = () => {
     setLoadError('');
@@ -53,6 +54,9 @@ function GestionUsuarios() {
 
   useEffect(() => {
     getUsuarios();
+    Axios.get(`${API_BASE}/rbac/roles`)
+      .then((res) => setRolesCatalog(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setRolesCatalog([]));
   }, []);
 
   const limpiarUsuario = () => {
@@ -334,11 +338,14 @@ function GestionUsuarios() {
             <label className="minimal-label">Rol:</label>
             <AppSelect className={`minimal-select ${userRol ? 'is-selected' : ''}`} value={userRol} onChange={(e) => setUserRol(e.target.value)}>
               <option value="" disabled hidden>--- Seleccione ---</option>
-              <option value="rrhh">Rec. humanos</option>
-              <option value="contratacion">Contratación</option>
-              <option value="admin">Administrador</option>
-              <option value="produccion">Producción</option>
-              <option value="director">Director (solo consulta)</option>
+              {rolesCatalog
+                .filter((r) => Number(r.activo ?? 1) === 1)
+                .map((r) => (
+                  <option key={r.id_rol} value={r.codigo}>
+                    {r.nombre}
+                    {Number(r.is_system) !== 1 ? ` (${r.codigo})` : ''}
+                  </option>
+                ))}
             </AppSelect>
             {formErrors.rol ? <small className="text-danger">{formErrors.rol}</small> : null}
           </div>

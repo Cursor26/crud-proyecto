@@ -594,7 +594,9 @@ export function getInitialModuleKey(prefs, rol, allowedKeys, roleDefaultKey, ema
     if (last && allowedKeys.has(last)) return last;
   }
   if (merged.defaultModule && allowedKeys.has(merged.defaultModule)) return merged.defaultModule;
-  return roleDefaultKey;
+  if (roleDefaultKey && allowedKeys.has(roleDefaultKey)) return roleDefaultKey;
+  if (allowedKeys.size > 0) return [...allowedKeys][0];
+  return 'app-configuracion';
 }
 
 export function isColumnVisible(preferences, tableId, columnId) {

@@ -21,12 +21,26 @@ function makeAppSelectStyles({ primary, primaryRgb }) {
       padding: 0,
       '&:hover': { color: '#ffffff' },
     }),
-    menu: (base) => ({ ...base, marginTop: 2, zIndex: 20 }),
+    menu: (base) => ({
+      ...base,
+      marginTop: 2,
+      zIndex: 9999,
+    }),
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
     option: (base, state) => ({
       ...base,
-      backgroundColor: state.isFocused ? primary : '#ffffff',
-      color: state.isFocused ? '#ffffff' : '#111827',
+      backgroundColor: state.isFocused
+        ? primary
+        : state.isSelected
+          ? '#ecfdf5'
+          : '#ffffff',
+      color: state.isFocused ? '#ffffff' : state.isSelected ? primary : '#111827',
       cursor: 'pointer',
+      transition: 'none',
+      ':active': {
+        backgroundColor: primary,
+        color: '#ffffff',
+      },
     }),
   };
 }
@@ -70,13 +84,20 @@ function AppSelect({
   isSearchable = false,
   /** Reservado para compatibilidad; el color sigue el tema activo */
   variant = 'default',
+  menuPosition = 'fixed',
   ...rest
 }) {
   const { preferences } = useAppPreferences();
   const appSelectStyles = useMemo(() => {
     const accent = getThemeAccentFromDocument();
     return makeAppSelectStyles(accent);
-  }, [preferences.themeId, preferences.accentColor, variant]);
+  }, [preferences.themeId, preferences.accentColor]);
+  const resolvedPortal =
+    menuPortalTarget !== undefined
+      ? menuPortalTarget
+      : typeof document !== 'undefined'
+        ? document.body
+        : null;
   const { options: optionsFromChildren, placeholderFromOption } = parseChildrenOptions(children);
   const resolvedOptions = options && options.length ? options : optionsFromChildren;
   const selectedOption = resolvedOptions.find((option) => String(option.value) === String(value)) || null;
@@ -101,7 +122,9 @@ function AppSelect({
       isClearable={Boolean(isClearable)}
       isSearchable={isSearchable}
       styles={appSelectStyles}
-      menuPortalTarget={menuPortalTarget}
+      menuPortalTarget={resolvedPortal}
+      menuPosition={menuPosition}
+      menuShouldScrollIntoView={false}
       {...rest}
     />
   );

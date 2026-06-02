@@ -79,6 +79,11 @@ const dbQuery = (sql, params = []) =>
     });
   });
 
+const { createAuditService } = require('./lib/auditLog');
+const audit = createAuditService(dbQuery);
+const { createRbacService } = require('./lib/rbac');
+const rbac = createRbacService(dbQuery);
+
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const hashResetToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
@@ -269,9 +274,8 @@ const ensureUserPreferencesTable = async () => {
   await dbQuery(raw.trim());
 };
 
-const ROLES_PERMITIDOS_USUARIO = ['admin', 'rrhh', 'contratacion', 'produccion', 'estadistica', 'director'];
 const normalizarRol = (value) => String(value || '').trim().toLowerCase();
-const rolValido = (rol) => ROLES_PERMITIDOS_USUARIO.includes(normalizarRol(rol));
+const rolValido = async (rol) => rbac.roleCodigoExists(rol);
 const emailValido = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 const passwordFuerte = (value) =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(String(value || ''));
@@ -304,14 +308,36 @@ const verificarToken = (req, res, next) => {
 // Rol lógico: en BD aún puede existir "produccion"; se trata como "estadistica" para permisos.
 const rolEfectivo = (rol) => (rol === 'produccion' ? 'estadistica' : rol);
 
-const autorizarRol = (rolesPermitidos) => (req, res, next) => {
+const autorizarRol = (rolesPermitidos) => async (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: 'No autenticado' });
-  const r0 = String(req.user.rol || '');
-  if (r0 === 'admin') return next();
-  const r1 = rolEfectivo(r0);
-  if (rolesPermitidos.includes(r0) || rolesPermitidos.includes(r1)) return next();
-  if (r0 === 'produccion' && rolesPermitidos.includes('estadistica')) return next();
-  return res.status(403).json({ message: 'No tienes permiso para acceder a este recurso' });
+  try {
+    const inferred = rbac.resolveRouteAction(req.method, req.path);
+    if (inferred) {
+      const perms = await rbac.getPermissionsByCodigo(req.user.rol);
+      if (rbac.hasPermission(perms, inferred.module, inferred.action)) return next();
+      if (!rbac.hasAnyPermission(perms) && rbac.legacyRoleAllowed(req.user.rol, rolesPermitidos)) {
+        return next();
+      }
+      return res.status(403).json({ message: 'No tienes permiso para acceder a este recurso' });
+    }
+    if (rbac.legacyRoleAllowed(req.user.rol, rolesPermitidos)) return next();
+    return res.status(403).json({ message: 'No tienes permiso para acceder a este recurso' });
+  } catch (err) {
+    console.error('autorizarRol:', err);
+    return res.status(500).json({ message: 'Error al verificar permisos' });
+  }
+};
+
+const autorizarPermiso = (module, action) => async (req, res, next) => {
+  if (!req.user) return res.status(401).json({ message: 'No autenticado' });
+  try {
+    const perms = await rbac.getPermissionsByCodigo(req.user.rol);
+    if (rbac.hasPermission(perms, module, action)) return next();
+    return res.status(403).json({ message: 'No tienes permiso para acceder a este recurso' });
+  } catch (err) {
+    console.error('autorizarPermiso:', err);
+    return res.status(500).json({ message: 'Error al verificar permisos' });
+  }
 };
 // ==================== RUTAS DE AUTENTICACIÓN ====================
 
@@ -320,49 +346,125 @@ app.post('/login', async (req, res) => {
   const identifier = String(req.body?.identifier || req.body?.email || req.body?.usuario || '').trim();
   const password = req.body?.password;
   const sqlLogin = `${SQL_USUARIO_AUTH} WHERE (LOWER(TRIM(u.email)) = LOWER(TRIM(?)) OR LOWER(TRIM(u.nombre)) = LOWER(TRIM(?)))`;
+  const { ip, userAgent } = audit.getClientMeta(req);
 
   if (!identifier || !password) {
     return res.status(400).json({ message: 'Usuario y contraseña son obligatorios.' });
   }
 
   try {
-    db.query(sqlLogin, [identifier, identifier], async (err, results) => {
-      if (err) {
-        console.error('Error en /login (BD):', err.message || err);
-        return res.status(500).json({ message: 'Error en BD' });
-      }
-      if (results.length === 0) return res.status(401).json({ message: 'Credenciales inválidas' });
-
-      const usuario = results[0];
-      if (Number(usuario.activo) === 0) {
-        return res.status(403).json({ message: 'Usuario inactivo. Contacta al administrador.' });
-      }
-      const passwordValida = await bcrypt.compare(password, usuario.password);
-      if (!passwordValida) return res.status(401).json({ message: 'Credenciales inválidas' });
-
-      const rolCanonico = normalizarRol(usuario.rol);
-      if (!rolCanonico || !rolValido(rolCanonico)) {
-        return res.status(500).json({ message: 'Usuario sin rol válido en la base de datos' });
-      }
-      // Generar token (incluimos el rol)
-      const token = jwt.sign(
-        { email: usuario.email, nombre: usuario.nombre, rol: rolCanonico },
-        JWT_SECRET,
-        { expiresIn: '8h' }
-      );
-
-      res.json({
-        message: 'Login exitoso',
-        token,
-        usuario: {
-          email: usuario.email,
-          nombre: usuario.nombre,
-          rol: rolCanonico
-        }
+    const lock = await audit.isLocked(identifier);
+    if (lock.locked) {
+      await audit.recordFailedLogin({
+        identifier,
+        userEmail: null,
+        reason: 'locked',
+        ip,
+        userAgent,
       });
+      const until = lock.lockedUntil ? new Date(lock.lockedUntil).toLocaleString('es-ES') : '';
+      return res.status(429).json({
+        message: `Acceso bloqueado temporalmente por demasiados intentos fallidos. Intente de nuevo después de ${until}.`,
+        lockedUntil: lock.lockedUntil,
+      });
+    }
+
+    const results = await dbQuery(sqlLogin, [identifier, identifier]);
+    if (results.length === 0) {
+      await audit.recordFailedLogin({
+        identifier,
+        userEmail: null,
+        reason: 'user_not_found',
+        ip,
+        userAgent,
+      });
+      return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
+
+    const usuario = results[0];
+    if (Number(usuario.activo) === 0) {
+      await audit.recordFailedLogin({
+        identifier,
+        userEmail: usuario.email,
+        reason: 'user_inactive',
+        ip,
+        userAgent,
+      });
+      return res.status(403).json({ message: 'Usuario inactivo. Contacta al administrador.' });
+    }
+
+    const passwordValida = await bcrypt.compare(password, usuario.password);
+    if (!passwordValida) {
+      const fail = await audit.recordFailedLogin({
+        identifier,
+        userEmail: usuario.email,
+        reason: 'bad_password',
+        ip,
+        userAgent,
+      });
+      if (fail.locked) {
+        return res.status(429).json({
+          message: `Demasiados intentos fallidos. Cuenta bloqueada temporalmente (${audit.LOCKOUT_MINUTES} min).`,
+          lockedUntil: fail.lockedUntil,
+        });
+      }
+      return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
+
+    const rolCanonico = normalizarRol(usuario.rol);
+    if (!rolCanonico || !(await rolValido(rolCanonico))) {
+      return res.status(500).json({ message: 'Usuario sin rol válido en la base de datos' });
+    }
+
+    const permisos = await rbac.getPermissionsByCodigo(rolCanonico);
+
+    await audit.clearLockout(identifier);
+    await audit.clearLockout(usuario.email);
+
+    await audit.recordLoginSession({
+      email: usuario.email,
+      nombre: usuario.nombre,
+      rol: rolCanonico,
+      ip,
+      userAgent,
+    });
+
+    const token = jwt.sign(
+      {
+        email: usuario.email,
+        nombre: usuario.nombre,
+        rol: rolCanonico,
+        id_rol: usuario.id_rol,
+      },
+      JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    return res.json({
+      message: 'Login exitoso',
+      token,
+      permisos,
+      usuario: {
+        email: usuario.email,
+        nombre: usuario.nombre,
+        rol: rolCanonico,
+        id_rol: usuario.id_rol,
+      },
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error del servidor' });
+    console.error('Error en /login:', error);
+    return res.status(500).json({ message: 'Error del servidor' });
+  }
+});
+
+app.post('/auth/logout', verificarToken, async (req, res) => {
+  try {
+    const email = String(req.user?.email || '').trim();
+    if (email) await audit.recordLogout(email);
+    return res.json({ message: 'Sesión cerrada' });
+  } catch (error) {
+    console.error('Error en /auth/logout:', error);
+    return res.status(500).json({ message: 'Error al registrar cierre de sesión' });
   }
 });
 
@@ -551,7 +653,7 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
     return res.status(400).json({ message: 'Email, nombre, contraseña y rol son obligatorios.' });
   }
   if (!emailValido(email)) return res.status(400).json({ message: 'Email inválido.' });
-  if (!rolValido(rol)) return res.status(400).json({ message: 'Rol inválido.' });
+  if (!(await rolValido(rol))) return res.status(400).json({ message: 'Rol inválido.' });
   if (!passwordFuerte(password)) {
     return res.status(400).json({ message: 'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.' });
   }
@@ -569,6 +671,18 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
           if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: 'El email ya existe' });
           return res.status(500).send(err);
         }
+        audit
+          .logEvent({
+            category: 'role',
+            action: 'user_created',
+            actor: { email: actorEmail, nombre: req.user?.nombre },
+            targetType: 'usuario',
+            targetId: email,
+            targetLabel: nombre || email,
+            details: { rol_nuevo: rol, activo },
+            req,
+          })
+          .catch((e) => console.warn('audit user_created:', e?.message || e));
         res.status(201).json({ message: 'Usuario creado' });
       }
     );
@@ -594,7 +708,7 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
     return res.status(400).json({ message: 'Email, nombre y rol son obligatorios' });
   }
   if (!emailValido(nuevoEmail)) return res.status(400).json({ message: 'Email inválido.' });
-  if (!rolValido(rol)) return res.status(400).json({ message: 'Rol inválido.' });
+  if (!(await rolValido(rol))) return res.status(400).json({ message: 'Rol inválido.' });
   if (password && !passwordFuerte(password)) {
     return res.status(400).json({ message: 'La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.' });
   }
@@ -603,13 +717,13 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
   if (!idRol) return res.status(400).json({ message: 'Rol inválido en catálogo.' });
 
   const targetRows = await dbQuery(
-    `SELECT u.email
-       FROM usuarios u
-      WHERE u.email = ? OR LOWER(TRIM(u.email)) = LOWER(TRIM(?))
-      LIMIT 1`,
+    `${SQL_USUARIO_AUTH} WHERE u.email = ? OR LOWER(TRIM(u.email)) = LOWER(TRIM(?)) LIMIT 1`,
     [emailAnterior, emailAnterior]
   );
   if (!targetRows.length) return res.status(404).json({ message: 'Usuario no encontrado' });
+  const usuarioAntes = targetRows[0];
+  const rolAnterior = normalizarRol(usuarioAntes.rol);
+  const activoAnterior = Number(usuarioAntes.activo);
   let query =
     'UPDATE usuarios SET email = TRIM(?), nombre = ?, id_rol = ?, activo = ?, updated_by = ?, updated_at = NOW()';
   let params = [nuevoEmail, nombre, idRol, activo, actorEmail];
@@ -623,7 +737,7 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
   query += ' WHERE email = ? OR LOWER(TRIM(email)) = LOWER(TRIM(?))';
   params.push(emailAnterior, emailAnterior);
 
-  db.query(query, params, (err, result) => {
+  db.query(query, params, async (err, result) => {
     if (err) {
       if (err.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ message: 'El email ya existe para otro usuario' });
@@ -633,24 +747,200 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
     if (!result || result.affectedRows === 0) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
-    res.json({ message: 'Usuario actualizado' });
+    const actor = { email: actorEmail, nombre: req.user?.nombre };
+    const label = nombre || nuevoEmail;
+    try {
+      if (rolAnterior && rol !== rolAnterior) {
+        await audit.logEvent({
+          category: 'role',
+          action: 'user_role_change',
+          actor,
+          targetType: 'usuario',
+          targetId: nuevoEmail,
+          targetLabel: label,
+          details: { rol_anterior: rolAnterior, rol_nuevo: rol },
+          req,
+        });
+      }
+      if (activoAnterior !== activo) {
+        await audit.logEvent({
+          category: 'role',
+          action: 'user_active_change',
+          actor,
+          targetType: 'usuario',
+          targetId: nuevoEmail,
+          targetLabel: label,
+          details: { activo: Boolean(activo), activo_anterior: Boolean(activoAnterior) },
+          req,
+        });
+      }
+    } catch (auditErr) {
+      console.warn('audit update-usuario:', auditErr?.message || auditErr);
+    }
+    return res.json({ message: 'Usuario actualizado' });
   });
 });
 
 // Eliminar usuario (solo admin)
-app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), (req, res) => {
+app.delete("/delete-usuario/:email", verificarToken, autorizarRol(['admin']), async (req, res) => {
   const { email } = req.params;
-  db.query(
-    `${SQL_USUARIO_AUTH} WHERE u.email = ? LIMIT 1`,
-    [email],
-    (errTarget, rows) => {
-    if (errTarget) return res.status(500).json({ message: errTarget.message || 'Error al validar usuario' });
+  const actorEmail = String(req.user?.email || req.user?.nombre || 'sistema').trim().toLowerCase();
+  try {
+    const rows = await dbQuery(`${SQL_USUARIO_AUTH} WHERE u.email = ? LIMIT 1`, [email]);
     if (!rows?.length) return res.status(404).json({ message: 'Usuario no encontrado' });
-    db.query('DELETE FROM usuarios WHERE email = ?', [email], (err, result) => {
-      if (err) return res.status(500).send(err);
-      res.json({ message: 'Usuario eliminado' });
+    const target = rows[0];
+    await dbQuery('DELETE FROM usuarios WHERE email = ?', [email]);
+    await audit.logEvent({
+      category: 'role',
+      action: 'user_deleted',
+      actor: { email: actorEmail, nombre: req.user?.nombre },
+      targetType: 'usuario',
+      targetId: email,
+      targetLabel: target.nombre || email,
+      details: { rol: normalizarRol(target.rol), email },
+      req,
     });
+    return res.json({ message: 'Usuario eliminado' });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || 'Error al eliminar usuario' });
+  }
+});
+
+// ==================== AUDITORÍA (SOLO ADMIN) ====================
+
+app.get('/audit/sessions', verificarToken, autorizarRol(['admin']), async (req, res) => {
+  try {
+    const rows = await audit.listSessions({
+      desde: req.query.desde || null,
+      hasta: req.query.hasta || null,
+      email: req.query.email || null,
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+    return res.json(rows);
+  } catch (err) {
+    console.error('audit/sessions:', err);
+    return res.status(500).json({ message: err.message || 'Error al listar sesiones' });
+  }
+});
+
+app.get('/audit/failed-logins', verificarToken, autorizarRol(['admin']), async (req, res) => {
+  try {
+    const rows = await audit.listFailedLogins({
+      desde: req.query.desde || null,
+      hasta: req.query.hasta || null,
+      identifier: req.query.identifier || null,
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+    return res.json(rows);
+  } catch (err) {
+    console.error('audit/failed-logins:', err);
+    return res.status(500).json({ message: err.message || 'Error al listar intentos fallidos' });
+  }
+});
+
+app.get('/audit/failed-summary', verificarToken, autorizarRol(['admin']), async (req, res) => {
+  try {
+    const data = await audit.listFailedSummary({ hours: req.query.hours });
+    return res.json(data);
+  } catch (err) {
+    console.error('audit/failed-summary:', err);
+    return res.status(500).json({ message: err.message || 'Error al resumir intentos fallidos' });
+  }
+});
+
+app.get('/audit/events', verificarToken, autorizarRol(['admin']), async (req, res) => {
+  try {
+    const rows = await audit.listEvents({
+      category: req.query.category || null,
+      scope: req.query.scope || null,
+      desde: req.query.desde || null,
+      hasta: req.query.hasta || null,
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+    return res.json(rows);
+  } catch (err) {
+    console.error('audit/events:', err);
+    return res.status(500).json({ message: err.message || 'Error al listar eventos' });
+  }
+});
+
+// ==================== RBAC — ROLES Y PERMISOS ====================
+
+app.get('/rbac/modules', verificarToken, autorizarPermiso('usuarios', 'view'), (req, res) => {
+  res.json({
+    modules: rbac.RBAC_MODULES,
+    actions: rbac.RBAC_ACTIONS,
   });
+});
+
+app.get('/rbac/roles', verificarToken, autorizarPermiso('usuarios', 'view'), async (req, res) => {
+  try {
+    const roles = await rbac.listRoles();
+    return res.json(roles);
+  } catch (err) {
+    return res.status(500).json({ message: err.message || 'Error al listar roles' });
+  }
+});
+
+app.get('/rbac/roles/:id_rol', verificarToken, autorizarPermiso('usuarios', 'view'), async (req, res) => {
+  try {
+    const role = await rbac.getRoleWithPermissions(Number(req.params.id_rol));
+    if (!role) return res.status(404).json({ message: 'Rol no encontrado' });
+    return res.json(role);
+  } catch (err) {
+    return res.status(500).json({ message: err.message || 'Error al cargar rol' });
+  }
+});
+
+app.post('/rbac/roles', verificarToken, autorizarPermiso('usuarios', 'create'), async (req, res) => {
+  try {
+    const role = await rbac.createRole({
+      nombre: req.body?.nombre,
+      descripcion: req.body?.descripcion,
+      codigo: req.body?.codigo,
+      permisos: req.body?.permisos,
+    });
+    return res.status(201).json(role);
+  } catch (err) {
+    return res.status(400).json({ message: err.message || 'No se pudo crear el rol' });
+  }
+});
+
+app.put('/rbac/roles/:id_rol', verificarToken, autorizarPermiso('usuarios', 'edit'), async (req, res) => {
+  try {
+    const role = await rbac.updateRole(Number(req.params.id_rol), {
+      nombre: req.body?.nombre,
+      descripcion: req.body?.descripcion,
+      activo: req.body?.activo,
+      permisos: req.body?.permisos,
+    });
+    return res.json(role);
+  } catch (err) {
+    const code = err.message?.includes('no encontrado') ? 404 : 400;
+    return res.status(code).json({ message: err.message || 'No se pudo actualizar el rol' });
+  }
+});
+
+app.delete('/rbac/roles/:id_rol', verificarToken, autorizarPermiso('usuarios', 'delete'), async (req, res) => {
+  try {
+    await rbac.deleteRole(Number(req.params.id_rol));
+    return res.json({ message: 'Rol eliminado' });
+  } catch (err) {
+    const code = err.message?.includes('no encontrado') ? 404 : 400;
+    return res.status(code).json({ message: err.message || 'No se pudo eliminar el rol' });
+  }
+});
+
+app.get('/rbac/me/permissions', verificarToken, async (req, res) => {
+  try {
+    const permisos = await rbac.getPermissionsByCodigo(req.user?.rol);
+    return res.json({ permisos, rol: normalizarRol(req.user?.rol) });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || 'Error al cargar permisos' });
+  }
 });
 
 
@@ -1216,6 +1506,17 @@ app.post(
 
       await dbQuery('DELETE FROM contratos_generales WHERE numero_contrato = ?', [numero]);
       removeDirIfExists(path.join(ACTIVOS_DIR, numero));
+
+      await audit.logEvent({
+        category: 'delete',
+        action: 'contrato_archived',
+        actor: { email: req.user?.email, nombre: req.user?.nombre },
+        targetType: 'contrato',
+        targetId: numero,
+        targetLabel: `#${numero}`,
+        details: { motivo, id_archivo: idArchivo, empresa: c.empresa },
+        req,
+      });
 
       return res.json({
         ok: true,
@@ -1830,14 +2131,13 @@ app.delete(
 
 app.delete("/delete-empleado/:carnet_identidad", verificarToken, autorizarRol(['rrhh']), (req, res) => {
   const carnet = req.params.carnet_identidad;
-  db.query('DELETE FROM empleados WHERE carnet_identidad=?', [carnet],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-        res.status(500).send(err);
-      } else res.send(result);
+  db.query('DELETE FROM empleados WHERE carnet_identidad=?', [carnet], (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).send(err);
     }
-  );
+    return res.send(result);
+  });
 });
 
 app.get("/empleados", verificarToken, autorizarRol(['rrhh', 'director', 'contratacion', 'estadistica']), (req, res) => {
@@ -2037,7 +2337,7 @@ app.post("/empleado-reactivar", verificarToken, autorizarRol(['rrhh']), (req, re
       if (result.affectedRows === 0) {
         return res.status(404).json({ message: 'Empleado no encontrado' });
       }
-      res.json({ message: 'Empleado reactivado' });
+      return res.json({ message: 'Empleado reactivado' });
     }
   );
 });
@@ -4365,6 +4665,8 @@ Promise.all([
   ensureContratosArchivoTables(),
   ensureConfigSistemaTable(),
   ensureUserPreferencesTable(),
+  audit.ensureAuditTables(),
+  rbac.ensureRbacSchema(),
 ])
   .then(async () => {
     try {

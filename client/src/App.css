@@ -2085,8 +2085,18 @@ input[type='password']::-webkit-password-reveal-button {
 }
 
 /* AppSelect (react-select) en cualquier modal: anula azul #1e3a5f al acento modal */
-.modal .app-select__menu {
+.modal .app-select__menu,
+.modal .app-select__menu-portal {
   z-index: 2000 !important;
+}
+.modal .app-select__option {
+  transition: none !important;
+}
+.modal .app-select__option--is-focused,
+.modal .app-select__option--is-focused:active,
+.modal .app-select__option--is-selected.app-select__option--is-focused {
+  background-color: var(--modal-accent) !important;
+  color: #ffffff !important;
 }
 .modal .app-select__indicators-container {
   background-color: var(--modal-accent) !important;
@@ -2098,12 +2108,7 @@ input[type='password']::-webkit-password-reveal-button {
 .modal .app-select__control:hover {
   border-color: var(--modal-accent) !important;
 }
-.modal .app-select__option--is-focused,
-.modal .app-select__option--is-focused:active {
-  background-color: var(--modal-accent) !important;
-  color: #ffffff !important;
-}
-.modal .app-select__option--is-selected {
+.modal .app-select__option--is-selected:not(.app-select__option--is-focused) {
   background-color: #ecfdf5 !important;
   color: var(--modal-accent) !important;
 }
