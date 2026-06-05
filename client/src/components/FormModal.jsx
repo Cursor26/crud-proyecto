@@ -1,4 +1,5 @@
 import { Modal } from 'react-bootstrap';
+import ModalCloseButton from './ModalCloseButton';
 
 /**
  * Ventana emergente estándar para altas/edición de formularios (patrón unificado).
@@ -27,11 +28,12 @@ export function FormModal({
       dialogClassName="modal-premium-dialog modal-minimal-dialog"
       contentClassName="modal-premium-content modal-minimal-content"
     >
-      <Modal.Header closeButton className="modal-premium-header modal-minimal-header border-0">
+      <Modal.Header closeButton={false} className="modal-premium-header modal-minimal-header border-0">
         <div className="modal-premium-header-inner modal-minimal-header-inner">
           <span className="modal-premium-badge modal-minimal-badge">{title}</span>
           {subtitle ? <p className="modal-premium-subtitle mb-0">{subtitle}</p> : null}
         </div>
+        <ModalCloseButton onClick={onHide} />
       </Modal.Header>
       <Modal.Body className="modal-premium-body modal-minimal-body modal-form-body-scroll">{children}</Modal.Body>
       <Modal.Footer className="modal-premium-footer modal-minimal-footer border-0">

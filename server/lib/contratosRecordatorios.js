@@ -3,7 +3,7 @@
  * Reglas por tipo de contrato y por prioridad (UI). Frecuencia y ventana horaria: solo servidor (DEFAULT_CONFIG).
  */
 
-const { listCorreosDestino } = require('./contratosContactosNotificacion');
+const { listCorreosPorEvento, tieneDestinosEvento } = require('./contratosCorreosNiveles');
 
 const CONFIG_KEY = 'contratos_recordatorios_auto';
 
@@ -241,8 +241,14 @@ function buildReminderMail(contrato, diasAntes) {
 }
 
 function createContratosRecordatoriosService(dbQuery, deps) {
-  const { SQL_CONTRATO_SELECT, normalizeEmail, isValidEmail, sendMailWithFallback, mailer, shouldUseGracefulMailFallback } =
-    deps;
+  const {
+    SQL_CONTRATO_SELECT,
+    normalizeEmail,
+    isValidEmail,
+    sendMailWithFallback,
+    mailer,
+    shouldUseGracefulMailFallback,
+  } = deps;
 
   const schedulerState = {
     lastRunAt: 0,
@@ -339,12 +345,17 @@ function createContratosRecordatoriosService(dbQuery, deps) {
       `${SQL_CONTRATO_SELECT}
         WHERE c.fecha_fin IS NOT NULL
           AND COALESCE(c.cancelado, 0) = 0
-          AND DATEDIFF(c.fecha_fin, CURDATE()) = ?
-          AND (
-            (c.correo_notificacion IS NOT NULL AND TRIM(c.correo_notificacion) <> '')
-            OR (c.contactos_notificacion IS NOT NULL AND JSON_LENGTH(c.contactos_notificacion) > 0)
-          )`,
+          AND DATEDIFF(c.fecha_fin, CURDATE()) = ?`,
       [dias]
+    );
+  }
+
+  async function findContractsVencidosActivos() {
+    return dbQuery(
+      `${SQL_CONTRATO_SELECT}
+        WHERE c.fecha_fin IS NOT NULL
+          AND c.fecha_fin < CURDATE()
+          AND COALESCE(c.cancelado, 0) = 0`
     );
   }
 
@@ -357,18 +368,21 @@ function createContratosRecordatoriosService(dbQuery, deps) {
     if (!numero) return { ok: false, skipped: true, reason: 'sin_numero' };
     if (Number(contrato.cancelado) === 1) return { ok: false, skipped: true, reason: 'cancelado' };
 
-    const destinosRaw = listCorreosDestino(contrato);
+    const diasKey = diasAntes != null && Number.isFinite(diasAntes) ? diasAntes : -1;
+    const eventoRecordatorio = diasKey < 0 ? 'vencido' : 'por_vencer';
+    const destinosRaw = listCorreosPorEvento(contrato, eventoRecordatorio);
     const destinos = [
       ...new Set(
         destinosRaw.map((d) => normalizeEmail(d)).filter((d) => d && isValidEmail(d))
       ),
     ];
     if (!destinos.length) return { ok: false, skipped: true, reason: 'sin_correo' };
-
-    const diasKey = diasAntes != null && Number.isFinite(diasAntes) ? diasAntes : -1;
     if (!options.skipDuplicateCheck) {
       if (origen === 'automatico' && diasKey >= 0 && (await wasSentMilestoneAutomatico(numero, diasKey))) {
         return { ok: false, skipped: true, reason: 'ya_enviado_milestone' };
+      }
+      if (origen === 'automatico' && diasKey < 0 && (await wasSentToday(numero, diasKey))) {
+        return { ok: false, skipped: true, reason: 'ya_enviado_vencido_hoy' };
       }
       if (origen === 'manual' && (await wasSentToday(numero, diasKey))) {
         return { ok: false, skipped: true, reason: 'ya_enviado_hoy' };
@@ -452,6 +466,10 @@ function createContratosRecordatoriosService(dbQuery, deps) {
           resumen.omitidos += 1;
           continue;
         }
+        if (!tieneDestinosEvento(contrato, 'por_vencer')) {
+          resumen.omitidos += 1;
+          continue;
+        }
         const r = await sendReminderForContract(contrato, {
           origen: 'automatico',
           diasAntes: dias,
@@ -473,6 +491,35 @@ function createContratosRecordatoriosService(dbQuery, deps) {
           resumen.errores += 1;
           resumen.detalle.push({ numero_contrato: r.numero_contrato, dias, estado: 'error', error: r.error });
         }
+      }
+    }
+
+    const vencidos = await findContractsVencidosActivos();
+    for (const contrato of vencidos) {
+      if (!tieneDestinosEvento(contrato, 'vencido')) {
+        resumen.omitidos += 1;
+        continue;
+      }
+      const r = await sendReminderForContract(contrato, {
+        origen: 'automatico',
+        diasAntes: -1,
+        skipDuplicateCheck: Boolean(options.forzar),
+      });
+      if (r.ok) {
+        if (r.warning) resumen.advertencias += 1;
+        else resumen.enviados += 1;
+        resumen.detalle.push({
+          numero_contrato: r.numero_contrato,
+          dias: -1,
+          prioridad: contrato.prioridad,
+          tipo: contrato.tipo_contrato,
+          estado: r.warning ? 'advertencia' : 'ok',
+          evento: 'vencido',
+        });
+      } else if (r.skipped) {
+        resumen.omitidos += 1;
+      } else {
+        resumen.errores += 1;
       }
     }
 

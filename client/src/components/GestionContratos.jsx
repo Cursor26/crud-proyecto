@@ -23,16 +23,19 @@ import { convertirVigenciaLegible, vigenciaLegibleOGuion } from '../lib/converti
 import { combinarDocumentosServidorYCache, deduplicarPdfsContrato } from '../lib/contratosPdfs';
 import CatalogoTiposContrato from './CatalogoTiposContrato';
 import ContratosCorreoConfig from './ContratosCorreoConfig';
-import ContratosContactosNotificacionField, {
-  contactosStateFromContrato,
-} from './ContratosContactosNotificacionField';
+import ContratosCorreosNivelesField, {
+  contactosNivelesStateFromContrato,
+} from './ContratosCorreosNivelesField';
 import {
-  tieneContactoNotificacion,
-  resumenCorreosNotificacion,
-  prepararPayloadContactos,
-  validarContactosParaGuardar,
-  contactosFromContrato,
-} from '../lib/contratosContactosNotificacion';
+  tieneAlgunCorreoNivel,
+  resumenTodosCorreosNivel,
+  prepararPayloadContactosNiveles,
+  listCorreosPorEvento,
+  nivelesCorreoVacios,
+  NIVELES_CORREO,
+} from '../lib/contratosCorreosNiveles';
+import { validarFormularioContrato } from '../lib/validarFormularioContrato';
+import { contactosFromContrato } from '../lib/contratosContactosNotificacion';
 import ContratosSuplementosField from './ContratosSuplementosField';
 import ContratosAnexosField from './ContratosAnexosField';
 import ContratosVigenciaField from './ContratosVigenciaField';
@@ -122,7 +125,11 @@ function getEstadoContrato(contrato) {
   const accionPend = String(contrato?.aprobacion_accion || '').toLowerCase();
   const aprobPendiente =
     normalizarAprobacionEstado(contrato?.aprobacion_estado) === 'pendiente' &&
-    (accionPend === 'cancelacion' || accionPend === 'edicion' || accionPend === 'alta');
+    (accionPend === 'cancelacion' ||
+      accionPend === 'cancelacion_archivo' ||
+      accionPend === 'archivo' ||
+      accionPend === 'edicion' ||
+      accionPend === 'alta');
   if (!aprobPendiente && Number(contrato?.cancelado) === 1) return 'Cancelado';
   const dias = diasParaVencer(contrato.fecha_fin);
   if (dias === null) return 'Sin fecha';
@@ -156,7 +163,18 @@ function etiquetaAccionPendiente(accion) {
   if (a === 'alta') return 'Nuevo contrato';
   if (a === 'edicion') return 'Modificación';
   if (a === 'cancelacion') return 'Cancelación';
+  if (a === 'cancelacion_archivo') return 'Cancelación y archivo';
+  if (a === 'archivo') return 'Eliminar';
   return accion || '—';
+}
+
+function claseBadgeAccionPendiente(accion) {
+  const a = String(accion || '').toLowerCase();
+  if (a === 'archivo' || a === 'cancelacion_archivo') return 'badge bg-danger';
+  if (a === 'edicion') return 'badge bg-primary';
+  if (a === 'alta') return 'badge bg-success';
+  if (a === 'cancelacion') return 'badge bg-secondary';
+  return 'badge bg-secondary';
 }
 
 function badgeAprobacionPendiente(con) {
@@ -164,7 +182,59 @@ function badgeAprobacionPendiente(con) {
   if (normalizarAprobacionEstado(con?.aprobacion_estado) !== 'pendiente') return null;
   if (accion === 'edicion') return 'Cambios pendientes';
   if (accion === 'cancelacion') return 'Cancelación pendiente';
+  if (accion === 'cancelacion_archivo') return 'Cancelación y archivo pendiente';
+  if (accion === 'archivo') return 'Eliminación pendiente';
   return null;
+}
+
+/** Evita que el navegador muestre correos u otros datos guardados en campos de motivo. */
+const SWAL_ATTRS_MOTIVO_CONTRATO = {
+  maxlength: '500',
+  autocomplete: 'off',
+  autocorrect: 'off',
+  autocapitalize: 'off',
+  spellcheck: 'false',
+  'data-contrato-motivo': '1',
+  'data-form-type': 'other',
+  'data-lpignore': 'true',
+  'data-1p-ignore': 'true',
+  'aria-autocomplete': 'none',
+  name: 'motivo-accion-contrato',
+  required: 'required',
+  'aria-label': 'Motivo de baja',
+};
+
+function validarMotivoBajaSwal(value) {
+  if (!String(value || '').trim()) {
+    return 'Debe indicar el motivo de la baja.';
+  }
+  return undefined;
+}
+
+const SWAL_ATTRS_MOTIVO_RECHAZO = {
+  ...SWAL_ATTRS_MOTIVO_CONTRATO,
+  rows: '3',
+  'aria-label': 'Motivo del rechazo',
+  required: 'required',
+  name: 'motivo-rechazo-contrato',
+};
+
+function didOpenSwalInputSinAutofill() {
+  const popup = Swal.getPopup();
+  const input = Swal.getInput();
+  if (popup) popup.setAttribute('autocomplete', 'off');
+  if (!input) return;
+  input.setAttribute('autocomplete', 'new-password');
+  input.setAttribute('data-contrato-motivo', '1');
+  input.setAttribute('data-form-type', 'other');
+  input.setAttribute('data-lpignore', 'true');
+  input.setAttribute('data-1p-ignore', 'true');
+  input.setAttribute('aria-autocomplete', 'none');
+  input.setAttribute('id', `swal-motivo-contrato-${Date.now()}`);
+  input.setAttribute('readonly', 'readonly');
+  const quitarReadonly = () => input.removeAttribute('readonly');
+  input.addEventListener('focus', quitarReadonly, { once: true });
+  input.addEventListener('mousedown', quitarReadonly, { once: true });
 }
 
 function getAlertaContrato(contrato) {
@@ -195,7 +265,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const [contratoNumeroOriginal, setContratoNumeroOriginal] = useState('');
   const [contratoProveedorCliente, setContratoProveedorCliente] = useState(false);
   const [contratoEmpresa, setContratoEmpresa] = useState('');
-  const [contratoContactosNotificacion, setContratoContactosNotificacion] = useState([]);
+  const [contratoContactosNiveles, setContratoContactosNiveles] = useState(nivelesCorreoVacios());
   const [contratoSuplementosMap, setContratoSuplementosMap] = useState({});
   const [contratoAnexosMap, setContratoAnexosMap] = useState({});
   const [contratoVigenciaPartes, setContratoVigenciaPartes] = useState({
@@ -209,6 +279,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const [editarContrato, setEditarContrato] = useState(false);
   const [contratosList, setContratos] = useState([]);
   const [showContratoModal, setShowContratoModal] = useState(false);
+  const [contratoFormErrors, setContratoFormErrors] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [filtroParte, setFiltroParte] = useState('todos');
@@ -1459,7 +1530,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoNumeroOriginal('');
     setContratoProveedorCliente(false);
     setContratoEmpresa('');
-    setContratoContactosNotificacion([]);
+    setContratoContactosNiveles(nivelesCorreoVacios());
     setContratoVigenciaPartes({ anios: '', meses: '', dias: '' });
     setContratoTipo('');
     setContratoPrioridad('media');
@@ -1467,6 +1538,57 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setEditarContrato(false);
     setNombreArchivoIcono('');
     setNombreArchivoPdf('');
+    setContratoFormErrors({});
+  };
+
+  const limpiarErrorContrato = (campo) => {
+    setContratoFormErrors((prev) => {
+      if (!prev[campo]) return prev;
+      const next = { ...prev };
+      delete next[campo];
+      return next;
+    });
+  };
+
+  const validarContratoFormulario = () => {
+    const { valid, errors } = validarFormularioContrato({
+      numero: contratoNumero,
+      empresa: contratoEmpresa,
+      tipo: contratoTipo,
+      fechaInicio: contratoFechaInicio,
+      vigenciaPartes: contratoVigenciaPartes,
+      contactosNiveles: contratoContactosNiveles,
+      esProveedor: contratoProveedorCliente,
+    });
+    setContratoFormErrors(errors);
+    if (!valid) {
+      Swal.fire(
+        'Campos obligatorios',
+        'Complete los campos marcados en rojo antes de guardar.',
+        'warning'
+      );
+      requestAnimationFrame(() => {
+        document
+          .querySelector('[data-contrato-field].minimal-field--invalid, .contrato-correo-nivel-block.minimal-field--invalid')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+    return valid;
+  };
+
+  const actualizarContactosNiveles = (niveles) => {
+    setContratoContactosNiveles(niveles);
+    setContratoFormErrors((prev) => {
+      const next = { ...prev };
+      let cambio = false;
+      for (const nivel of NIVELES_CORREO) {
+        if (next[nivel]) {
+          delete next[nivel];
+          cambio = true;
+        }
+      }
+      return cambio ? next : prev;
+    });
   };
 
   const cerrarModalContrato = () => {
@@ -1477,23 +1599,20 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const abrirModalNuevoContrato = () => {
     limpiarContrato();
     setContratoNumeroOriginal('');
+    setContratoFormErrors({});
     setShowContratoModal(true);
   };
 
   const guardarContratoModal = () => {
+    if (!validarContratoFormulario()) return;
     if (editarContrato) updateContrato();
     else addContrato();
   };
 
   const addContrato = () => {
-    const errContactos = validarContactosParaGuardar(contratoContactosNotificacion);
-    if (errContactos) {
-      Swal.fire('Contactos de notificación', errContactos, 'warning');
-      return;
-    }
     const nuevaFechaFin = sumarTiempo(contratoFechaInicio);
     const vencidoCalc = diasParaVencer(nuevaFechaFin) != null && diasParaVencer(nuevaFechaFin) < 0 ? 1 : 0;
-    const payloadContactos = prepararPayloadContactos(contratoContactosNotificacion);
+    const payloadContactos = prepararPayloadContactosNiveles(contratoContactosNiveles);
     const payloadSuplementos = prepararSuplementosPayload(getSuplementosContrato(contratoNumero));
     const payloadAnexos = prepararAnexosPayload(getAnexosEstadoContrato(contratoNumero));
 
@@ -1543,19 +1662,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     const numeroNuevo = String(contratoNumero || '').trim();
     const numeroOriginalRaw = contratoNumeroOriginal ?? '';
     const numeroOriginal = String(numeroOriginalRaw).trim();
-
-    if (!numeroNuevo) {
-      Swal.fire('Número requerido', 'El N° de contrato no puede quedar vacío.', 'warning');
-      return;
-    }
-
-    const errContactos = validarContactosParaGuardar(contratoContactosNotificacion);
-    if (errContactos) {
-      Swal.fire('Contactos de notificación', errContactos, 'warning');
-      return;
-    }
     const numOriginalSeguro = String(contratoNumeroOriginal ?? numeroNuevo ?? '').trim() || numeroNuevo;
-    const payloadContactos = prepararPayloadContactos(contratoContactosNotificacion);
+    const payloadContactos = prepararPayloadContactosNiveles(contratoContactosNiveles);
     const payloadSuplementos = prepararSuplementosPayload(getSuplementosContrato(contratoNumero));
     const payloadAnexos = prepararAnexosPayload(getAnexosEstadoContrato(contratoNumero));
     const bodyUpdate = {
@@ -1646,15 +1754,20 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     return msg;
   };
 
-  const marcarContratoCanceladoEnServidor = (val) =>
-    Axios.post(`${API_BASE}/contratos/${encodeURIComponent(val.numero_contrato)}/cancelar`)
+  const solicitarCancelacionPendiente = (val, { motivo, archivar }) =>
+    Axios.post(`${API_BASE}/contratos/${encodeURIComponent(val.numero_contrato)}/cancelar`, {
+      motivo: String(motivo || '').trim().slice(0, 500),
+      archivar: Boolean(archivar),
+    })
       .then((res) => {
         getContratos();
         if (res.data?.pendiente) {
           Swal.fire(
             'Solicitud enviada',
             res.data.message ||
-              'La cancelación quedó pendiente de aprobación. El contrato sigue activo hasta que un autorizador la apruebe.',
+              (archivar
+                ? 'La cancelación y archivo quedaron pendientes de aprobación. El contrato sigue en la lista hasta que un autorizador apruebe.'
+                : 'La cancelación quedó pendiente de aprobación. El contrato sigue activo hasta que un autorizador la apruebe.'),
             'success'
           );
           return;
@@ -1684,16 +1797,27 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     });
     if (!result.isConfirmed) return;
     try {
+      const accionPend = String(con.aprobacion_accion || '').toLowerCase();
+      const esArchivoPendiente = accionPend === 'cancelacion_archivo' || accionPend === 'archivo';
+      const pdfs = esArchivoPendiente ? getPdfsContrato(con.numero_contrato) : [];
       const res = await Axios.post(
-        `${API_BASE}/contratos/${encodeURIComponent(con.numero_contrato)}/aprobar`
+        `${API_BASE}/contratos/${encodeURIComponent(con.numero_contrato)}/aprobar`,
+        esArchivoPendiente
+          ? {
+              documentos: pdfs.map((p) => ({ id: p.id, nombre: p.nombre, dataUrl: p.dataUrl })),
+            }
+          : undefined
       );
       getContratos();
+      if (esArchivoPendiente) eliminarPdfContrato(con.numero_contrato);
       const msg =
-        res.data?.accion === 'cancelacion'
-          ? 'El contrato quedó cancelado.'
-          : res.data?.accion === 'alta'
-            ? 'El contrato quedó activo.'
-            : 'Los cambios fueron aplicados y el contrato quedó activo.';
+        res.data?.accion === 'cancelacion_archivo' || res.data?.accion === 'archivo'
+          ? 'El contrato fue archivado por 5 años y ya no aparece en contratos activos.'
+          : res.data?.accion === 'cancelacion'
+            ? 'El contrato quedó cancelado.'
+            : res.data?.accion === 'alta'
+              ? 'El contrato quedó activo.'
+              : 'Los cambios fueron aplicados y el contrato quedó activo.';
       Swal.fire('Aprobado', msg, 'success');
     } catch (error) {
       Swal.fire('Error', mensajeErrorApi(error), 'error');
@@ -1714,12 +1838,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       input: 'textarea',
       inputLabel: 'Motivo del rechazo',
       inputPlaceholder: 'Explique por qué se rechaza esta solicitud (obligatorio)',
-      inputAttributes: {
-        maxlength: 500,
-        rows: 3,
-        'aria-label': 'Motivo del rechazo',
-        required: 'required',
-      },
+      inputAttributes: SWAL_ATTRS_MOTIVO_RECHAZO,
+      didOpen: didOpenSwalInputSinAutofill,
       inputValidator: (value) => {
         if (!String(value || '').trim()) {
           return 'Debe indicar el motivo del rechazo.';
@@ -1738,8 +1858,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       const msg =
         res.data?.accion === 'alta'
           ? 'El borrador del contrato fue descartado.'
-          : res.data?.accion === 'cancelacion'
-            ? 'Se descartó la solicitud de cancelación.'
+          : res.data?.accion === 'cancelacion' ||
+              res.data?.accion === 'cancelacion_archivo' ||
+              res.data?.accion === 'archivo'
+            ? 'Se descartó la solicitud de cancelación o archivo.'
             : 'Se descartaron los cambios propuestos.';
       Swal.fire('Rechazado', msg, 'success');
     } catch (error) {
@@ -1747,51 +1869,55 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     }
   };
 
-  const archivarContratoEnServidor = (val, motivo, exito) => {
-    const pdfs = getPdfsContrato(val.numero_contrato);
-    return Axios.post(`${API_BASE}/contratos/${encodeURIComponent(val.numero_contrato)}/archivar`, {
-      motivo: motivo || null,
-      documentos: pdfs.map((p) => ({ id: p.id, nombre: p.nombre, dataUrl: p.dataUrl })),
+  const solicitarArchivoPendiente = (val, motivo) =>
+    Axios.post(`${API_BASE}/contratos/${encodeURIComponent(val.numero_contrato)}/solicitar-archivo`, {
+      motivo: String(motivo || '').trim().slice(0, 500),
     })
-      .then(() => {
-        eliminarPdfContrato(val.numero_contrato);
+      .then((res) => {
         getContratos();
-        Swal.fire(exito.title, exito.text, 'success');
+        Swal.fire(
+          'Solicitud enviada',
+          res.data?.message ||
+            'La solicitud de archivo quedó pendiente de aprobación. El contrato sigue visible hasta que un autorizador la apruebe.',
+          'success'
+        );
       })
       .catch((error) => {
-        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+        Swal.fire('Error', mensajeErrorApi(error), 'error');
       });
-  };
 
   const eliminarContrato = async (val) => {
     const esCancelado = esContratoCancelado(val);
-    if (!preferences.confirmBeforeDelete) {
-      archivarContratoEnServidor(val, null, {
-        title: 'Eliminado',
-        text: esCancelado ? 'Contrato cancelado archivado por 5 años.' : 'Contrato vencido archivado por 5 años.',
-      });
-      return;
-    }
     const result = await Swal.fire({
       title: esCancelado ? '¿Eliminar contrato cancelado?' : '¿Eliminar contrato vencido?',
       html: `
         <p class="mb-2">Contrato <strong>${val.numero_contrato}</strong> — ${String(val.empresa || '').trim() || 'Sin empresa'}</p>
-        <p class="mb-0">Se archivará por <strong>5 años</strong> (datos y PDFs en servidor) y dejará de aparecer en la lista activa.</p>
+        <p class="mb-0">Se enviará una solicitud de <strong>archivo por 5 años</strong> a aprobación. El contrato seguirá visible hasta que un autorizador la apruebe.</p>
       `,
       icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
+      showCloseButton: true,
+      closeButtonAriaLabel: 'Cerrar sin cambios',
+      customClass: {
+        popup: 'swal-cancel-contrato',
+        closeButton: 'swal-cancel-contrato__close',
+      },
+      showCancelButton: preferences.confirmBeforeDelete,
+      confirmButtonText: 'Sí, solicitar eliminación',
       cancelButtonText: 'No',
       confirmButtonColor: '#b91c1c',
       input: 'text',
-      inputPlaceholder: 'Motivo de baja (opcional)',
-      inputAttributes: { maxlength: 500 },
+      inputPlaceholder: 'Motivo de baja (obligatorio)',
+      inputAttributes: SWAL_ATTRS_MOTIVO_CONTRATO,
+      didOpen: didOpenSwalInputSinAutofill,
+      inputValidator: validarMotivoBajaSwal,
     });
     if (!result.isConfirmed) return;
-    archivarContratoEnServidor(val, result.value ? String(result.value).trim() : null, {
-      title: 'Eliminado',
-      text: esCancelado ? 'Contrato cancelado archivado por 5 años.' : 'Contrato vencido archivado por 5 años.',
-    });
+    const motivo = String(result.value || '').trim().slice(0, 500);
+    if (!motivo) {
+      Swal.fire('Atención', 'Debe indicar el motivo de la baja.', 'warning');
+      return;
+    }
+    solicitarArchivoPendiente(val, motivo);
   };
 
   const cancelarContrato = (val) => {
@@ -1800,8 +1926,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       html: `
         <p class="mb-2">Contrato <strong>${val.numero_contrato}</strong> — ${String(val.empresa || '').trim() || 'Sin empresa'}</p>
         <p class="mb-0 small text-muted">
-          <strong>Cancelar y eliminar contrato:</strong> se archiva por 5 años (datos y PDFs en servidor) y deja de aparecer en la lista activa.<br />
-          <strong>Solo cancelar contrato:</strong> envía una solicitud de cancelación a aprobación; el contrato sigue activo hasta que un autorizador la apruebe.
+          <strong>Cancelar y eliminar contrato:</strong> envía solicitud de cancelación y archivo (5 años) a aprobación; el contrato sigue visible hasta que un autorizador la apruebe.<br />
+          <strong>Solo cancelar contrato:</strong> envía solicitud de cancelación a aprobación; el contrato sigue activo hasta que un autorizador la apruebe.
         </p>
       `,
       icon: 'warning',
@@ -1818,19 +1944,22 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       cancelButtonColor: '#64748b',
       reverseButtons: true,
       input: 'text',
-      inputPlaceholder: 'Motivo de baja (opcional)',
-      inputAttributes: { maxlength: 500 },
+      inputPlaceholder: 'Motivo de baja (obligatorio)',
+      inputAttributes: SWAL_ATTRS_MOTIVO_CONTRATO,
+      didOpen: didOpenSwalInputSinAutofill,
+      inputValidator: validarMotivoBajaSwal,
     }).then((result) => {
-      if (result.isConfirmed) {
-        archivarContratoEnServidor(val, result.value ? String(result.value).trim() : null, {
-          title: 'Contrato archivado',
-          text: 'Se archivó por 5 años y ya no aparece en contratos activos.',
-        });
+      if (!result.isConfirmed && result.dismiss !== Swal.DismissReason.cancel) return;
+      const motivo = String(result.value || '').trim().slice(0, 500);
+      if (!motivo) {
+        Swal.fire('Atención', 'Debe indicar el motivo de la baja.', 'warning');
         return;
       }
-      if (result.dismiss === Swal.DismissReason.cancel) {
-        marcarContratoCanceladoEnServidor(val);
+      if (result.isConfirmed) {
+        solicitarCancelacionPendiente(val, { motivo, archivar: true });
+        return;
       }
+      solicitarCancelacionPendiente(val, { motivo, archivar: false });
     });
   };
 
@@ -1991,11 +2120,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const editarContratoTabla = (val) => {
     setEditarContrato(true);
+    setContratoFormErrors({});
     setContratoNumero(val.numero_contrato);
     setContratoNumeroOriginal(val.numero_contrato);
     setContratoProveedorCliente(val.proveedor_cliente === 1);
     setContratoEmpresa(val.empresa);
-    setContratoContactosNotificacion(contactosStateFromContrato(val));
+    setContratoContactosNiveles(contactosNivelesStateFromContrato(val));
     const { items } = parseSuplementosFromContrato(val);
     const cache = normalizarListaSuplementos(contratoSuplementosMap[String(val.numero_contrato || '').trim()]);
     const merged = renumerarSuplementosLista(
@@ -2089,8 +2219,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         operacion: 'renovacion',
         proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
         empresa: contrato.empresa,
-        contactos_notificacion: contactosFromContrato(contrato),
-        correo_notificacion: contrato.correo_notificacion || null,
+        ...prepararPayloadContactosNiveles(contactosNivelesStateFromContrato(contrato)),
         ...prepararSuplementosPayload(getSuplementosContrato(contrato.numero_contrato)),
         ...prepararAnexosPayload(parseAnexosFromContrato(contrato)),
         vigencia: contrato.vigencia,
@@ -2112,18 +2241,19 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const enviarRecordatorioContrato = (contrato) => {
     if (!contrato?.numero_contrato) return;
-    const contactos = contactosFromContrato(contrato);
+    const diasRestantes = diasParaVencer(contrato.fecha_fin);
+    const evento = diasRestantes != null && diasRestantes < 0 ? 'vencido' : 'por_vencer';
+    const contactos = listCorreosPorEvento(contrato, evento);
     if (!contactos.length) {
       Swal.fire(
         'Correo requerido',
-        'Este contrato no tiene contactos de notificación. Agréguelos en Editar contrato para poder enviar recordatorios.',
+        'Este contrato no tiene correos configurados para recordatorios de vencimiento.',
         'info'
       );
       return;
     }
-    const destinosHtml = contactos
-      .map((c) => `<li>${c.nombre ? `${c.nombre} — ` : ''}${c.correo}</li>`)
-      .join('');
+    const lineaContacto = (c) => `<li>${c.nombre ? `${c.nombre} — ` : ''}${c.correo}</li>`;
+    const destinosHtml = contactos.map(lineaContacto).join('');
 
     Swal.fire({
       title: '¿Enviar recordatorio?',
@@ -2329,7 +2459,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     if (total === 0) {
       return { sinCorreo: 0, sinPdf: 0, pctDocumental: 100, total: 0 };
     }
-    const sinCorreo = contratosOperativos.filter((c) => !tieneContactoNotificacion(c)).length;
+    const sinCorreo = contratosOperativos.filter((c) => !tieneAlgunCorreoNivel(c)).length;
     const sinPdf = contratosOperativos.filter((c) => getPdfsContrato(c.numero_contrato).length === 0).length;
     const pctDocumental = Math.round(((total - sinCorreo + total - sinPdf) / (total * 2)) * 100);
     return { sinCorreo, sinPdf, pctDocumental, total };
@@ -2511,7 +2641,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const reporteCalidadDatos = useMemo(() => {
     const list = contratosFiltradosReporte;
-    const sinCorreo = list.filter((c) => !tieneContactoNotificacion(c)).length;
+    const sinCorreo = list.filter((c) => !tieneAlgunCorreoNivel(c)).length;
     const sinPdf = list.filter((c) => getPdfsContrato(c.numero_contrato).length === 0).length;
     return {
       sinCorreo,
@@ -2632,8 +2762,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
             operacion: 'renovacion',
             proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
             empresa: contrato.empresa,
-            contactos_notificacion: contactosFromContrato(contrato),
-            correo_notificacion: contrato.correo_notificacion || null,
+            ...prepararPayloadContactosNiveles(contactosNivelesStateFromContrato(contrato)),
             ...prepararSuplementosPayload(getSuplementosContrato(contrato.numero_contrato)),
             ...prepararAnexosPayload(parseAnexosFromContrato(contrato)),
             vigencia: contrato.vigencia,
@@ -2664,7 +2793,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       html: `
         <div style="text-align:left">
           <p><strong>Empresa:</strong> ${contrato.empresa || '-'}</p>
-          <p><strong>Correo notificación:</strong> ${resumenCorreosNotificacion(contrato) || '-'}</p>
+          <p><strong>Correo notificación:</strong> ${resumenTodosCorreosNivel(contrato) || '-'}</p>
           <p><strong>Tipo:</strong> ${contrato.tipo_contrato || '-'}</p>
           <p><strong>Vigencia:</strong> ${vigenciaLegibleOGuion(contrato.vigencia)}</p>
           <p><strong>Inicio:</strong> ${toISODate(contrato.fecha_inicio) || '-'}</p>
@@ -2691,7 +2820,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         c.numero_contrato,
         c.proveedor_cliente ? 'Proveedor' : 'Cliente',
         String(c.empresa || '').trim(),
-        resumenCorreosNotificacion(c),
+        resumenTodosCorreosNivel(c),
         etiquetaTipoContratoLegible(c.tipo_contrato),
         convertirVigenciaLegible(c.vigencia),
         resumenSuplementos(c),
@@ -2968,15 +3097,24 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           primaryLabel={editarContrato ? 'Actualizar' : 'Guardar'}
         >
           <div className="minimal-form-stack">
-            <div className="minimal-field">
+            <div
+              className={`minimal-field${contratoFormErrors.numero_contrato ? ' minimal-field--invalid' : ''}`}
+              data-contrato-field="numero_contrato"
+            >
               <label className="minimal-label">No. Contrato:</label>
               <input
                 type="text"
-                className="minimal-input"
+                className={`minimal-input${contratoFormErrors.numero_contrato ? ' is-invalid' : ''}`}
                 placeholder="------------------------"
                 value={contratoNumero}
-                onChange={(e) => setContratoNumero(e.target.value)}
+                onChange={(e) => {
+                  setContratoNumero(e.target.value);
+                  limpiarErrorContrato('numero_contrato');
+                }}
               />
+              {contratoFormErrors.numero_contrato ? (
+                <small className="minimal-field__error">{contratoFormErrors.numero_contrato}</small>
+              ) : null}
             </div>
 
             <div className="minimal-divider" />
@@ -3000,21 +3138,32 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               </label>
             </div>
 
-            <div className="minimal-field">
+            <div
+              className={`minimal-field${contratoFormErrors.empresa ? ' minimal-field--invalid' : ''}`}
+              data-contrato-field="empresa"
+            >
               <label className="minimal-label">Empresa:</label>
               <input
                 type="text"
-                className="minimal-input"
+                className={`minimal-input${contratoFormErrors.empresa ? ' is-invalid' : ''}`}
                 placeholder="------------------------"
                 value={contratoEmpresa}
-                onChange={(e) => setContratoEmpresa(e.target.value)}
+                onChange={(e) => {
+                  setContratoEmpresa(e.target.value);
+                  limpiarErrorContrato('empresa');
+                }}
               />
+              {contratoFormErrors.empresa ? (
+                <small className="minimal-field__error">{contratoFormErrors.empresa}</small>
+              ) : null}
             </div>
 
-            <ContratosContactosNotificacionField
-              contactos={contratoContactosNotificacion}
-              onChange={setContratoContactosNotificacion}
+            <ContratosCorreosNivelesField
+              niveles={contratoContactosNiveles}
+              onChange={actualizarContactosNiveles}
               disabled={false}
+              esProveedor={contratoProveedorCliente}
+              errores={contratoFormErrors}
             />
 
             <div className="minimal-field">
@@ -3142,17 +3291,28 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
             <ContratosVigenciaField
               partes={contratoVigenciaPartes}
-              onChange={setContratoVigenciaPartes}
+              onChange={(partes) => {
+                setContratoVigenciaPartes(partes);
+                limpiarErrorContrato('vigencia');
+              }}
               disabled={false}
+              invalid={Boolean(contratoFormErrors.vigencia)}
+              error={contratoFormErrors.vigencia}
             />
 
-            <div className="minimal-field">
+            <div
+              className={`minimal-field${contratoFormErrors.tipo_contrato ? ' minimal-field--invalid' : ''}`}
+              data-contrato-field="tipo_contrato"
+            >
               <label className="minimal-label">Tipo de contrato:</label>
               <AppSelect
                 variant="modal"
-                className={`minimal-select ${contratoTipo ? 'is-selected' : ''}`}
+                className={`minimal-select ${contratoTipo ? 'is-selected' : ''}${contratoFormErrors.tipo_contrato ? ' is-invalid' : ''}`}
                 value={contratoTipo}
-                onChange={(e) => setContratoTipo(e.target.value)}
+                onChange={(e) => {
+                  setContratoTipo(e.target.value);
+                  limpiarErrorContrato('tipo_contrato');
+                }}
               >
                 <option value="" disabled hidden>--- Seleccione ---</option>
                 {tiposCatalogoActivos.length > 0 ? (
@@ -3170,6 +3330,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                   </>
                 )}
               </AppSelect>
+              {contratoFormErrors.tipo_contrato ? (
+                <small className="minimal-field__error">{contratoFormErrors.tipo_contrato}</small>
+              ) : null}
             </div>
 
             <div className="minimal-field">
@@ -3186,14 +3349,23 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               </AppSelect>
             </div>
 
-            <div className="minimal-field">
+            <div
+              className={`minimal-field${contratoFormErrors.fecha_inicio ? ' minimal-field--invalid' : ''}`}
+              data-contrato-field="fecha_inicio"
+            >
               <label className="minimal-label">Fecha de inicio:</label>
               <input
                 type="date"
-                className="minimal-input"
+                className={`minimal-input${contratoFormErrors.fecha_inicio ? ' is-invalid' : ''}`}
                 value={contratoFechaInicio}
-                onChange={(e) => setContratoFechaInicio(e.target.value)}
+                onChange={(e) => {
+                  setContratoFechaInicio(e.target.value);
+                  limpiarErrorContrato('fecha_inicio');
+                }}
               />
+              {contratoFormErrors.fecha_inicio ? (
+                <small className="minimal-field__error">{contratoFormErrors.fecha_inicio}</small>
+              ) : null}
             </div>
           </div>
         </FormModal>
@@ -3578,7 +3750,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                         </div>
                       </td>
                       <td>
-                        <span className="badge bg-secondary">{etiquetaAccionPendiente(con.aprobacion_accion)}</span>
+                        <span className={claseBadgeAccionPendiente(con.aprobacion_accion)}>
+                          {etiquetaAccionPendiente(con.aprobacion_accion)}
+                        </span>
                       </td>
                       <td>{con.aprobacion_solicitado_por || '—'}</td>
                       <td>{con.aprobacion_solicitado_en ? formatAppDate(con.aprobacion_solicitado_en) : '—'}</td>
@@ -4176,7 +4350,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                               <tr key={c.numero_contrato}>
                                 <td className="text-nowrap fw-semibold">{c.numero_contrato}</td>
                                 <td className="text-truncate" style={{ maxWidth: '8rem' }} title={c.empresa || ''}>{c.empresa || '—'}</td>
-                                <td className="text-truncate small" style={{ maxWidth: '9rem' }} title={resumenCorreosNotificacion(c)}>{resumenCorreosNotificacion(c) || '—'}</td>
+                                <td className="text-truncate small" style={{ maxWidth: '9rem' }} title={resumenTodosCorreosNivel(c)}>{resumenTodosCorreosNivel(c) || '—'}</td>
                                 <td className="small">{etiquetaTipoContratoLegible(c.tipo_contrato) || '—'}</td>
                                 <td>{c.proveedor_cliente ? 'Prov.' : 'Cli.'}</td>
                                 <td>{c.estado}</td>

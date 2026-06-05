@@ -1,4 +1,5 @@
-import { contactosFromContrato, resumenCorreosNotificacion } from './contratosContactosNotificacion';
+import { contactosFromContrato } from './contratosContactosNotificacion';
+import { contactosNivelesFromContrato, resumenTodosCorreosNivel } from './contratosCorreosNiveles';
 import { convertirVigenciaLegible } from './convertirVigenciaLegible';
 import { parseSuplementosFromContrato } from './contratosSuplementos';
 import { parseAnexosFromContrato } from './contratosAnexos';
@@ -42,6 +43,10 @@ function normPrioridad(val) {
 
 function resumenContactosDesdePropuesta(propuesta) {
   if (!propuesta) return '—';
+  if (propuesta.contactos_niveles) {
+    const resumen = resumenTodosCorreosNivel({ contactos_niveles: propuesta.contactos_niveles });
+    return resumen || '—';
+  }
   const list = Array.isArray(propuesta.contactos_notificacion)
     ? propuesta.contactos_notificacion
     : contactosFromContrato({
@@ -133,7 +138,7 @@ export function cambiosEdicionPendiente(contratoActual, propuestaRaw, opts = {})
   pushCambio(
     cambios,
     'Contactos notificación',
-    resumenCorreosNotificacion(contratoActual) || '—',
+    resumenTodosCorreosNivel(contratoActual) || '—',
     resumenContactosDesdePropuesta(propuesta)
   );
   pushCambio(
@@ -178,6 +183,15 @@ export function tieneCambiosEdicionPendiente(contratoActual, propuestaRaw, opts 
 
 export function contactosDesdePropuesta(propuesta) {
   if (!propuesta) return [];
+  if (propuesta.contactos_niveles) {
+    const niveles = contactosNivelesFromContrato({ contactos_niveles: propuesta.contactos_niveles });
+    return [
+      ...(niveles.proveedor_cliente || []),
+      ...(niveles.notificaciones || []),
+      ...(niveles.autorizado_manipular || []),
+      ...(niveles.autorizado_aprobar || []),
+    ];
+  }
   if (Array.isArray(propuesta.contactos_notificacion)) {
     return contactosFromContrato({
       contactos_notificacion: propuesta.contactos_notificacion,
@@ -193,13 +207,39 @@ export function contactosDesdePropuesta(propuesta) {
 /**
  * Líneas para mostrar en Pendientes según tipo de solicitud.
  */
+/** Motivo indicado al solicitar cancelación (pendiente de aprobación). */
+export function motivoCancelacionPendiente(contrato) {
+  const accion = String(contrato?.aprobacion_accion || '').toLowerCase();
+  if (accion !== 'cancelacion' && accion !== 'cancelacion_archivo' && accion !== 'archivo') return '';
+  const p = parsePropuestaAprobacion(contrato?.aprobacion_propuesta);
+  return p?.motivo != null ? String(p.motivo).trim() : '';
+}
+
 export function lineasResumenPendiente(contrato, opts = {}) {
   const accion = String(contrato?.aprobacion_accion || '').toLowerCase();
   const fmtFecha = opts.fmtFecha || ((v) => normFecha(v) || '—');
   const tipoLegible = opts.tipoLegible || ((t) => normTexto(t) || '—');
 
   if (accion === 'cancelacion') {
-    return [{ tipo: 'mensaje', texto: 'Se solicita cancelar este contrato.' }];
+    return [{ tipo: 'cancelacion', texto: 'Se solicita cancelar este contrato.' }];
+  }
+
+  if (accion === 'cancelacion_archivo') {
+    return [
+      {
+        tipo: 'cancelacion',
+        texto: 'Se solicita cancelar y archivar este contrato por 5 años.',
+      },
+    ];
+  }
+
+  if (accion === 'archivo') {
+    return [
+      {
+        tipo: 'cancelacion',
+        texto: 'Se solicita eliminar este contrato (archivo por 5 años).',
+      },
+    ];
   }
 
   if (accion === 'alta') {

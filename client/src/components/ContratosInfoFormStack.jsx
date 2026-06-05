@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { vigenciaLegibleOGuion } from '../lib/convertirVigenciaLegible';
-import { contactosFromContrato } from '../lib/contratosContactosNotificacion';
+import { contactosNivelesFromContrato } from '../lib/contratosCorreosNiveles';
 import { parseSuplementosFromContrato, etiquetaTipoSuplemento } from '../lib/contratosSuplementos';
 import { parseAnexosFromContrato } from '../lib/contratosAnexos';
 
@@ -16,9 +16,12 @@ function esProveedor(valor) {
   return s === 'proveedor' || s === 'p';
 }
 
-export function InfoField({ label, children, fullWidth }) {
+export function InfoField({ label, children, fullWidth, compareRow }) {
   return (
-    <div className={`minimal-field${fullWidth ? ' minimal-field--full' : ''}`}>
+    <div
+      className={`minimal-field${fullWidth ? ' minimal-field--full' : ''}${compareRow ? ' contratos-cambios-compare-row' : ''}`}
+      {...(compareRow ? { 'data-compare-row': true } : {})}
+    >
       <span className="minimal-label">{label}</span>
       <div className="minimal-info-value">{children ?? '—'}</div>
     </div>
@@ -31,41 +34,65 @@ export default function ContratosInfoFormStack({
   pdfs = [],
   numeroContrato,
   fmtDisplayDate,
+  tipoLegible,
   getIconoEmpresa,
   onVerPdf,
+  modoComparacion = false,
 }) {
   const num = String(numeroContrato || contrato?.numero_contrato || '').trim();
   const fmt = typeof fmtDisplayDate === 'function' ? fmtDisplayDate : (v) => v || '—';
+  const tipo =
+    typeof tipoLegible === 'function' ? tipoLegible : (t) => (t != null && t !== '' ? String(t) : '—');
+  const compareRow = modoComparacion;
   const icono =
     contrato && typeof getIconoEmpresa === 'function' ? getIconoEmpresa(contrato.empresa) : null;
   const pri = String(contrato?.prioridad || 'media').toLowerCase();
   const envios = Array.isArray(recordatorios?.envios) ? recordatorios.envios : [];
   const hitos = Array.isArray(recordatorios?.hitos_dias) ? recordatorios.hitos_dias : [];
-  const contactosNotif = useMemo(
-    () => (contrato ? contactosFromContrato(contrato) : []),
-    [contrato]
-  );
+  const contactosNotif = useMemo(() => {
+    if (!contrato) return [];
+    const niveles = contactosNivelesFromContrato(contrato);
+    const todos = [
+      ...(niveles.proveedor_cliente || []),
+      ...(niveles.notificaciones || []),
+      ...(niveles.autorizado_manipular || []),
+      ...(niveles.autorizado_aprobar || []),
+    ];
+    const seen = new Set();
+    return todos.filter((c) => {
+      if (!c?.correo || seen.has(c.correo)) return false;
+      seen.add(c.correo);
+      return true;
+    });
+  }, [contrato]);
 
   if (!contrato) return null;
 
   return (
-    <div className="minimal-form-stack contratos-info-stack">
-      <InfoField label="No. Contrato:">{num}</InfoField>
+    <div
+      className={`minimal-form-stack contratos-info-stack${modoComparacion ? ' contratos-cambios-compare-stack' : ''}`}
+    >
+      <InfoField label="No. Contrato:" compareRow={compareRow}>
+        {num}
+      </InfoField>
 
-      <div className="minimal-divider" />
+      <div
+        className={`minimal-divider${compareRow ? ' contratos-cambios-compare-row' : ''}`}
+        {...(compareRow ? { 'data-compare-row': true } : {})}
+      />
 
-      <InfoField label="Parte:">
+      <InfoField label="Parte:" compareRow={compareRow}>
         {esProveedor(contrato.proveedor_cliente) ? 'Proveedor' : 'Cliente'}
       </InfoField>
 
-      <InfoField label="Empresa:">
+      <InfoField label="Empresa:" compareRow={compareRow}>
         <span className="d-inline-flex align-items-center gap-2 flex-wrap">
           {icono ? <img src={icono} alt="" className="contrato-empresa-icon-preview" /> : null}
           <span>{contrato.empresa || '—'}</span>
         </span>
       </InfoField>
 
-      <InfoField label="Contactos de notificación:" fullWidth>
+      <InfoField label="Contactos de notificación:" fullWidth compareRow={compareRow}>
         {contactosNotif.length ? (
           <ul className="contratos-info-contactos-list mb-0">
             {contactosNotif.map((c) => (
@@ -85,7 +112,7 @@ export default function ContratosInfoFormStack({
         )}
       </InfoField>
 
-      <InfoField label="Suplementos:" fullWidth>
+      <InfoField label="Suplementos:" fullWidth compareRow={compareRow}>
         {(() => {
           const { legacyText, items } = parseSuplementosFromContrato(contrato);
           if (items.length) {
@@ -106,7 +133,7 @@ export default function ContratosInfoFormStack({
         })()}
       </InfoField>
 
-      <InfoField label="Anexos:" fullWidth>
+      <InfoField label="Anexos:" fullWidth compareRow={compareRow}>
         {(() => {
           const { activo, items } = parseAnexosFromContrato(contrato);
           if (!activo) return 'No aplica';
@@ -128,109 +155,121 @@ export default function ContratosInfoFormStack({
         })()}
       </InfoField>
 
-      <InfoField label="Vigencia:">{vigenciaLegibleOGuion(contrato.vigencia)}</InfoField>
+      <InfoField label="Vigencia:" compareRow={compareRow}>
+        {vigenciaLegibleOGuion(contrato.vigencia)}
+      </InfoField>
 
-      <InfoField label="Tipo de contrato:">{contrato.tipo_contrato || '—'}</InfoField>
+      <InfoField label="Tipo de contrato:" compareRow={compareRow}>
+        {tipo(contrato.tipo_contrato)}
+      </InfoField>
 
-      <InfoField label="Prioridad (recordatorios):">
+      <InfoField label="Prioridad (recordatorios):" compareRow={compareRow}>
         {PRIORIDAD_LABEL[pri] || contrato.prioridad || '—'}
       </InfoField>
 
-      <InfoField label="Fecha de inicio:">{fmt(contrato.fecha_inicio)}</InfoField>
-
-      <InfoField label="Fecha de fin:">{fmt(contrato.fecha_fin)}</InfoField>
-
-      <InfoField label="Estado:">
-        <span className="fw-bold">{contrato.estado || '—'}</span>
+      <InfoField label="Fecha de inicio:" compareRow={compareRow}>
+        {fmt(contrato.fecha_inicio)}
       </InfoField>
 
-      <InfoField label="Días restantes:">
-        {contrato.dias_restantes == null
-          ? '—'
-          : contrato.dias_restantes < 0
-            ? `Vencido hace ${Math.abs(contrato.dias_restantes)} día(s)`
-            : `${contrato.dias_restantes} día(s)`}
+      <InfoField label="Fecha de fin:" compareRow={compareRow}>
+        {fmt(contrato.fecha_fin)}
       </InfoField>
 
-      {Number(contrato.cancelado) === 1 ? (
-        <InfoField label="Cancelación:" fullWidth>
-          {contrato.cancelado_por ? `Por ${contrato.cancelado_por}` : 'Cancelado'}
-          {contrato.cancelado_en ? ` — ${fmt(contrato.cancelado_en)}` : ''}
-        </InfoField>
-      ) : null}
+      {!modoComparacion ? (
+        <>
+          <InfoField label="Estado:">
+            <span className="fw-bold">{contrato.estado || '—'}</span>
+          </InfoField>
 
-      <div className="minimal-divider" />
+          <InfoField label="Días restantes:">
+            {contrato.dias_restantes == null
+              ? '—'
+              : contrato.dias_restantes < 0
+                ? `Vencido hace ${Math.abs(contrato.dias_restantes)} día(s)`
+                : `${contrato.dias_restantes} día(s)`}
+          </InfoField>
 
-      <InfoField label="Recordatorios automáticos:">
-        {recordatorios?.automaticos_activos ? 'Activados en el sistema' : 'Desactivados en el sistema'}
-      </InfoField>
+          {Number(contrato.cancelado) === 1 ? (
+            <InfoField label="Cancelación:" fullWidth>
+              {contrato.cancelado_por ? `Por ${contrato.cancelado_por}` : 'Cancelado'}
+              {contrato.cancelado_en ? ` — ${fmt(contrato.cancelado_en)}` : ''}
+            </InfoField>
+          ) : null}
 
-      <InfoField label="Regla de avisos:">{recordatorios?.regla_descripcion || '—'}</InfoField>
+          <div className="minimal-divider" />
 
-      <InfoField label="Hitos programados (días antes del vencimiento):">
-        {hitos.length ? hitos.join(', ') : '—'}
-      </InfoField>
+          <InfoField label="Recordatorios automáticos:">
+            {recordatorios?.automaticos_activos ? 'Activados en el sistema' : 'Desactivados en el sistema'}
+          </InfoField>
 
-      <InfoField label="Destinos de recordatorios:" fullWidth>
-        {Array.isArray(recordatorios?.contactos_destino) && recordatorios.contactos_destino.length ? (
-          <ul className="contratos-info-contactos-list mb-0">
-            {recordatorios.contactos_destino.map((c) => (
-              <li key={c.correo}>
-                {c.nombre ? (
-                  <>
-                    <span>{c.nombre}</span>
-                    {' — '}
-                  </>
-                ) : null}
-                <a href={`mailto:${c.correo}`}>{c.correo}</a>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <span className="text-muted">Sin correo registrado — no se enviarán avisos</span>
-        )}
-      </InfoField>
+          <InfoField label="Regla de avisos:">{recordatorios?.regla_descripcion || '—'}</InfoField>
 
-      <div className="minimal-field minimal-field--full">
-        <span className="minimal-label">Historial de correos enviados:</span>
-        {envios.length === 0 ? (
-          <div className="minimal-info-value text-muted">Aún no hay envíos registrados para este contrato.</div>
-        ) : (
-          <ul className="contratos-info-envios-list mb-0">
-            {envios.map((e) => (
-              <li key={e.id_envio} className="contratos-info-envios-list__item">
-                <span className="contratos-info-envios-list__fecha">{fmt(e.enviado_en)}</span>
-                <span className="contratos-info-envios-list__correo" title={e.correo_destino}>
-                  {e.correo_destino}
-                </span>
-                <span className="contratos-info-envios-list__meta">
-                  {e.dias_antes_vencimiento >= 0
-                    ? `${e.dias_antes_vencimiento} días antes`
-                    : 'Recordatorio'}
-                  {' · '}
-                  {e.origen === 'manual' ? 'Manual' : 'Automático'}
-                  {' · '}
-                  <span
-                    className={
-                      e.resultado === 'ok'
-                        ? 'text-success'
-                        : e.resultado === 'error'
-                          ? 'text-danger'
-                          : 'text-warning'
-                    }
-                  >
-                    {e.resultado}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          <InfoField label="Hitos programados (días antes del vencimiento):">
+            {hitos.length ? hitos.join(', ') : '—'}
+          </InfoField>
 
-      <div className="minimal-divider" />
+          <InfoField label="Destinos de recordatorios:" fullWidth>
+            {Array.isArray(recordatorios?.contactos_destino) && recordatorios.contactos_destino.length ? (
+              <ul className="contratos-info-contactos-list mb-0">
+                {recordatorios.contactos_destino.map((c) => (
+                  <li key={c.correo}>
+                    {c.nombre ? (
+                      <>
+                        <span>{c.nombre}</span>
+                        {' — '}
+                      </>
+                    ) : null}
+                    <a href={`mailto:${c.correo}`}>{c.correo}</a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <span className="text-muted">Sin correo registrado — no se enviarán avisos</span>
+            )}
+          </InfoField>
 
-      <div className="minimal-field minimal-field--full">
+          <div className="minimal-field minimal-field--full">
+            <span className="minimal-label">Historial de correos enviados:</span>
+            {envios.length === 0 ? (
+              <div className="minimal-info-value text-muted">
+                Aún no hay envíos registrados para este contrato.
+              </div>
+            ) : (
+              <ul className="contratos-info-envios-list mb-0">
+                {envios.map((e) => (
+                  <li key={e.id_envio} className="contratos-info-envios-list__item">
+                    <span className="contratos-info-envios-list__fecha">{fmt(e.enviado_en)}</span>
+                    <span className="contratos-info-envios-list__correo" title={e.correo_destino}>
+                      {e.correo_destino}
+                    </span>
+                    <span className="contratos-info-envios-list__meta">
+                      {e.dias_antes_vencimiento >= 0
+                        ? `${e.dias_antes_vencimiento} días antes`
+                        : 'Recordatorio'}
+                      {' · '}
+                      {e.origen === 'manual' ? 'Manual' : 'Automático'}
+                      {' · '}
+                      <span
+                        className={
+                          e.resultado === 'ok'
+                            ? 'text-success'
+                            : e.resultado === 'error'
+                              ? 'text-danger'
+                              : 'text-warning'
+                        }
+                      >
+                        {e.resultado}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="minimal-divider" />
+
+          <div className="minimal-field minimal-field--full">
         <span className="minimal-label">Archivos PDF del contrato:</span>
         {pdfs.length === 0 ? (
           <div className="minimal-info-value text-muted">Sin archivos PDF adjuntos.</div>
@@ -254,7 +293,9 @@ export default function ContratosInfoFormStack({
             ))}
           </ul>
         )}
-      </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

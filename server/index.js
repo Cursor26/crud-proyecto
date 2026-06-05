@@ -87,10 +87,12 @@ const audit = createAuditService(dbQuery);
 const { createRbacService } = require('./lib/rbac');
 const rbac = createRbacService(dbQuery);
 const { createContratosRecordatoriosService } = require('./lib/contratosRecordatorios');
+const { createContratosNotificacionesEventosService } = require('./lib/contratosNotificacionesEventos');
 const {
-  prepareContactosForSave,
-  contactosFromContrato,
-} = require('./lib/contratosContactosNotificacion');
+  prepareContactosNivelesForSave,
+  validarContactosNivelesParaGuardar,
+} = require('./lib/contratosCorreosNiveles');
+const { contactosFromContrato } = require('./lib/contratosContactosNotificacion');
 const { prepareAnexosForSave } = require('./lib/contratosAnexos');
 const {
   usuarioDesdeReq,
@@ -99,6 +101,7 @@ const {
   aprobarContratoPendiente,
   rechazarContratoPendiente,
 } = require('./lib/contratosAprobacion');
+const { ejecutarArchivoContrato } = require('./lib/contratosArchivo');
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const hashResetToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -181,6 +184,14 @@ const sendMailWithFallback = async (mailOptions) => {
 const shouldUseGracefulMailFallback = (error) =>
   MAIL_FALLBACK_MODE === 'graceful' && isSmtpTransientError(error);
 
+const notificacionesContrato = createContratosNotificacionesEventosService(dbQuery, {
+  SQL_CONTRATO_SELECT,
+  normalizeEmail,
+  isValidEmail,
+  sendMailWithFallback,
+  mailer,
+});
+
 const recordatoriosContratos = createContratosRecordatoriosService(dbQuery, {
   SQL_CONTRATO_SELECT,
   normalizeEmail,
@@ -189,6 +200,34 @@ const recordatoriosContratos = createContratosRecordatoriosService(dbQuery, {
   mailer,
   shouldUseGracefulMailFallback,
 });
+
+function dispararNotificacionContrato(numero, evento, extra = {}) {
+  notificacionesContrato.disparar(numero, evento, extra).catch(() => {});
+}
+
+function dispararNotificacionesAprobacion(numero, accion, resueltoPor, extra = {}) {
+  dispararNotificacionContrato(numero, 'aprobacion_resuelta', {
+    accion,
+    resueltoPor,
+    ...extra,
+  });
+  if (accion === 'edicion') {
+    dispararNotificacionContrato(numero, 'modificado', { accion, resueltoPor, ...extra });
+  } else if (accion === 'cancelacion' || accion === 'cancelacion_archivo') {
+    dispararNotificacionContrato(numero, 'cancelado', { accion, resueltoPor, ...extra });
+  }
+  if (accion === 'archivo' || accion === 'cancelacion_archivo') {
+    dispararNotificacionContrato(numero, 'eliminado', { accion, resueltoPor, ...extra });
+  }
+}
+
+function dispararNotificacionPendiente(numero, accion, solicitadoPor, extra = {}) {
+  dispararNotificacionContrato(numero, 'pendiente_aprobacion', {
+    accion,
+    solicitadoPor,
+    ...extra,
+  });
+}
 
 const ensurePasswordResetTable = async () => {
   await dbQuery(`
@@ -233,6 +272,22 @@ const ensureContratoContactosNotificacionColumn = async () => {
   if (!exists) {
     await dbQuery(
       'ALTER TABLE contratos_generales ADD COLUMN contactos_notificacion JSON NULL AFTER correo_notificacion'
+    );
+  }
+};
+
+const ensureContratoContactosNivelesColumn = async () => {
+  const rows = await dbQuery(
+    `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'contratos_generales'
+        AND COLUMN_NAME = 'contactos_niveles'`
+  );
+  const exists = Number(rows?.[0]?.cnt || 0) > 0;
+  if (!exists) {
+    await dbQuery(
+      'ALTER TABLE contratos_generales ADD COLUMN contactos_niveles JSON NULL AFTER contactos_notificacion'
     );
   }
 };
@@ -457,12 +512,14 @@ const ensureDirectorContratosApprove = async () => {
   );
 };
 
-const contratoAprobacionDeps = () => ({
+const contratoAprobacionDeps = (extra = {}) => ({
   idsContratoDesdeBody,
   prioridadDesdeBody,
-  prepareContactosForSave,
+  prepareContactosNivelesForSave,
   prepareAnexosForSave,
   resolveAbsPath,
+  archivarContratoActivo: (numero, opts) => ejecutarArchivoContrato(dbQuery, numero, opts),
+  ...extra,
 });
 
 const ensureCatalogoTipoContratoActivo = async () => {
@@ -1666,21 +1723,27 @@ app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacio
   } = req.body;
   const solicitadoPor = usuarioDesdeReq(req);
   try {
+    const errNiveles = validarContactosNivelesParaGuardar(req.body, {
+      esProveedor: req.body?.proveedor_cliente,
+    });
+    if (errNiveles) return res.status(400).json({ message: errNiveles });
+
     const { idContraparte, idTipo } = await idsContratoDesdeBody(dbQuery, req.body);
     const prioridad = prioridadDesdeBody(req.body);
-    const { contactosJson, correoPrincipal } = prepareContactosForSave(req.body);
+    const { contactosJson, correoPrincipal, nivelesJson } = prepareContactosNivelesForSave(req.body);
     const anexosJson = prepareAnexosForSave(req.body);
     await dbQuery(
       `INSERT INTO contratos_generales
-        (numero_contrato, id_contraparte, empresa, correo_notificacion, contactos_notificacion, suplementos, anexos, vigencia, id_tipo_contrato, prioridad, fecha_inicio, fecha_fin,
+        (numero_contrato, id_contraparte, empresa, correo_notificacion, contactos_notificacion, contactos_niveles, suplementos, anexos, vigencia, id_tipo_contrato, prioridad, fecha_inicio, fecha_fin,
          aprobacion_estado, aprobacion_accion, aprobacion_solicitado_por, aprobacion_solicitado_en)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pendiente','alta',?,NOW())`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'pendiente','alta',?,NOW())`,
       [
         numero_contrato,
         idContraparte,
         empresa,
         correoPrincipal,
         contactosJson,
+        nivelesJson,
         suplementos,
         anexosJson,
         vigencia,
@@ -1691,6 +1754,7 @@ app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacio
         solicitadoPor,
       ]
     );
+    dispararNotificacionPendiente(numero_contrato, 'alta', solicitadoPor, { empresa });
     res.json({
       ok: true,
       pendiente: true,
@@ -1728,6 +1792,11 @@ app.put("/update-contrato", verificarToken, autorizarRol(['admin', 'contratacion
   const solicitadoPor = usuarioDesdeReq(req);
 
   try {
+    const errNiveles = validarContactosNivelesParaGuardar(body, {
+      esProveedor: body.proveedor_cliente,
+    });
+    if (errNiveles) return res.status(400).json({ message: errNiveles });
+
     const existentes = await dbQuery(
       `SELECT numero_contrato, aprobacion_estado, aprobacion_accion
          FROM contratos_generales
@@ -1791,6 +1860,7 @@ app.put("/update-contrato", verificarToken, autorizarRol(['admin', 'contratacion
           WHERE numero_contrato = ?`,
         [propuestaJson, solicitadoPor, numeroContratoWhere]
       );
+      dispararNotificacionPendiente(numeroContratoWhere, 'edicion', solicitadoPor, { empresa });
       return res.json({
         ok: true,
         pendiente: true,
@@ -1848,11 +1918,22 @@ app.post(
         return res.status(400).json({ message: 'Los contratos vencidos no se pueden cancelar; use eliminar.' });
       }
 
+      const solicitarArchivo = Boolean(req.body?.archivar);
+      const motivoCancelacion = String(req.body?.motivo || '').trim().slice(0, 500);
+      if (!motivoCancelacion) {
+        return res.status(400).json({ message: 'Debe indicar el motivo de la baja.' });
+      }
+      const propuestaCancelacion = JSON.stringify({
+        motivo: motivoCancelacion,
+        ...(solicitarArchivo ? { archivar: true } : {}),
+      });
+      const accionPendiente = solicitarArchivo ? 'cancelacion_archivo' : 'cancelacion';
+
       await dbQuery(
         `UPDATE contratos_generales
             SET aprobacion_estado = 'pendiente',
-                aprobacion_accion = 'cancelacion',
-                aprobacion_propuesta = NULL,
+                aprobacion_accion = ?,
+                aprobacion_propuesta = ?,
                 aprobacion_solicitado_por = ?,
                 aprobacion_solicitado_en = NOW(),
                 aprobacion_resuelto_por = NULL,
@@ -1862,14 +1943,91 @@ app.post(
                 cancelado_en = NULL,
                 cancelado_por = NULL
           WHERE numero_contrato = ?`,
-        [canceladoPor, numero]
+        [accionPendiente, propuestaCancelacion, canceladoPor, numero]
       );
 
+      dispararNotificacionPendiente(numero, accionPendiente, canceladoPor, { motivo: motivoCancelacion });
       return res.json({
         ok: true,
         pendiente: true,
+        accion: accionPendiente,
         numero_contrato: numero,
-        message: 'Solicitud de cancelación enviada a aprobación.',
+        message: solicitarArchivo
+          ? 'Solicitud de cancelación y archivo enviada a aprobación.'
+          : 'Solicitud de cancelación enviada a aprobación.',
+      });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  '/contratos/:numero_contrato/solicitar-archivo',
+  verificarToken,
+  autorizarRol(['admin', 'contratacion']),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+
+    const solicitadoPor = String(req.user?.email || req.user?.nombre || '').trim() || null;
+    const motivo = String(req.body?.motivo || '').trim().slice(0, 500);
+    if (!motivo) {
+      return res.status(400).json({ message: 'Debe indicar el motivo de la baja.' });
+    }
+
+    try {
+      const rows = await dbQuery(
+        `SELECT numero_contrato, COALESCE(cancelado, 0) AS cancelado, fecha_fin,
+                aprobacion_estado, aprobacion_accion
+           FROM contratos_generales
+          WHERE numero_contrato = ?
+          LIMIT 1`,
+        [numero]
+      );
+      if (!rows.length) return res.status(404).json({ message: 'Contrato no encontrado.' });
+
+      const c = rows[0];
+      const estadoAprob = normalizarAprobacionEstado(c.aprobacion_estado);
+      if (estadoAprob === 'pendiente') {
+        return res.status(409).json({
+          message: 'Este contrato ya tiene una solicitud pendiente de aprobación.',
+        });
+      }
+
+      const esCancelado = Number(c.cancelado) === 1;
+      const esVencido =
+        c.fecha_fin != null && String(c.fecha_fin).slice(0, 10) < new Date().toISOString().slice(0, 10);
+      if (!esCancelado && !esVencido) {
+        return res.status(400).json({
+          message: 'Solo se puede solicitar archivo de contratos cancelados o vencidos.',
+        });
+      }
+
+      const propuesta = JSON.stringify({ motivo, archivar: true });
+
+      await dbQuery(
+        `UPDATE contratos_generales
+            SET aprobacion_estado = 'pendiente',
+                aprobacion_accion = 'archivo',
+                aprobacion_propuesta = ?,
+                aprobacion_solicitado_por = ?,
+                aprobacion_solicitado_en = NOW(),
+                aprobacion_resuelto_por = NULL,
+                aprobacion_resuelto_en = NULL,
+                aprobacion_resolucion_nota = NULL
+          WHERE numero_contrato = ?`,
+        [propuesta, solicitadoPor, numero]
+      );
+
+      dispararNotificacionPendiente(numero, 'archivo', solicitadoPor, { motivo });
+      return res.json({
+        ok: true,
+        pendiente: true,
+        accion: 'archivo',
+        numero_contrato: numero,
+        message: 'Solicitud de archivo enviada a aprobación.',
       });
     } catch (err) {
       console.log(err);
@@ -1886,8 +2044,45 @@ app.post(
     const numero = String(req.params.numero_contrato || '').trim();
     if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
     const resueltoPor = usuarioDesdeReq(req);
+    const documentosCliente = Array.isArray(req.body?.documentos) ? req.body.documentos : [];
     try {
-      const result = await aprobarContratoPendiente(dbQuery, contratoAprobacionDeps(), numero, resueltoPor);
+      const infoRows = await dbQuery(
+        `SELECT empresa, aprobacion_solicitado_por
+           FROM contratos_generales
+          WHERE numero_contrato = ?
+          LIMIT 1`,
+        [numero]
+      );
+      const infoPrev = infoRows[0] || {};
+
+      const result = await aprobarContratoPendiente(
+        dbQuery,
+        contratoAprobacionDeps({ documentosClienteAprobar: documentosCliente }),
+        numero,
+        resueltoPor
+      );
+
+      dispararNotificacionesAprobacion(result.numero_contrato || numero, result.accion, resueltoPor, {
+        empresa: result.empresa || infoPrev.empresa,
+        solicitadoPor: infoPrev.aprobacion_solicitado_por,
+      });
+
+      if (result.accion === 'cancelacion_archivo' || result.accion === 'archivo') {
+        await audit.logEvent({
+          category: 'delete',
+          action: 'contrato_archived',
+          actor: { email: req.user?.email, nombre: req.user?.nombre },
+          targetType: 'contrato',
+          targetId: numero,
+          targetLabel: result.empresa ? `${numero} — ${result.empresa}` : numero,
+          details: {
+            motivo: result.motivo,
+            id_archivo: result.id_archivo,
+            aprobacion: true,
+          },
+          req,
+        });
+      }
       return res.json(result);
     } catch (err) {
       const status = err.status || 500;
@@ -1910,6 +2105,15 @@ app.post(
       return res.status(400).json({ message: 'Debe indicar el motivo del rechazo.' });
     }
     try {
+      const infoRows = await dbQuery(
+        `SELECT empresa, aprobacion_solicitado_por, aprobacion_accion
+           FROM contratos_generales
+          WHERE numero_contrato = ?
+          LIMIT 1`,
+        [numero]
+      );
+      const infoPrev = infoRows[0] || {};
+
       const result = await rechazarContratoPendiente(
         dbQuery,
         contratoAprobacionDeps(),
@@ -1917,6 +2121,7 @@ app.post(
         resueltoPor,
         motivo
       );
+
       await audit.logEvent({
         category: 'update',
         action: 'contrato_aprobacion_rechazada',
@@ -1949,83 +2154,11 @@ app.post(
     const eliminadoPor = String(req.user?.email || req.user?.nombre || '').trim() || null;
 
     try {
-      const rows = await dbQuery(
-        `SELECT c.numero_contrato, c.id_contraparte, c.empresa, c.correo_notificacion, c.suplementos,
-                c.vigencia, c.id_tipo_contrato, c.fecha_inicio, c.fecha_fin,
-                COALESCE(tc.nombre, '') AS tipo_contrato
-           FROM contratos_generales c
-           LEFT JOIN catalogo_tipo_contrato tc ON tc.id_tipo_contrato = c.id_tipo_contrato
-          WHERE c.numero_contrato = ?
-          LIMIT 1`,
-        [numero]
-      );
-      if (!rows.length) return res.status(404).json({ message: 'Contrato no encontrado.' });
-
-      const c = rows[0];
-      const eliminadoEn = new Date();
-      const retencionHasta = calcRetencionHasta(eliminadoEn);
-
-      const insertArchivo = await dbQuery(
-        `INSERT INTO contratos_archivo
-          (numero_contrato, id_contraparte, empresa, correo_notificacion, suplementos, vigencia,
-           id_tipo_contrato, tipo_contrato, fecha_inicio, fecha_fin, eliminado_en, eliminado_por, motivo, retencion_hasta)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          c.numero_contrato,
-          c.id_contraparte,
-          c.empresa,
-          c.correo_notificacion,
-          c.suplementos,
-          c.vigencia,
-          c.id_tipo_contrato,
-          c.tipo_contrato,
-          c.fecha_inicio,
-          c.fecha_fin,
-          eliminadoEn,
-          eliminadoPor,
-          motivo,
-          retencionHasta,
-        ]
-      );
-      const idArchivo = insertArchivo.insertId;
-      const nombresGuardados = new Set();
-
-      const docsActivos = await dbQuery(
-        'SELECT id_documento, nombre_archivo, ruta_relativa FROM contratos_documentos WHERE numero_contrato = ?',
-        [numero]
-      );
-      for (const doc of docsActivos) {
-        const copied = copyFileToArchivo(idArchivo, doc.ruta_relativa, doc.nombre_archivo);
-        if (!copied) continue;
-        await dbQuery(
-          `INSERT INTO contratos_archivo_documentos (id_archivo, nombre_archivo, ruta_relativa, tamano_bytes)
-           VALUES (?,?,?,?)`,
-          [idArchivo, copied.nombreArchivo, copied.rutaRelativa, copied.tamanoBytes]
-        );
-        nombresGuardados.add(String(copied.nombreArchivo).toLowerCase());
-      }
-
-      for (const item of documentosCliente) {
-        const nombre = String(item?.nombre || 'Contrato.pdf').trim();
-        const dataUrl = String(item?.dataUrl || '');
-        if (!dataUrl) continue;
-        const key = nombre.toLowerCase();
-        if (nombresGuardados.has(key)) continue;
-        try {
-          const saved = saveArchivoPdf(idArchivo, nombre, dataUrl);
-          await dbQuery(
-            `INSERT INTO contratos_archivo_documentos (id_archivo, nombre_archivo, ruta_relativa, tamano_bytes)
-             VALUES (?,?,?,?)`,
-            [idArchivo, saved.nombreArchivo, saved.rutaRelativa, saved.tamanoBytes]
-          );
-          nombresGuardados.add(String(saved.nombreArchivo).toLowerCase());
-        } catch (pdfErr) {
-          console.warn('PDF cliente omitido al archivar:', pdfErr?.message || pdfErr);
-        }
-      }
-
-      await dbQuery('DELETE FROM contratos_generales WHERE numero_contrato = ?', [numero]);
-      removeDirIfExists(path.join(ACTIVOS_DIR, numero));
+      const archivado = await ejecutarArchivoContrato(dbQuery, numero, {
+        motivo,
+        documentosCliente,
+        eliminadoPor,
+      });
 
       await audit.logEvent({
         category: 'delete',
@@ -2033,20 +2166,21 @@ app.post(
         actor: { email: req.user?.email, nombre: req.user?.nombre },
         targetType: 'contrato',
         targetId: numero,
-        targetLabel: c.empresa ? `${numero} — ${c.empresa}` : numero,
-        details: { motivo, id_archivo: idArchivo, empresa: c.empresa },
+        targetLabel: archivado.empresa ? `${numero} — ${archivado.empresa}` : numero,
+        details: { motivo, id_archivo: archivado.id_archivo, empresa: archivado.empresa },
         req,
       });
 
       return res.json({
         ok: true,
-        id_archivo: idArchivo,
-        retencion_hasta: retencionHasta,
-        documentos: nombresGuardados.size,
+        id_archivo: archivado.id_archivo,
+        retencion_hasta: archivado.retencion_hasta,
+        documentos: archivado.documentos,
       });
     } catch (err) {
-      console.log(err);
-      return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+      const status = err.status || 500;
+      if (status >= 500) console.log(err);
+      return res.status(status).json({ message: err.message || err.sqlMessage || String(err) });
     }
   }
 );
@@ -5205,6 +5339,7 @@ Promise.all([
   ensurePasswordResetTable(),
   ensureContratoCorreoColumn(),
   ensureContratoContactosNotificacionColumn(),
+  ensureContratoContactosNivelesColumn(),
   ensureContratoAnexosColumn(),
   ensureContratoVigenciaVarchar(),
   ensureContratoCanceladoColumns(),

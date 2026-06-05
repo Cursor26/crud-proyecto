@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Axios, { API_BASE } from '../axiosConfig';
 import { vigenciaLegibleOGuion } from '../lib/convertirVigenciaLegible';
@@ -25,9 +25,12 @@ function esProveedor(valor) {
   return s === 'proveedor' || s === 'p';
 }
 
-function InfoFieldCambio({ label, modificado, children, fullWidth }) {
+function InfoFieldCambio({ label, modificado, children, fullWidth, compareRow }) {
   return (
-    <div className={`minimal-field${fullWidth ? ' minimal-field--full' : ''}`}>
+    <div
+      className={`minimal-field${fullWidth ? ' minimal-field--full' : ''}${compareRow ? ' contratos-cambios-compare-row' : ''}`}
+      {...(compareRow ? { 'data-compare-row': true } : {})}
+    >
       <span className="minimal-label">{label}</span>
       <div className={modificado ? 'contratos-cambio-highlight' : 'minimal-info-value'}>{children ?? '—'}</div>
     </div>
@@ -73,29 +76,25 @@ function ContratosPropuestaStack({
   const fechaFin = modKeys.has('fecha_fin') ? propuesta?.fecha_fin : contratoActual?.fecha_fin;
 
   return (
-    <div className="minimal-form-stack contratos-info-stack">
-      <p className="contratos-cambios-modal-leyenda small mb-3">
-        Recuadros <strong>amarillos</strong>: valor nuevo si aprueba. El resto coincide con el vigente.
-      </p>
-
-      <InfoFieldCambio label="No. Contrato:" modificado={modKeys.has('numero_contrato')}>
+    <div className="minimal-form-stack contratos-info-stack contratos-cambios-compare-stack">
+      <InfoFieldCambio label="No. Contrato:" modificado={modKeys.has('numero_contrato')} compareRow>
         {modKeys.has('numero_contrato') ? numPropuesta : numActual}
       </InfoFieldCambio>
 
-      <div className="minimal-divider" />
+      <div className="minimal-divider contratos-cambios-compare-row" data-compare-row />
 
-      <InfoFieldCambio label="Parte:" modificado={modKeys.has('parte')}>
+      <InfoFieldCambio label="Parte:" modificado={modKeys.has('parte')} compareRow>
         {modKeys.has('parte') ? partePropuesta : parteActual}
       </InfoFieldCambio>
 
-      <InfoFieldCambio label="Empresa:" modificado={modKeys.has('empresa')}>
+      <InfoFieldCambio label="Empresa:" modificado={modKeys.has('empresa')} compareRow>
         <span className="d-inline-flex align-items-center gap-2 flex-wrap">
           {icono ? <img src={icono} alt="" className="contrato-empresa-icon-preview" /> : null}
           <span>{empresaMostrar || '—'}</span>
         </span>
       </InfoFieldCambio>
 
-      <InfoFieldCambio label="Contactos de notificación:" modificado={modKeys.has('contactos')} fullWidth>
+      <InfoFieldCambio label="Contactos de notificación:" modificado={modKeys.has('contactos')} fullWidth compareRow>
         {contactosMostrar.length ? (
           <ul className="contratos-info-contactos-list mb-0">
             {contactosMostrar.map((c) => (
@@ -115,7 +114,7 @@ function ContratosPropuestaStack({
         )}
       </InfoFieldCambio>
 
-      <InfoFieldCambio label="Suplementos:" modificado={modKeys.has('suplementos')} fullWidth>
+      <InfoFieldCambio label="Suplementos:" modificado={modKeys.has('suplementos')} fullWidth compareRow>
         {(() => {
           const { legacyText, items } = parseSuplementosFromContrato({ suplementos: suplementosRaw });
           if (items.length) {
@@ -136,7 +135,7 @@ function ContratosPropuestaStack({
         })()}
       </InfoFieldCambio>
 
-      <InfoFieldCambio label="Anexos:" modificado={modKeys.has('anexos')} fullWidth>
+      <InfoFieldCambio label="Anexos:" modificado={modKeys.has('anexos')} fullWidth compareRow>
         {(() => {
           const { activo, items } = parseAnexosFromContrato({ anexos: anexosRaw });
           if (!activo) return 'No aplica';
@@ -158,23 +157,23 @@ function ContratosPropuestaStack({
         })()}
       </InfoFieldCambio>
 
-      <InfoFieldCambio label="Vigencia:" modificado={modKeys.has('vigencia')}>
+      <InfoFieldCambio label="Vigencia:" modificado={modKeys.has('vigencia')} compareRow>
         {vigenciaLegibleOGuion(vigenciaMostrar)}
       </InfoFieldCambio>
 
-      <InfoFieldCambio label="Tipo de contrato:" modificado={modKeys.has('tipo_contrato')}>
+      <InfoFieldCambio label="Tipo de contrato:" modificado={modKeys.has('tipo_contrato')} compareRow>
         {tipoMostrar || '—'}
       </InfoFieldCambio>
 
-      <InfoFieldCambio label="Prioridad (recordatorios):" modificado={modKeys.has('prioridad')}>
+      <InfoFieldCambio label="Prioridad (recordatorios):" modificado={modKeys.has('prioridad')} compareRow>
         {PRIORIDAD_LABEL[priMostrar] || priMostrar || '—'}
       </InfoFieldCambio>
 
-      <InfoFieldCambio label="Fecha de inicio:" modificado={modKeys.has('fecha_inicio')}>
+      <InfoFieldCambio label="Fecha de inicio:" modificado={modKeys.has('fecha_inicio')} compareRow>
         {fmt(fechaInicio)}
       </InfoFieldCambio>
 
-      <InfoFieldCambio label="Fecha de fin:" modificado={modKeys.has('fecha_fin')}>
+      <InfoFieldCambio label="Fecha de fin:" modificado={modKeys.has('fecha_fin')} compareRow>
         {fmt(fechaFin)}
       </InfoFieldCambio>
     </div>
@@ -198,6 +197,8 @@ function ContratosCambiosPendientesModal({
 
   const scrollPropuestaRef = useRef(null);
   const scrollInfoRef = useRef(null);
+  const leyendaBandRef = useRef(null);
+  const leyendaSpacerRef = useRef(null);
   const scrollSyncLock = useRef(null);
 
   const fmt = typeof fmtDisplayDate === 'function' ? fmtDisplayDate : (v) => v || '—';
@@ -289,7 +290,77 @@ function ContratosCambiosPendientesModal({
     [compararActivo]
   );
 
+  const alignCompareRows = useCallback(() => {
+    if (!compararActivo) return;
+    const band = leyendaBandRef.current;
+    const spacer = leyendaSpacerRef.current;
+    if (band && spacer) {
+      spacer.style.minHeight = `${band.offsetHeight}px`;
+    }
+    const left = scrollPropuestaRef.current;
+    const right = scrollInfoRef.current;
+    if (!left || !right) return;
+    const leftRows = left.querySelectorAll('[data-compare-row]');
+    const rightRows = right.querySelectorAll('[data-compare-row]');
+    leftRows.forEach((el) => {
+      el.style.minHeight = '';
+    });
+    rightRows.forEach((el) => {
+      el.style.minHeight = '';
+    });
+    const count = Math.min(leftRows.length, rightRows.length);
+    for (let i = 0; i < count; i += 1) {
+      const h = Math.max(
+        leftRows[i].getBoundingClientRect().height,
+        rightRows[i].getBoundingClientRect().height
+      );
+      const px = `${Math.ceil(h)}px`;
+      leftRows[i].style.minHeight = px;
+      rightRows[i].style.minHeight = px;
+    }
+  }, [compararActivo]);
+
+  const resetCompareRowHeights = useCallback(() => {
+    [scrollPropuestaRef, scrollInfoRef].forEach((ref) => {
+      ref.current?.querySelectorAll('[data-compare-row]').forEach((el) => {
+        el.style.minHeight = '';
+      });
+    });
+    if (leyendaSpacerRef.current) leyendaSpacerRef.current.style.minHeight = '';
+  }, []);
+
   const contratoInfo = infoData?.contrato;
+
+  useLayoutEffect(() => {
+    if (!compararActivo || sinPropuesta) {
+      resetCompareRowHeights();
+      return undefined;
+    }
+    if (infoLoading || !contratoInfo) return undefined;
+
+    alignCompareRows();
+
+    const ro = new ResizeObserver(() => alignCompareRows());
+    if (scrollPropuestaRef.current) ro.observe(scrollPropuestaRef.current);
+    if (scrollInfoRef.current) ro.observe(scrollInfoRef.current);
+    if (leyendaBandRef.current) ro.observe(leyendaBandRef.current);
+
+    const onResize = () => alignCompareRows();
+    window.addEventListener('resize', onResize);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', onResize);
+      resetCompareRowHeights();
+    };
+  }, [
+    compararActivo,
+    sinPropuesta,
+    infoLoading,
+    contratoInfo,
+    alignCompareRows,
+    resetCompareRowHeights,
+  ]);
   const recordatorios = infoData?.recordatorios;
   const documentosServidor = Array.isArray(infoData?.documentos) ? infoData.documentos : [];
   const pdfsLocales = typeof getPdfsContrato === 'function' ? getPdfsContrato(num) : [];
@@ -313,7 +384,7 @@ function ContratosCambiosPendientesModal({
         aria-labelledby="contratos-cambios-title"
       >
         <div className="contratos-cambios-stage__propuesta-wrap">
-          <div className="contratos-cambios-window modal-minimal-content">
+          <div className="contratos-cambios-window contratos-cambios-window--propuesta modal-minimal-content">
             <div className="modal-premium-header modal-minimal-header border-0">
               <div className="modal-premium-header-inner modal-minimal-header-inner">
                 <span id="contratos-cambios-title" className="modal-premium-badge modal-minimal-badge">
@@ -329,6 +400,17 @@ function ContratosCambiosPendientesModal({
             </div>
 
             <div className="contratos-cambios-window__subhead">Propuesta (si aprueba)</div>
+
+            {!sinPropuesta ? (
+              <div
+                ref={leyendaBandRef}
+                className={`contratos-cambios-window__leyenda-band${compararActivo ? ' contratos-cambios-window__leyenda-band--compare' : ''}`}
+              >
+                <p className="contratos-cambios-modal-leyenda small mb-0">
+                  Recuadros <strong>amarillos</strong>: valor nuevo si aprueba. El resto coincide con el vigente.
+                </p>
+              </div>
+            ) : null}
 
             <div
               className="contratos-cambios-window__scroll modal-premium-body modal-minimal-body"
@@ -400,6 +482,12 @@ function ContratosCambiosPendientesModal({
               </div>
 
               <div
+                ref={leyendaSpacerRef}
+                className="contratos-cambios-window__leyenda-spacer"
+                aria-hidden="true"
+              />
+
+              <div
                 className="contratos-cambios-window__scroll modal-premium-body modal-minimal-body"
                 ref={scrollInfoRef}
                 onScroll={() => syncScroll('right')}
@@ -415,11 +503,18 @@ function ContratosCambiosPendientesModal({
                     pdfs={pdfs}
                     numeroContrato={num}
                     fmtDisplayDate={fmtDisplayDate}
+                    tipoLegible={tipoLegible}
                     getIconoEmpresa={getIconoEmpresa}
                     onVerPdf={onVerPdf}
+                    modoComparacion
                   />
                 ) : null}
               </div>
+
+              <div
+                className="modal-premium-footer modal-minimal-footer border-0 contratos-cambios-window__footer-spacer"
+                aria-hidden="true"
+              />
             </div>
           </>
         ) : null}

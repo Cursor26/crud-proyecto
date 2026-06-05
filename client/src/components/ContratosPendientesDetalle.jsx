@@ -1,5 +1,10 @@
-import { useMemo } from 'react';
-import { lineasResumenPendiente, tieneCambiosEdicionPendiente } from '../lib/contratosAprobacionResumen';
+import { useMemo, useState } from 'react';
+import {
+  lineasResumenPendiente,
+  motivoCancelacionPendiente,
+  tieneCambiosEdicionPendiente,
+} from '../lib/contratosAprobacionResumen';
+import ContratosMotivoCancelacionModal from './ContratosMotivoCancelacionModal';
 
 export default function ContratosPendientesDetalle({
   contrato,
@@ -7,6 +12,7 @@ export default function ContratosPendientesDetalle({
   tipoLegible,
   onVerCambios,
 }) {
+  const [showMotivo, setShowMotivo] = useState(false);
   const accion = String(contrato?.aprobacion_accion || '').toLowerCase();
   const opts = useMemo(
     () => ({ fmtFecha: fmtDisplayDate, tipoLegible }),
@@ -19,6 +25,11 @@ export default function ContratosPendientesDetalle({
     [accion, contrato, opts]
   );
   const lineas = useMemo(() => lineasResumenPendiente(contrato, opts), [contrato, opts]);
+  const motivoCancelacion = useMemo(() => motivoCancelacionPendiente(contrato), [contrato]);
+  const fechaSolicitudFmt = useMemo(() => {
+    if (!contrato?.aprobacion_solicitado_en || typeof fmtDisplayDate !== 'function') return '';
+    return fmtDisplayDate(contrato.aprobacion_solicitado_en);
+  }, [contrato, fmtDisplayDate]);
 
   if (accion === 'edicion') {
     if (!tieneCambios) {
@@ -31,7 +42,7 @@ export default function ContratosPendientesDetalle({
     return (
       <button
         type="button"
-        className="btn btn-sm btn-outline-primary contratos-btn-ver-cambios"
+        className="btn btn-sm contratos-btn-ver-cambios"
         onClick={(e) => {
           e.stopPropagation();
           onVerCambios?.(contrato);
@@ -40,6 +51,34 @@ export default function ContratosPendientesDetalle({
         <i className="bi bi-eye me-1" aria-hidden="true" />
         Ver cambios
       </button>
+    );
+  }
+
+  if (accion === 'cancelacion' || accion === 'cancelacion_archivo' || accion === 'archivo') {
+    return (
+      <>
+        <button
+          type="button"
+          className="btn btn-sm contratos-btn-ver-motivo"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMotivo(true);
+          }}
+        >
+          <i className="bi bi-chat-left-text me-1" aria-hidden="true" />
+          Motivo
+        </button>
+        <ContratosMotivoCancelacionModal
+          show={showMotivo}
+          onHide={() => setShowMotivo(false)}
+          numeroContrato={contrato?.numero_contrato}
+          empresa={contrato?.empresa}
+          motivo={motivoCancelacion}
+          solicitadoPor={contrato?.aprobacion_solicitado_por}
+          fechaSolicitud={fechaSolicitudFmt}
+          esArchivo={accion === 'cancelacion_archivo' || accion === 'archivo'}
+        />
+      </>
     );
   }
 

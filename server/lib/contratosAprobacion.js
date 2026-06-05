@@ -20,10 +20,10 @@ function parsePropuesta(raw) {
 }
 
 async function aplicarDatosContratoDesdeBody(dbQuery, deps, numeroWhere, body) {
-  const { idsContratoDesdeBody, prioridadDesdeBody, prepareContactosForSave, prepareAnexosForSave } = deps;
+  const { idsContratoDesdeBody, prioridadDesdeBody, prepareContactosNivelesForSave, prepareAnexosForSave } = deps;
   const { idContraparte, idTipo } = await idsContratoDesdeBody(dbQuery, body);
   const prioridad = prioridadDesdeBody(body);
-  const { contactosJson, correoPrincipal } = prepareContactosForSave(body);
+  const { contactosJson, correoPrincipal, nivelesJson } = prepareContactosNivelesForSave(body);
   const anexosJson = prepareAnexosForSave(body);
   const numeroNuevo = String(body.numero_contrato || numeroWhere || '').trim();
 
@@ -34,6 +34,7 @@ async function aplicarDatosContratoDesdeBody(dbQuery, deps, numeroWhere, body) {
             empresa = ?,
             correo_notificacion = ?,
             contactos_notificacion = ?,
+            contactos_niveles = ?,
             suplementos = ?,
             anexos = ?,
             vigencia = ?,
@@ -51,6 +52,7 @@ async function aplicarDatosContratoDesdeBody(dbQuery, deps, numeroWhere, body) {
       body.empresa,
       correoPrincipal,
       contactosJson,
+      nivelesJson,
       body.suplementos,
       anexosJson,
       body.vigencia,
@@ -143,6 +145,36 @@ async function aprobarContratoPendiente(dbQuery, deps, numero, resueltoPor) {
     return { ok: true, accion: 'edicion', numero_contrato: numeroNuevo, estado: 'Activo' };
   }
 
+  if (accion === 'archivo' || accion === 'cancelacion_archivo') {
+    const propuesta = parsePropuesta(c.aprobacion_propuesta);
+    const motivo =
+      propuesta?.motivo != null && String(propuesta.motivo).trim()
+        ? String(propuesta.motivo).trim().slice(0, 500)
+        : null;
+    if (typeof deps.archivarContratoActivo !== 'function') {
+      const err = new Error('Archivo de contrato no configurado en el servidor.');
+      err.status = 500;
+      throw err;
+    }
+    const archivado = await deps.archivarContratoActivo(numero, {
+      motivo,
+      eliminadoPor: resueltoPor,
+      documentosCliente: Array.isArray(deps.documentosClienteAprobar)
+        ? deps.documentosClienteAprobar
+        : [],
+    });
+    return {
+      ok: true,
+      accion,
+      numero_contrato: numero,
+      estado: 'Archivado',
+      id_archivo: archivado.id_archivo,
+      retencion_hasta: archivado.retencion_hasta,
+      motivo: archivado.motivo,
+      empresa: archivado.empresa,
+    };
+  }
+
   if (accion === 'cancelacion') {
     if (Number(c.cancelado) === 1) {
       const err = new Error('El contrato ya está cancelado.');
@@ -208,7 +240,7 @@ async function rechazarContratoPendiente(dbQuery, deps, numero, resueltoPor, mot
     return { ok: true, accion: 'alta', eliminado: true, motivo, empresa: c.empresa };
   }
 
-  if (accion === 'edicion' || accion === 'cancelacion') {
+  if (accion === 'edicion' || accion === 'cancelacion' || accion === 'cancelacion_archivo' || accion === 'archivo') {
     await dbQuery(
       `UPDATE contratos_generales
           SET aprobacion_estado = 'aprobado',

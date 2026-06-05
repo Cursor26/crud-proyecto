@@ -1783,7 +1783,9 @@ input[type='password']::-webkit-password-reveal-button {
 }
 
 .modal-premium-header-inner {
-  padding-right: 2rem;
+  padding-right: 0;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .modal-premium-badge {
@@ -1838,12 +1840,153 @@ input[type='password']::-webkit-password-reveal-button {
   font-weight: 600;
 }
 
-.modal-premium-dialog .btn-close {
-  opacity: 0.55;
+/* Cerrar (×) unificado — recuadro rojo estable al pasar el mouse */
+.modal-premium-header,
+.modal-minimal-header,
+.modal-dialog:not(.modal-premium-dialog) .modal-header {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 0.65rem;
+  position: relative;
+  z-index: 3;
 }
 
-.modal-premium-dialog .btn-close:hover {
-  opacity: 1;
+.app-btn-close,
+.modal .btn-close,
+.contratos-cambios-window__close.btn-close,
+.contratos-motivo-window__close.btn-close,
+.contrato-pdf-preview-close,
+.renov-empresa-preview-close {
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  margin: 0 !important;
+  padding: 0;
+  border: none;
+  border-radius: 0.2rem;
+  background-color: #eef2f7;
+  box-shadow: none;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  z-index: 5;
+  opacity: 1 !important;
+  filter: none !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  --bs-btn-close-opacity: 1;
+  --bs-btn-close-hover-opacity: 1;
+  --bs-btn-close-focus-shadow: none;
+  --bs-btn-close-focus-opacity: 1;
+}
+
+.app-btn-close span,
+.modal .btn-close::before,
+.contratos-cambios-window__close.btn-close::before,
+.contratos-motivo-window__close.btn-close::before {
+  font-size: 1.45rem;
+  line-height: 1;
+  font-weight: 700;
+  color: #475569;
+  pointer-events: none;
+}
+
+.app-btn-close span {
+  display: block;
+  margin-top: -0.1rem;
+}
+
+/* Bootstrap btn-close: quitar SVG y usar × de texto */
+.modal .btn-close,
+.contratos-cambios-window__close.btn-close,
+.contratos-motivo-window__close.btn-close {
+  background: #eef2f7 !important;
+  background-image: none !important;
+}
+
+.modal .btn-close::before,
+.contratos-cambios-window__close.btn-close::before,
+.contratos-motivo-window__close.btn-close::before {
+  content: '×';
+}
+
+.modal .btn-close:focus,
+.modal .btn-close:active,
+.app-btn-close:focus,
+.app-btn-close:active {
+  opacity: 1 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.swal2-popup .swal2-close {
+  position: absolute !important;
+  top: 0.65rem !important;
+  right: 0.65rem !important;
+  z-index: 5;
+  color: #64748b !important;
+  font-size: 1.65rem !important;
+  line-height: 1 !important;
+  opacity: 1 !important;
+}
+
+.swal2-popup:has(.swal2-close),
+.swal-cancel-contrato {
+  padding-top: 2.25rem !important;
+}
+
+.app-btn-close:hover,
+.app-btn-close:focus-visible,
+.modal .btn-close:hover,
+.modal .btn-close:focus-visible,
+.contratos-cambios-window__close.btn-close:hover,
+.contratos-cambios-window__close.btn-close:focus-visible,
+.contratos-motivo-window__close.btn-close:hover,
+.contratos-motivo-window__close.btn-close:focus-visible,
+.contrato-pdf-preview-close:hover,
+.contrato-pdf-preview-close:focus-visible,
+.renov-empresa-preview-close:hover,
+.renov-empresa-preview-close:focus-visible,
+.swal2-popup .swal2-close:hover,
+.swal2-popup .swal2-close:focus-visible {
+  background-color: #dc3545 !important;
+  opacity: 1 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.app-btn-close:hover span,
+.app-btn-close:focus-visible span,
+.modal .btn-close:hover::before,
+.modal .btn-close:focus-visible::before,
+.contratos-cambios-window__close.btn-close:hover::before,
+.contratos-cambios-window__close.btn-close:focus-visible::before,
+.contratos-motivo-window__close.btn-close:hover::before,
+.contratos-motivo-window__close.btn-close:focus-visible::before {
+  color: #ffffff !important;
+}
+
+.swal2-popup .swal2-close:hover,
+.swal2-popup .swal2-close:focus-visible {
+  color: #ffffff !important;
+  filter: none !important;
+}
+
+.contrato-pdf-preview-close:hover,
+.contrato-pdf-preview-close:focus-visible,
+.renov-empresa-preview-close:hover,
+.renov-empresa-preview-close:focus-visible {
+  border-color: #dc3545 !important;
+  color: #ffffff !important;
 }
 
 /* Formularios dentro del modal (el modal se monta en body, fuera de .dashboard-main) */
@@ -1944,10 +2087,13 @@ input[type='password']::-webkit-password-reveal-button {
 .modal-minimal-header {
   padding: 0.9rem 1rem 0.55rem !important;
   background: #fff !important;
+  overflow: visible;
 }
 
 .modal-minimal-header-inner {
   width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .modal-minimal-badge {
@@ -2065,16 +2211,6 @@ input[type='password']::-webkit-password-reveal-button {
   color: #ffffff;
   font-weight: 700;
   font-size: 1.05rem;
-}
-
-.modal-dialog:not(.modal-premium-dialog) .btn-close {
-  filter: invert(1) grayscale(1);
-  opacity: 0.88;
-}
-
-.modal-dialog:not(.modal-premium-dialog) .btn-close:hover,
-.modal-dialog:not(.modal-premium-dialog) .btn-close:focus {
-  opacity: 1;
 }
 
 .modal-dialog:not(.modal-premium-dialog) .form-control:focus,
@@ -3128,43 +3264,22 @@ input[type='password']::-webkit-password-reveal-button {
   box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(var(--accion-guardar-rgb), 0.28) !important;
 }
 
-/* Diálogo cancelar contrato — cruz superior derecha */
+/* Diálogo cancelar contrato — espacio para la X (estilo unificado arriba) */
 .swal-cancel-contrato {
   position: relative !important;
-  padding-top: 2.25rem !important;
 }
 
-.swal-cancel-contrato .swal-cancel-contrato__close,
-.swal-cancel-contrato .swal2-close.swal-cancel-contrato__close {
-  position: absolute !important;
-  top: 0.65rem !important;
-  right: 0.65rem !important;
-  width: 2rem !important;
-  height: 2rem !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  border-radius: 0.2rem !important;
-  background: transparent !important;
-  color: #64748b !important;
-  font-size: 1.65rem !important;
-  line-height: 1 !important;
-  box-shadow: none !important;
-  transition: background-color 0.15s ease, color 0.15s ease !important;
+/* Motivo contrato: sin autocompletado del navegador (correos, usuarios, etc.) */
+.swal2-popup .swal2-input[data-contrato-motivo],
+.swal2-popup .swal2-textarea[data-contrato-motivo] {
+  -webkit-text-security: none;
 }
 
-.swal-cancel-contrato .swal-cancel-contrato__close:hover,
-.swal-cancel-contrato .swal2-close.swal-cancel-contrato__close:hover {
-  background-color: #dc3545 !important;
-  color: #ffffff !important;
-}
-
-.swal-cancel-contrato .swal-cancel-contrato__close:focus-visible,
-.swal-cancel-contrato .swal2-close.swal-cancel-contrato__close:focus-visible {
-  outline: none !important;
-  background-color: #dc3545 !important;
-  color: #ffffff !important;
-  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px rgba(220, 53, 69, 0.55) !important;
+.swal2-popup .swal2-input[data-contrato-motivo]::-webkit-contacts-auto-fill-button,
+.swal2-popup .swal2-input[data-contrato-motivo]::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  display: none !important;
+  pointer-events: none;
 }
 
 /* Portales / vistas sin .dashboard-main: mismo radio cuadrado */
@@ -4871,35 +4986,150 @@ body .btn:not(.btn-link) {
   font-weight: 600;
 }
 
-.dashboard-main--contratos .contratos-btn-ver-cambios {
+.dashboard-main--contratos .contratos-btn-ver-cambios,
+.dashboard-main--contratos .contratos-btn-ver-motivo {
   white-space: nowrap;
+  color: var(--theme-accent-deep, #0f3d24);
+  background-color: var(--theme-accent-soft, #dcfce7);
+  border: 1px solid var(--theme-accent-muted-border, #4ade80);
+  font-weight: 600;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dashboard-main--contratos .contratos-btn-ver-cambios:hover,
+.dashboard-main--contratos .contratos-btn-ver-motivo:hover,
+.dashboard-main--contratos .contratos-btn-ver-cambios:focus-visible,
+.dashboard-main--contratos .contratos-btn-ver-motivo:focus-visible {
+  color: #fff;
+  background-color: var(--theme-accent, #14532d);
+  border-color: var(--theme-accent-deep, #0f3d24);
+}
+
+.dashboard-main--contratos .contratos-btn-ver-cambios:active,
+.dashboard-main--contratos .contratos-btn-ver-motivo:active {
+  color: #fff;
+  background-color: var(--theme-accent-deep, #0f3d24);
+  border-color: var(--theme-accent-deep, #0f3d24);
+}
+
+.contratos-motivo-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1060;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.contratos-motivo-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.contratos-motivo-window {
+  position: relative;
+  z-index: 1;
+  width: min(440px, calc(100vw - 2rem));
+  max-height: min(70vh, 520px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+
+.contratos-motivo-window__subhead {
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--modal-accent, #14532d);
+}
+
+.contratos-motivo-window__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.contratos-motivo-window__texto {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
 }
 
 .contratos-cambio-highlight {
-  background: #fde047;
-  border: 2px solid #ca8a04;
-  border-left: 5px solid #a16207;
+  background: #ffeb3b;
+  border: none;
   border-radius: 6px;
   padding: 0.55rem 0.75rem;
   min-height: 2rem;
-  color: #422006;
+  color: #1a1a1a;
   font-weight: 600;
-  box-shadow: 0 0 0 1px rgba(202, 138, 4, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  box-shadow: none;
 }
 
 .contratos-cambio-highlight a {
-  color: #713f12;
+  color: #1a1a1a;
   font-weight: 700;
+  text-decoration: underline;
 }
 
 .contratos-cambios-modal-leyenda {
-  background: #fef08a;
-  border: 2px solid #ca8a04;
-  border-left: 5px solid #a16207;
+  background: #ffeb3b;
+  border: none;
   border-radius: 8px;
   padding: 0.7rem 0.9rem;
-  color: #422006;
+  color: #1a1a1a;
   font-weight: 500;
+}
+
+.contratos-cambios-window__leyenda-band {
+  flex-shrink: 0;
+  padding: 0.65rem 1rem 0.5rem;
+}
+
+.contratos-cambios-window__leyenda-spacer {
+  flex-shrink: 0;
+  min-height: 0;
+}
+
+.contratos-cambios-window__footer-spacer {
+  visibility: hidden;
+  pointer-events: none;
+  min-height: 3.25rem;
+}
+
+.contratos-cambios-stage--split .contratos-cambios-window__scroll {
+  padding-top: 0.35rem;
+}
+
+.contratos-cambios-compare-stack {
+  gap: 0;
+}
+
+.contratos-cambios-compare-stack .contratos-cambios-compare-row {
+  box-sizing: border-box;
+}
+
+.contratos-cambios-compare-stack .minimal-field {
+  margin-bottom: 0.65rem;
+}
+
+.contratos-cambios-compare-stack .minimal-divider.contratos-cambios-compare-row {
+  margin: 0.15rem 0 0.75rem;
 }
 
 /* Comparación: dos ventanas separadas + botones flotantes */
@@ -4954,10 +5184,32 @@ body .btn:not(.btn-link) {
   overflow: hidden;
 }
 
+/* Ventana propuesta: amarillo claro y puro (título + franja izquierda + subtítulo) */
+.contratos-cambios-window--propuesta.modal-minimal-content {
+  border-left-color: #ffeb3b !important;
+}
+
+.contratos-cambios-window--propuesta .modal-premium-badge,
+.contratos-cambios-window--propuesta .contratos-cambios-window__subhead {
+  background: #ffeb3b;
+  color: #1a1a1a;
+  box-shadow: none;
+}
+
 .contratos-cambios-window--info {
   animation: contratos-cambios-window-in 0.28s ease;
   pointer-events: auto;
   flex: 0 0 auto;
+}
+
+.contratos-cambios-window--info.modal-minimal-content {
+  border-left-color: var(--modal-accent, #14532d) !important;
+}
+
+.contratos-cambios-window--info .modal-premium-badge,
+.contratos-cambios-window--info .contratos-cambios-window__subhead {
+  background: var(--modal-accent, #14532d);
+  color: #fff;
 }
 
 @keyframes contratos-cambios-window-in {
@@ -4976,13 +5228,6 @@ body .btn:not(.btn-link) {
   flex-shrink: 0;
 }
 
-.contratos-cambios-window__close {
-  position: absolute;
-  top: 0.65rem;
-  right: 0.65rem;
-  margin: 0;
-}
-
 .contratos-cambios-window__subhead {
   flex-shrink: 0;
   padding: 0.5rem 1rem;
@@ -4992,10 +5237,6 @@ body .btn:not(.btn-link) {
   letter-spacing: 0.04em;
   color: #fff;
   background: var(--modal-accent, #1e5a8a);
-}
-
-.contratos-cambios-window__subhead--info {
-  background: #334155;
 }
 
 .contratos-cambios-window__scroll {
@@ -5182,16 +5423,13 @@ body .btn:not(.btn-link) {
 }
 
 .contrato-pdf-preview-close {
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid #d1d5db;
-  background: #ffffff;
-  color: #1f2937;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-radius: 0.35rem;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #64748b;
 }
 
 .contrato-pdf-preview-actions {
@@ -5226,18 +5464,6 @@ body .btn:not(.btn-link) {
 .contrato-pdf-preview-actions .contrato-pdf-preview-maximize,
 .contrato-pdf-preview-actions .contrato-pdf-preview-close {
   cursor: pointer;
-}
-
-.contrato-pdf-preview-close {
-  border-color: #fca5a5;
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.contrato-pdf-preview-close:hover {
-  border-color: #ef4444;
-  background: #f87171;
-  color: #ffffff;
 }
 
 .contrato-pdf-preview-body {
@@ -5498,24 +5724,14 @@ button.renov-empresa-avatar:focus-visible {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
-  width: 1.75rem;
-  height: 1.75rem;
-  border: none;
-  border-radius: 50%;
-  background: rgba(15, 23, 42, 0.08);
-  color: #374151;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
-  padding: 0;
   cursor: pointer;
   z-index: 1;
-  transition: background 0.15s ease;
-}
-
-.renov-empresa-preview-close:hover {
-  background: rgba(15, 23, 42, 0.14);
+  color: #64748b;
+  background: transparent;
 }
 
 .renov-empresa-preview-inner {
@@ -7188,6 +7404,51 @@ html {
 
 .contrato-anexos-label-tip {
   cursor: help;
+}
+
+.contrato-correos-niveles .contrato-correo-nivel-block + .contrato-correo-nivel-block {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Campos obligatorios sin completar — formulario contrato */
+.minimal-field--invalid {
+  border: 2px solid #dc3545;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  background: rgba(220, 53, 69, 0.05);
+  margin-left: -0.75rem;
+  margin-right: -0.75rem;
+}
+
+.minimal-field--invalid .minimal-label {
+  color: #b91c1c;
+}
+
+.minimal-field__error {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.minimal-input.is-invalid,
+.minimal-select.is-invalid {
+  border-bottom: 2px solid #dc3545 !important;
+}
+
+.contrato-correo-nivel-block.minimal-field--invalid {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.contratos-vigencia-partes.is-invalid {
+  border: 2px solid #dc3545;
+  border-radius: 8px;
+  padding: 0.45rem 0.5rem;
+  background: rgba(220, 53, 69, 0.05);
 }
 
 .contrato-anexos-header {

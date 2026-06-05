@@ -3,6 +3,7 @@ import { Modal } from 'react-bootstrap';
 import Axios, { API_BASE } from '../axiosConfig';
 import { combinarDocumentosServidorYCache } from '../lib/contratosPdfs';
 import ContratosInfoFormStack from './ContratosInfoFormStack';
+import ModalCloseButton from './ModalCloseButton';
 
 function ContratosInfoModal({
   show,
@@ -64,10 +65,11 @@ function ContratosInfoModal({
       dialogClassName="modal-premium-dialog modal-minimal-dialog"
       contentClassName="modal-premium-content modal-minimal-content"
     >
-      <Modal.Header closeButton className="modal-premium-header modal-minimal-header border-0">
+      <Modal.Header closeButton={false} className="modal-premium-header modal-minimal-header border-0">
         <div className="modal-premium-header-inner modal-minimal-header-inner">
           <span className="modal-premium-badge modal-minimal-badge">Información</span>
         </div>
+        <ModalCloseButton onClick={onHide} />
       </Modal.Header>
 
       <Modal.Body className="modal-premium-body modal-minimal-body modal-form-body-scroll">

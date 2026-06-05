@@ -1,6 +1,6 @@
 import { sanitizarEnteroVigencia } from '../lib/contratosVigencia';
 
-function ContratosVigenciaField({ partes, onChange, disabled }) {
+function ContratosVigenciaField({ partes, onChange, disabled, invalid, error }) {
   const actualizar = (campo, valor) => {
     onChange({
       ...partes,
@@ -9,9 +9,12 @@ function ContratosVigenciaField({ partes, onChange, disabled }) {
   };
 
   return (
-    <div className="minimal-field">
+    <div
+      className={`minimal-field${invalid ? ' minimal-field--invalid' : ''}`}
+      data-contrato-field="vigencia"
+    >
       <label className="minimal-label">Vigencia:</label>
-      <div className="contratos-vigencia-partes">
+      <div className={`contratos-vigencia-partes${invalid ? ' is-invalid' : ''}`}>
         <div className="contratos-vigencia-partes__campo">
           <input
             type="text"
@@ -55,6 +58,7 @@ function ContratosVigenciaField({ partes, onChange, disabled }) {
           <span className="contratos-vigencia-partes__label">Días</span>
         </div>
       </div>
+      {error ? <small className="minimal-field__error">{error}</small> : null}
     </div>
   );
 }
