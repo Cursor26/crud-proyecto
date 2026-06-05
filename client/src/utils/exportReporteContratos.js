@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
+import { convertirVigenciaLegible } from '../lib/convertirVigenciaLegible';
 
 const NCOLS = 10;
 
@@ -8,7 +9,7 @@ const HEADERS = [
   'Parte',
   'Empresa',
   'Tipo de contrato',
-  'Vigencia (años)',
+  'Vigencia',
   'Fecha inicio',
   'Fecha fin',
   'Estado',
@@ -26,7 +27,7 @@ const SUBTITULO_REPORTE =
   'Reporte: contratos (estado, vigencia, fechas y documentos). Generado con la vista Reportes de AEPG.';
 
 const DESCRIPCION_REPORTE =
-  'Listado consolidado: número de contrato, parte, empresa, tipo, vigencia en años, fechas, estado operativo, días hasta vencimiento y referencia al documento PDF (si existe en este equipo).';
+  'Listado consolidado: número de contrato, parte, empresa, tipo, vigencia (años, meses y días), fechas, estado operativo, días hasta vencimiento y referencia al documento PDF (si existe en este equipo).';
 
 /** Misma leyenda que la franja "— Tabla de datos —" del XLSX. */
 const SEP_TABLA_DATOS = '— Tabla de datos —';
@@ -63,7 +64,7 @@ function buildRows(contratosEnriquecidos, getPdfContrato, toISODate) {
       c.proveedor_cliente ? 'Proveedor' : 'Cliente',
       c.empresa || '',
       c.tipo_contrato || '',
-      c.vigencia ?? '',
+      convertirVigenciaLegible(c.vigencia),
       toISODate(c.fecha_inicio),
       toISODate(c.fecha_fin),
       c.estado || '',

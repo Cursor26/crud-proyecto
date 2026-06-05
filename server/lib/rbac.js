@@ -98,7 +98,7 @@ const SYSTEM_ROLE_TEMPLATES = {
   director: {
     usuarios: permFlags({}),
     empleados: viewOnly(),
-    contratos: viewOnly(),
+    contratos: permFlags({ view: true, approve: true }),
     auditoria: permFlags({}),
     configuracion: permFlags({ view: true }),
     reportes: viewOnly(),

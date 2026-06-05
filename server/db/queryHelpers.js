@@ -12,21 +12,39 @@ const SQL_USUARIO_LIST = `SELECT u.email, u.nombre, r.codigo AS rol, u.activo,
   INNER JOIN roles r ON r.id_rol = u.id_rol`;
 
 const SQL_CONTRATO_SELECT = `SELECT c.numero_contrato,
+  c.id_tipo_contrato,
   cp.codigo AS proveedor_cliente,
   c.empresa,
   c.correo_notificacion,
+  c.contactos_notificacion,
   c.suplementos,
+  c.anexos,
   c.vigencia,
   COALESCE(tc.nombre, '') AS tipo_contrato,
+  COALESCE(NULLIF(LOWER(TRIM(c.prioridad)), ''), 'media') AS prioridad,
   c.fecha_inicio,
   c.fecha_fin,
   COALESCE(c.cancelado, 0) AS cancelado,
   c.cancelado_en,
   c.cancelado_por,
+  COALESCE(NULLIF(LOWER(TRIM(c.aprobacion_estado)), ''), 'aprobado') AS aprobacion_estado,
+  c.aprobacion_accion,
+  c.aprobacion_propuesta,
+  c.aprobacion_solicitado_por,
+  c.aprobacion_solicitado_en,
+  c.aprobacion_resuelto_por,
+  c.aprobacion_resuelto_en,
+  c.aprobacion_resolucion_nota,
   CASE WHEN c.fecha_fin IS NOT NULL AND c.fecha_fin < CURDATE() THEN 1 ELSE 0 END AS vencido
   FROM contratos_generales c
   LEFT JOIN catalogo_tipo_contraparte cp ON cp.id_contraparte = c.id_contraparte
   LEFT JOIN catalogo_tipo_contrato tc ON tc.id_tipo_contrato = c.id_tipo_contrato`;
+
+function prioridadDesdeBody(body) {
+  const s = String(body?.prioridad || 'media').trim().toLowerCase();
+  if (s === 'alta' || s === 'media' || s === 'baja') return s;
+  return 'media';
+}
 
 const SQL_SEGSEG_LIST = `SELECT s.carnet_identidad AS id_tabla,
   MAX(CASE WHEN i.orden = 1 THEN i.cantidad END) AS cant_accuno,
@@ -66,9 +84,9 @@ async function idsContratoDesdeBody(dbQuery, body) {
   let idTipo = null;
   const nombre = String(body.tipo_contrato || '').trim();
   if (nombre) {
-    await dbQuery('INSERT IGNORE INTO catalogo_tipo_contrato (nombre) VALUES (?)', [nombre]);
     const rows = await dbQuery(
-      'SELECT id_tipo_contrato FROM catalogo_tipo_contrato WHERE nombre = ? LIMIT 1',
+      `SELECT id_tipo_contrato FROM catalogo_tipo_contrato
+        WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?)) LIMIT 1`,
       [nombre]
     );
     idTipo = rows[0]?.id_tipo_contrato ?? null;
@@ -117,6 +135,7 @@ module.exports = {
   normalizarCarnetApi,
   idRolDesdeCodigo,
   idsContratoDesdeBody,
+  prioridadDesdeBody,
   guardarSegseguridad,
   sqlRrhhList,
 };

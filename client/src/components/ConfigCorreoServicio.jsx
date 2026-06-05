@@ -2,9 +2,23 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Axios, { API_BASE } from '../axiosConfig';
 import Swal from 'sweetalert2';
 import ModuleTitleBar from './ModuleTitleBar';
+import RecordatoriosContratosConfig from './RecordatoriosContratosConfig';
+import { usePermissions } from '../context/PermissionsContext';
 
-function ConfigCorreoServicio({ currentUser }) {
-  const [loading, setLoading] = useState(true);
+function ConfigCorreoServicio({
+  currentUser,
+  embedded = false,
+  mostrarSmtp = true,
+  mostrarRecordatorios = true,
+  smtpPrimero = false,
+}) {
+  const { can } = usePermissions();
+  const rol = String(currentUser?.rol || '').toLowerCase();
+  const esAdminConfig = can('configuracion', 'edit') || rol === 'admin';
+  const puedeEditarRecordatorios = can('contratos', 'edit') || esAdminConfig;
+  const puedeEjecutarRecordatorios = can('contratos', 'approve') || esAdminConfig;
+
+  const [loading, setLoading] = useState(mostrarSmtp);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -45,6 +59,7 @@ function ConfigCorreoServicio({ currentUser }) {
   }, [sesionEmail, testEmail]);
 
   const loadConfig = useCallback(() => {
+    if (!mostrarSmtp) return;
     setLoading(true);
     setLoadError('');
     Axios.get(`${API_BASE}/config/correo`)
@@ -54,7 +69,7 @@ function ConfigCorreoServicio({ currentUser }) {
         setLoadError(msg);
       })
       .finally(() => setLoading(false));
-  }, [applyConfig]);
+  }, [applyConfig, mostrarSmtp]);
 
   useEffect(() => {
     loadConfig();
@@ -113,174 +128,210 @@ function ConfigCorreoServicio({ currentUser }) {
       ? 'Base de datos (configuración guardada en la app)'
       : 'Archivo server/.env (predeterminado del servidor)';
 
-  return (
-    <div className="container-fluid px-0">
-      <ModuleTitleBar title="Correo del sistema" />
-
-      <div className="alert alert-info small">
-        <strong>Remitente (De:)</strong> cuenta SMTP usada para recordatorios de contratos y recuperación de contraseña.
-        <br />
-        <strong>Destinatario (Para:)</strong> se define por contrato en el campo <em>Correo notificación</em>; no se cambia aquí.
+  const bloqueRecordatorios = mostrarRecordatorios ? (
+    <>
+      <div className="alert alert-info small mb-3">
+        El servidor revisa y envía los avisos de forma automática. Los correos salen solo en los hitos que configure
+        abajo (p. ej. 30, 15 y 7 días antes del vencimiento), según la prioridad o el tipo de cada contrato.
       </div>
-
-      {loadError ? (
-        <div className="alert alert-danger d-flex justify-content-between align-items-center">
-          <span>{loadError}</span>
-          <button type="button" className="btn btn-sm btn-outline-danger" onClick={loadConfig}>
-            Reintentar
-          </button>
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-body">
+          <h5 className="card-title mb-2">Recordatorios automáticos de contratos</h5>
+          <RecordatoriosContratosConfig
+            puedeEditar={puedeEditarRecordatorios}
+            puedeEjecutar={puedeEjecutarRecordatorios}
+          />
         </div>
-      ) : null}
+      </div>
+    </>
+  ) : null;
 
-      {loading ? (
-        <div className="text-center py-5">
-          <div className="spinner-border text-primary" role="status" />
-        </div>
-      ) : (
-        <form onSubmit={handleSave} className="card shadow-sm border-0">
-          <div className="card-body">
-            <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
-              <span className="badge bg-secondary">Origen activo: {sourceLabel}</span>
-              <span className={`badge ${mailerMode === 'smtp' ? 'bg-success' : 'bg-warning text-dark'}`}>
-                Modo: {mailerMode === 'smtp' ? 'SMTP real' : 'Desarrollo (sin envío real)'}
-              </span>
+  const bloqueSmtp = mostrarSmtp ? (
+        <>
+          <div className="alert alert-secondary small">
+            <strong>Remitente (De:)</strong> cuenta SMTP usada para recordatorios de contratos y recuperación de
+            contraseña.
+            <br />
+            <strong>Destinatario (Para:)</strong> se define por contrato en el campo <em>Correo notificación</em>; no se
+            cambia aquí.
+          </div>
+
+          {loadError ? (
+            <div className="alert alert-danger d-flex justify-content-between align-items-center">
+              <span>{loadError}</span>
+              <button type="button" className="btn btn-sm btn-outline-danger" onClick={loadConfig}>
+                Reintentar
+              </button>
             </div>
+          ) : null}
 
-            <div className="form-check form-switch mb-4">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="useDbConfig"
-                checked={useDbConfig}
-                onChange={(e) => setUseDbConfig(e.target.checked)}
-              />
-              <label className="form-check-label" htmlFor="useDbConfig">
-                Usar configuración guardada en la aplicación (en lugar de server/.env)
-              </label>
+          {loading ? (
+            <div className="text-center py-5">
+              <div className="spinner-border text-primary" role="status" />
             </div>
+          ) : (
+            <form onSubmit={handleSave} className="card shadow-sm border-0">
+              <div className="card-body">
+                <h5 className="card-title mb-3">Servidor SMTP</h5>
+                <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+                  <span className="badge bg-secondary">Origen activo: {sourceLabel}</span>
+                  <span className={`badge ${mailerMode === 'smtp' ? 'bg-success' : 'bg-warning text-dark'}`}>
+                    Modo: {mailerMode === 'smtp' ? 'SMTP real' : 'Desarrollo (sin envío real)'}
+                  </span>
+                </div>
 
-            <fieldset disabled={!useDbConfig} className={!useDbConfig ? 'opacity-50' : ''}>
-              <div className="row g-3">
-                <div className="col-md-6">
-                  <label className="form-label" htmlFor="smtpHost">
-                    Host SMTP
-                  </label>
+                <div className="form-check form-switch mb-4">
                   <input
-                    id="smtpHost"
-                    type="text"
-                    className="form-control"
-                    value={smtpHost}
-                    onChange={(e) => setSmtpHost(e.target.value)}
-                    placeholder="smtp.gmail.com"
+                    className="form-check-input"
+                    type="checkbox"
+                    id="useDbConfig"
+                    checked={useDbConfig}
+                    onChange={(e) => setUseDbConfig(e.target.checked)}
                   />
-                </div>
-                <div className="col-md-3">
-                  <label className="form-label" htmlFor="smtpPort">
-                    Puerto
+                  <label className="form-check-label" htmlFor="useDbConfig">
+                    Usar configuración guardada en la aplicación (en lugar de server/.env)
                   </label>
-                  <input
-                    id="smtpPort"
-                    type="number"
-                    className="form-control"
-                    value={smtpPort}
-                    onChange={(e) => setSmtpPort(e.target.value)}
-                    min={1}
-                    max={65535}
-                  />
                 </div>
-                <div className="col-md-3 d-flex align-items-end">
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="smtpSecure"
-                      checked={smtpSecure}
-                      onChange={(e) => setSmtpSecure(e.target.checked)}
-                    />
-                    <label className="form-check-label" htmlFor="smtpSecure">
-                      Conexión segura (SSL/TLS directo, p. ej. puerto 465)
+
+                <fieldset disabled={!useDbConfig} className={!useDbConfig ? 'opacity-50' : ''}>
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label" htmlFor="smtpHost">
+                        Host SMTP
+                      </label>
+                      <input
+                        id="smtpHost"
+                        type="text"
+                        className="form-control"
+                        value={smtpHost}
+                        onChange={(e) => setSmtpHost(e.target.value)}
+                        placeholder="smtp.gmail.com"
+                      />
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label" htmlFor="smtpPort">
+                        Puerto
+                      </label>
+                      <input
+                        id="smtpPort"
+                        type="number"
+                        className="form-control"
+                        value={smtpPort}
+                        onChange={(e) => setSmtpPort(e.target.value)}
+                        min={1}
+                        max={65535}
+                      />
+                    </div>
+                    <div className="col-md-3 d-flex align-items-end">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="smtpSecure"
+                          checked={smtpSecure}
+                          onChange={(e) => setSmtpSecure(e.target.checked)}
+                        />
+                        <label className="form-check-label" htmlFor="smtpSecure">
+                          Conexión segura (SSL/TLS directo, p. ej. puerto 465)
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label" htmlFor="smtpUser">
+                        Usuario SMTP
+                      </label>
+                      <input
+                        id="smtpUser"
+                        type="text"
+                        className="form-control"
+                        value={smtpUser}
+                        onChange={(e) => setSmtpUser(e.target.value)}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label" htmlFor="smtpPass">
+                        Contraseña SMTP
+                        {passwordSet ? (
+                          <span className="text-muted small ms-1">(dejar vacío para mantener la actual)</span>
+                        ) : null}
+                      </label>
+                      <input
+                        id="smtpPass"
+                        type="password"
+                        className="form-control"
+                        value={smtpPass}
+                        onChange={(e) => setSmtpPass(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label" htmlFor="smtpFrom">
+                        Remitente visible (De:)
+                      </label>
+                      <input
+                        id="smtpFrom"
+                        type="text"
+                        className="form-control"
+                        value={smtpFrom}
+                        onChange={(e) => setSmtpFrom(e.target.value)}
+                        placeholder='Mi Empresa <notificaciones@empresa.com>'
+                      />
+                    </div>
+                  </div>
+                </fieldset>
+
+                {!useDbConfig ? (
+                  <p className="text-muted small mt-3 mb-0">
+                    Con la opción desactivada, el servidor usa las variables SMTP de <code>server/.env</code>. Active la
+                    opción superior para definir el correo desde aquí sin editar archivos.
+                  </p>
+                ) : null}
+
+                <hr />
+
+                <div className="row g-3 align-items-end">
+                  <div className="col-md-6">
+                    <label className="form-label" htmlFor="testEmail">
+                      Correo de prueba
                     </label>
+                    <input
+                      id="testEmail"
+                      type="email"
+                      className="form-control"
+                      value={testEmail}
+                      onChange={(e) => setTestEmail(e.target.value)}
+                      placeholder="correo@empresa.com"
+                    />
+                  </div>
+                  <div className="col-md-6 d-flex flex-wrap gap-2">
+                    <button type="submit" className="btn btn-primary" disabled={saving}>
+                      {saving ? 'Guardando…' : 'Guardar configuración'}
+                    </button>
+                    <button type="button" className="btn btn-outline-secondary" onClick={handleTest} disabled={testing}>
+                      {testing ? 'Enviando…' : 'Enviar correo de prueba'}
+                    </button>
                   </div>
                 </div>
-                <div className="col-md-6">
-                  <label className="form-label" htmlFor="smtpUser">
-                    Usuario SMTP
-                  </label>
-                  <input
-                    id="smtpUser"
-                    type="text"
-                    className="form-control"
-                    value={smtpUser}
-                    onChange={(e) => setSmtpUser(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="col-md-6">
-                  <label className="form-label" htmlFor="smtpPass">
-                    Contraseña SMTP
-                    {passwordSet ? (
-                      <span className="text-muted small ms-1">(dejar vacío para mantener la actual)</span>
-                    ) : null}
-                  </label>
-                  <input
-                    id="smtpPass"
-                    type="password"
-                    className="form-control"
-                    value={smtpPass}
-                    onChange={(e) => setSmtpPass(e.target.value)}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <div className="col-12">
-                  <label className="form-label" htmlFor="smtpFrom">
-                    Remitente visible (De:)
-                  </label>
-                  <input
-                    id="smtpFrom"
-                    type="text"
-                    className="form-control"
-                    value={smtpFrom}
-                    onChange={(e) => setSmtpFrom(e.target.value)}
-                    placeholder='Mi Empresa <notificaciones@empresa.com>'
-                  />
-                </div>
               </div>
-            </fieldset>
+            </form>
+          )}
+        </>
+  ) : null;
 
-            {!useDbConfig ? (
-              <p className="text-muted small mt-3 mb-0">
-                Con la opción desactivada, el servidor usa las variables SMTP de <code>server/.env</code>. Active la opción
-                superior para definir el correo desde aquí sin editar archivos.
-              </p>
-            ) : null}
-
-            <hr />
-
-            <div className="row g-3 align-items-end">
-              <div className="col-md-6">
-                <label className="form-label" htmlFor="testEmail">
-                  Correo de prueba
-                </label>
-                <input
-                  id="testEmail"
-                  type="email"
-                  className="form-control"
-                  value={testEmail}
-                  onChange={(e) => setTestEmail(e.target.value)}
-                  placeholder="correo@empresa.com"
-                />
-              </div>
-              <div className="col-md-6 d-flex flex-wrap gap-2">
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? 'Guardando…' : 'Guardar configuración'}
-                </button>
-                <button type="button" className="btn btn-outline-secondary" onClick={handleTest} disabled={testing}>
-                  {testing ? 'Enviando…' : 'Enviar correo de prueba'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </form>
+  return (
+    <div className="container-fluid px-0">
+      {!embedded ? <ModuleTitleBar title="Correo del sistema" /> : null}
+      {smtpPrimero ? (
+        <>
+          {bloqueSmtp}
+          {bloqueRecordatorios}
+        </>
+      ) : (
+        <>
+          {bloqueRecordatorios}
+          {bloqueSmtp}
+        </>
       )}
     </div>
   );

@@ -5,12 +5,58 @@ import Swal from 'sweetalert2';
 import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { EditTableActionButton, DeleteTableActionButton, CancelTableActionButton, RenewTableActionButton } from './TableActionIconButtons';
+import {
+  EditTableActionButton,
+  DeleteTableActionButton,
+  CancelTableActionButton,
+  RenewTableActionButton,
+  InfoTableActionButton,
+} from './TableActionIconButtons';
+import ContratosInfoModal from './ContratosInfoModal';
 import { FormModal } from './FormModal';
 import AppSelect from './AppSelect';
 import { useAppPreferences } from '../context/AppPreferencesContext';
+import { usePermissions } from '../context/PermissionsContext';
 import { CONTRATOS_LIST_COLUMNS, isColumnVisible, getThemeAccentFromDocument } from '../lib/appPreferences';
 import { formatAppDate } from '../lib/formatAppDate';
+import { convertirVigenciaLegible, vigenciaLegibleOGuion } from '../lib/convertirVigenciaLegible';
+import { combinarDocumentosServidorYCache, deduplicarPdfsContrato } from '../lib/contratosPdfs';
+import CatalogoTiposContrato from './CatalogoTiposContrato';
+import ContratosCorreoConfig from './ContratosCorreoConfig';
+import ContratosContactosNotificacionField, {
+  contactosStateFromContrato,
+} from './ContratosContactosNotificacionField';
+import {
+  tieneContactoNotificacion,
+  resumenCorreosNotificacion,
+  prepararPayloadContactos,
+  validarContactosParaGuardar,
+  contactosFromContrato,
+} from '../lib/contratosContactosNotificacion';
+import ContratosSuplementosField from './ContratosSuplementosField';
+import ContratosAnexosField from './ContratosAnexosField';
+import ContratosVigenciaField from './ContratosVigenciaField';
+import ContratoWordPreviewPane from './ContratoWordPreviewPane';
+import ContratosPendientesDetalle from './ContratosPendientesDetalle';
+import ContratosCambiosPendientesModal from './ContratosCambiosPendientesModal';
+import {
+  partesAVigenciaAlmacenada,
+  sumarFechaConVigencia,
+  vigenciaAPartes,
+} from '../lib/contratosVigencia';
+import { esDocumentoWord } from '../lib/contratosWordPreview';
+import {
+  parseSuplementosFromContrato,
+  prepararSuplementosPayload,
+  resumenSuplementos,
+  renumerarSuplementosLista,
+  celdaSuplementosTabla,
+} from '../lib/contratosSuplementos';
+import {
+  parseAnexosFromContrato,
+  prepararAnexosPayload,
+  renumerarAnexosLista,
+} from '../lib/contratosAnexos';
 
 /** Valores legacy numéricos en BD → etiquetas del formulario (Alimento, Servicio, Compra, Otro). */
 const MAP_TIPO_CONTRATO_NUM = {
@@ -32,7 +78,7 @@ const REPORTE_EXCEL_HEADERS = [
   'Empresa',
   'Correo notificación',
   'Tipo de contrato',
-  'Vigencia (años)',
+  'Vigencia',
   'Suplementos',
   'Fecha inicio',
   'Fecha fin',
@@ -47,7 +93,7 @@ const ARCHIVO_EXCEL_HEADERS = [
   'Parte',
   'Empresa',
   'Tipo de contrato',
-  'Vigencia (años)',
+  'Vigencia',
   'Fecha inicio',
   'Fecha fin',
   'Eliminado por',
@@ -73,13 +119,52 @@ function diasParaVencer(fechaFin) {
 }
 
 function getEstadoContrato(contrato) {
-  if (Number(contrato?.cancelado) === 1) return 'Cancelado';
+  const accionPend = String(contrato?.aprobacion_accion || '').toLowerCase();
+  const aprobPendiente =
+    normalizarAprobacionEstado(contrato?.aprobacion_estado) === 'pendiente' &&
+    (accionPend === 'cancelacion' || accionPend === 'edicion' || accionPend === 'alta');
+  if (!aprobPendiente && Number(contrato?.cancelado) === 1) return 'Cancelado';
   const dias = diasParaVencer(contrato.fecha_fin);
   if (dias === null) return 'Sin fecha';
   if (dias < 0) return 'Vencido';
   if (dias <= 30) return 'Por vencer';
   if (dias <= 90) return 'En seguimiento';
   return 'Activo';
+}
+
+function normalizarAprobacionEstado(val) {
+  return String(val || 'aprobado').trim().toLowerCase();
+}
+
+function esContratoAltaPendiente(con) {
+  return (
+    normalizarAprobacionEstado(con?.aprobacion_estado) === 'pendiente' &&
+    String(con?.aprobacion_accion || '').toLowerCase() === 'alta'
+  );
+}
+
+function esContratoConSolicitudPendiente(con) {
+  return normalizarAprobacionEstado(con?.aprobacion_estado) === 'pendiente';
+}
+
+function esContratoVisibleListaOperativa(con) {
+  return !esContratoAltaPendiente(con);
+}
+
+function etiquetaAccionPendiente(accion) {
+  const a = String(accion || '').toLowerCase();
+  if (a === 'alta') return 'Nuevo contrato';
+  if (a === 'edicion') return 'Modificación';
+  if (a === 'cancelacion') return 'Cancelación';
+  return accion || '—';
+}
+
+function badgeAprobacionPendiente(con) {
+  const accion = String(con?.aprobacion_accion || '').toLowerCase();
+  if (normalizarAprobacionEstado(con?.aprobacion_estado) !== 'pendiente') return null;
+  if (accion === 'edicion') return 'Cambios pendientes';
+  if (accion === 'cancelacion') return 'Cancelación pendiente';
+  return null;
 }
 
 function getAlertaContrato(contrato) {
@@ -94,6 +179,8 @@ function getAlertaContrato(contrato) {
 
 function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const { preferences } = useAppPreferences();
+  const { can } = usePermissions();
+  const puedeAprobarContratos = can('contratos', 'approve');
   const themeAccent = useMemo(
     () => getThemeAccentFromDocument().primary,
     [preferences.themeId, preferences.accentColor]
@@ -102,14 +189,22 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const visibleContratoColCount = CONTRATOS_LIST_COLUMNS.filter((c) => showCol(c.id)).length;
   const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
   const CONTRATOS_PDF_STORAGE_KEY = 'contratos_pdf_archivos_v1';
+  const CONTRATOS_SUPLEMENTOS_STORAGE_KEY = 'contratos_suplementos_v1';
+  const CONTRATOS_ANEXOS_STORAGE_KEY = 'contratos_anexos_v1';
   const [contratoNumero, setContratoNumero] = useState('');
   const [contratoNumeroOriginal, setContratoNumeroOriginal] = useState('');
   const [contratoProveedorCliente, setContratoProveedorCliente] = useState(false);
   const [contratoEmpresa, setContratoEmpresa] = useState('');
-  const [contratoCorreoNotificacion, setContratoCorreoNotificacion] = useState('');
-  const [contratoSuplementos, setContratoSuplementos] = useState('');
-  const [contratoVigencia, setContratoVigencia] = useState('');
+  const [contratoContactosNotificacion, setContratoContactosNotificacion] = useState([]);
+  const [contratoSuplementosMap, setContratoSuplementosMap] = useState({});
+  const [contratoAnexosMap, setContratoAnexosMap] = useState({});
+  const [contratoVigenciaPartes, setContratoVigenciaPartes] = useState({
+    anios: '',
+    meses: '',
+    dias: '',
+  });
   const [contratoTipo, setContratoTipo] = useState('');
+  const [contratoPrioridad, setContratoPrioridad] = useState('media');
   const [contratoFechaInicio, setContratoFechaInicio] = useState('');
   const [editarContrato, setEditarContrato] = useState(false);
   const [contratosList, setContratos] = useState([]);
@@ -137,16 +232,28 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const [empresaVistaPrevia, setEmpresaVistaPrevia] = useState(null);
   const [pdfVistaPrevia, setPdfVistaPrevia] = useState(null);
   const [pdfVistaMaximizada, setPdfVistaMaximizada] = useState(false);
+  const [contratoInfo, setContratoInfo] = useState(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [contratoCambios, setContratoCambios] = useState(null);
+  const [showCambiosModal, setShowCambiosModal] = useState(false);
   const [pdfRenderNonce, setPdfRenderNonce] = useState(0);
   const [pdfHasCustomPos, setPdfHasCustomPos] = useState(false);
   const [pdfDragPos, setPdfDragPos] = useState({ x: 0, y: 0 });
   const [pdfDragging, setPdfDragging] = useState(false);
   const [pdfDragOffset, setPdfDragOffset] = useState({ x: 0, y: 0 });
   const [nombreArchivoIcono, setNombreArchivoIcono] = useState('');
+  const [tiposCatalogoActivos, setTiposCatalogoActivos] = useState([]);
   const inputIconoEmpresaRef = useRef(null);
+
+  const cargarTiposCatalogo = useCallback(() => {
+    Axios.get(`${API_BASE}/catalogo/tipos-contrato`)
+      .then((res) => setTiposCatalogoActivos(Array.isArray(res.data) ? res.data : []))
+      .catch((err) => console.warn('No se pudo cargar catálogo de tipos:', err?.message || err));
+  }, []);
   const [nombreArchivoPdf, setNombreArchivoPdf] = useState('');
-  const [pdfMenuContrato, setPdfMenuContrato] = useState(null);
-  const [pdfMenuPos, setPdfMenuPos] = useState(null);
+  const [docPicker, setDocPicker] = useState(null);
+  const [docPickerPos, setDocPickerPos] = useState(null);
+  const [docPickerCategoria, setDocPickerCategoria] = useState(null);
   const inputPdfContratoRef = useRef(null);
   const pdfModalRef = useRef(null);
   const hasDocument = typeof document !== 'undefined';
@@ -198,27 +305,106 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       }
 
       const nextPdfs = { ...localCache };
+      let localSups = {};
+      try {
+        const rawS = localStorage.getItem(CONTRATOS_SUPLEMENTOS_STORAGE_KEY);
+        if (rawS) localSups = JSON.parse(rawS) || {};
+      } catch (_) {
+        /* ignore */
+      }
+      const nextSups = { ...localSups };
+      let localAnexos = {};
+      try {
+        const rawA = localStorage.getItem(CONTRATOS_ANEXOS_STORAGE_KEY);
+        if (rawA) localAnexos = JSON.parse(rawA) || {};
+      } catch (_) {
+        /* ignore */
+      }
+      const nextAnexos = { ...localAnexos };
 
       for (const doc of docs) {
         const num = String(doc.numero_contrato || '').trim();
         if (!numerosSet.has(num)) continue;
-        const pdfId = doc.cliente_id ? String(doc.cliente_id) : `srv_${doc.id_documento}`;
-        const serverEntry = {
-          id: pdfId,
-          serverId: Number(doc.id_documento),
-          nombre: doc.nombre_archivo || 'Contrato.pdf',
-          dataUrl: '',
-        };
-        const prevList = normalizarListaPdfs(nextPdfs[num]);
-        const prev = prevList.find((p) => p.id === pdfId || p.serverId === serverEntry.serverId);
-        if (prev?.dataUrl) serverEntry.dataUrl = prev.dataUrl;
-        const filtered = prevList.filter(
-          (p) => p.id !== pdfId && p.serverId !== serverEntry.serverId
-        );
-        nextPdfs[num] = [...filtered, serverEntry];
+        const tipoDoc = String(doc.tipo_documento || 'contrato').toLowerCase();
+        const esAnexo = tipoDoc === 'anexo';
+        const esSuplemento = tipoDoc === 'suplemento';
+        if (esAnexo) {
+          const anxId = doc.cliente_id ? String(doc.cliente_id) : `srv_${doc.id_documento}`;
+          const nombre = doc.nombre_archivo || 'Anexo';
+          const tipo = /\.docx?$/i.test(nombre) ? 'word' : 'pdf';
+          const serverEntry = {
+            id: anxId,
+            numero: Number(doc.numero_suplemento) > 0 ? Number(doc.numero_suplemento) : 0,
+            nombre,
+            tipo,
+            dataUrl: '',
+            serverId: Number(doc.id_documento),
+          };
+          const prevEstado = nextAnexos[num] || { activo: true, items: [] };
+          const prevList = normalizarListaAnexos(prevEstado.items);
+          const prev = prevList.find((s) => s.id === anxId || s.serverId === serverEntry.serverId);
+          if (prev?.dataUrl) serverEntry.dataUrl = prev.dataUrl;
+          if (!serverEntry.numero) serverEntry.numero = prevList.length + 1;
+          const filtered = prevList.filter((s) => s.id !== anxId && s.serverId !== serverEntry.serverId);
+          nextAnexos[num] = {
+            activo: true,
+            items: renumerarAnexosLista([...filtered, serverEntry]),
+          };
+        } else if (esSuplemento) {
+          const supId = doc.cliente_id ? String(doc.cliente_id) : `srv_${doc.id_documento}`;
+          const nombre = doc.nombre_archivo || 'Suplemento';
+          const tipo = /\.docx?$/i.test(nombre) ? 'word' : 'pdf';
+          const serverEntry = {
+            id: supId,
+            numero: Number(doc.numero_suplemento) > 0 ? Number(doc.numero_suplemento) : 0,
+            nombre,
+            tipo,
+            dataUrl: '',
+            serverId: Number(doc.id_documento),
+          };
+          const prevList = normalizarListaSuplementos(nextSups[num]);
+          const prev = prevList.find((s) => s.id === supId || s.serverId === serverEntry.serverId);
+          if (prev?.dataUrl) serverEntry.dataUrl = prev.dataUrl;
+          if (!serverEntry.numero) serverEntry.numero = prevList.length + 1;
+          const filtered = prevList.filter(
+            (s) => s.id !== supId && s.serverId !== serverEntry.serverId
+          );
+          nextSups[num] = renumerarSuplementosLista([...filtered, serverEntry]);
+        } else {
+          const pdfId = doc.cliente_id ? String(doc.cliente_id) : `srv_${doc.id_documento}`;
+          const serverEntry = {
+            id: pdfId,
+            serverId: Number(doc.id_documento),
+            nombre: doc.nombre_archivo || 'Contrato.pdf',
+            dataUrl: '',
+          };
+          const prevList = normalizarListaPdfs(nextPdfs[num]);
+          const prev = prevList.find((p) => p.id === pdfId || p.serverId === serverEntry.serverId);
+          if (prev?.dataUrl) serverEntry.dataUrl = prev.dataUrl;
+          const filtered = prevList.filter(
+            (p) =>
+              p.id !== pdfId &&
+              p.serverId !== serverEntry.serverId &&
+              String(p.id) !== String(doc.cliente_id || '')
+          );
+          nextPdfs[num] = deduplicarPdfsContrato([...filtered, serverEntry]);
+        }
+      }
+
+      for (const num of numerosSet) {
+        nextPdfs[num] = deduplicarPdfsContrato(normalizarListaPdfs(nextPdfs[num]));
+        if (nextSups[num]) nextSups[num] = renumerarSuplementosLista(normalizarListaSuplementos(nextSups[num]));
+        if (nextAnexos[num]?.items?.length) {
+          nextAnexos[num] = {
+            activo: nextAnexos[num].activo !== false,
+            items: renumerarAnexosLista(normalizarListaAnexos(nextAnexos[num].items)),
+          };
+        }
       }
 
       persistirPdfsContrato(nextPdfs);
+      persistirSuplementosContrato(nextSups);
+      persistirAnexosContrato(nextAnexos);
 
       const migraciones = [];
       for (const num of numerosSet) {
@@ -279,6 +465,158 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     persistirPdfsContrato({ ...contratoPdfs, [key]: merged });
   };
 
+  const mimeSuplemento = (sup) => {
+    if (sup?.tipo === 'word') {
+      const n = String(sup.nombre || '').toLowerCase();
+      if (n.endsWith('.doc')) return 'application/msword';
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    return 'application/pdf';
+  };
+
+  const syncSuplementosServidor = async (numeroContrato) => {
+    const sups = getSuplementosContrato(numeroContrato).filter((s) => s.dataUrl);
+    if (!sups.length) return;
+    const res = await Axios.post(`${API_BASE}/contratos/${encodeURIComponent(numeroContrato)}/documentos`, {
+      documentos: sups.map((s) => ({
+        nombre: s.nombre,
+        dataUrl: s.dataUrl,
+        clienteId: s.id,
+        tipoDocumento: 'suplemento',
+        numeroSuplemento: s.numero,
+        mimeType: mimeSuplemento(s),
+      })),
+    });
+    const guardados = Array.isArray(res.data?.documentos) ? res.data.documentos : [];
+    if (!guardados.length) return;
+    const key = normalizarNumeroContratoKey(numeroContrato);
+    const actuales = getSuplementosContrato(numeroContrato);
+    const merged = renumerarSuplementosLista(
+      actuales.map((s) => {
+        const match = guardados.find(
+          (g) =>
+            (g.cliente_id && String(g.cliente_id) === s.id) ||
+            Number(g.numero_suplemento) === s.numero
+        );
+        return match ? { ...s, serverId: Number(match.id_documento) } : s;
+      })
+    );
+    persistirSuplementosContrato({ ...contratoSuplementosMap, [key]: merged });
+  };
+
+  const syncAnexosServidor = async (numeroContrato) => {
+    const estado = getAnexosEstadoContrato(numeroContrato);
+    if (!estado.activo) return;
+    const sups = estado.items.filter((s) => s.dataUrl);
+    if (!sups.length) return;
+    const res = await Axios.post(`${API_BASE}/contratos/${encodeURIComponent(numeroContrato)}/documentos`, {
+      documentos: sups.map((s) => ({
+        nombre: s.nombre,
+        dataUrl: s.dataUrl,
+        clienteId: s.id,
+        tipoDocumento: 'anexo',
+        numeroAnexo: s.numero,
+        mimeType: mimeSuplemento(s),
+      })),
+    });
+    const guardados = Array.isArray(res.data?.documentos) ? res.data.documentos : [];
+    if (!guardados.length) return;
+    const key = normalizarNumeroContratoKey(numeroContrato);
+    const actuales = getAnexosEstadoContrato(numeroContrato);
+    const merged = renumerarAnexosLista(
+      actuales.items.map((s) => {
+        const match = guardados.find(
+          (g) =>
+            (g.cliente_id && String(g.cliente_id) === s.id) ||
+            Number(g.numero_suplemento) === s.numero
+        );
+        return match ? { ...s, serverId: Number(match.id_documento) } : s;
+      })
+    );
+    persistirAnexosContrato({ ...contratoAnexosMap, [key]: { activo: true, items: merged } });
+  };
+
+  const abrirAnexoContrato = async (anx) => {
+    const numero = String(contratoNumero || '').trim();
+    if (!numero || !anx) return;
+    let item = { ...anx };
+    if (!item.dataUrl && item.serverId) {
+      try {
+        Swal.fire({ title: 'Cargando documento…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const dataUrl = await cargarPdfBlobServidor(numero, item.serverId);
+        Swal.close();
+        const estado = getAnexosEstadoContrato(numero);
+        const list = estado.items.map((s) => (s.id === item.id ? { ...s, dataUrl } : s));
+        guardarAnexosEstadoContrato(numero, { activo: true, items: list });
+        item = { ...item, dataUrl };
+      } catch (error) {
+        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+        return;
+      }
+    }
+    if (!item.dataUrl) {
+      Swal.fire('Sin archivo', 'No hay documento disponible para este anexo.', 'info');
+      return;
+    }
+    if (item.tipo === 'word') {
+      abrirVistaPreviaDocumento({
+        numero,
+        nombre: item.nombre || 'Anexo.docx',
+        tituloTipo: 'Anexo',
+        dataUrl: item.dataUrl,
+        tipo: 'word',
+      });
+      return;
+    }
+    abrirPdfContrato(numero, {
+      id: item.id,
+      nombre: item.nombre,
+      dataUrl: item.dataUrl,
+      serverId: item.serverId,
+    });
+  };
+
+  const abrirSuplementoContrato = async (sup) => {
+    const numero = String(contratoNumero || '').trim();
+    if (!numero || !sup) return;
+    let item = { ...sup };
+    if (!item.dataUrl && item.serverId) {
+      try {
+        Swal.fire({ title: 'Cargando documento…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const dataUrl = await cargarPdfBlobServidor(numero, item.serverId);
+        Swal.close();
+        const list = getSuplementosContrato(numero).map((s) =>
+          s.id === item.id ? { ...s, dataUrl } : s
+        );
+        guardarSuplementosListaContrato(numero, list);
+        item = { ...item, dataUrl };
+      } catch (error) {
+        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+        return;
+      }
+    }
+    if (!item.dataUrl) {
+      Swal.fire('Sin archivo', 'No hay documento disponible para este suplemento.', 'info');
+      return;
+    }
+    if (item.tipo === 'word') {
+      abrirVistaPreviaDocumento({
+        numero,
+        nombre: item.nombre || 'Suplemento.docx',
+        tituloTipo: 'Suplemento',
+        dataUrl: item.dataUrl,
+        tipo: 'word',
+      });
+      return;
+    }
+    abrirPdfContrato(numero, {
+      id: item.id,
+      nombre: item.nombre,
+      dataUrl: item.dataUrl,
+      serverId: item.serverId,
+    });
+  };
+
   const cargarArchivo = () => {
     setArchivoLoading(true);
     const params = new URLSearchParams();
@@ -295,6 +633,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   useEffect(() => {
     getContratos();
+    cargarTiposCatalogo();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- carga inicial
 
   useEffect(() => {
@@ -344,6 +683,32 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     }
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CONTRATOS_SUPLEMENTOS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setContratoSuplementosMap(parsed);
+      }
+    } catch (error) {
+      console.warn('No se pudieron cargar suplementos de contratos:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CONTRATOS_ANEXOS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setContratoAnexosMap(parsed);
+      }
+    } catch (error) {
+      console.warn('No se pudieron cargar anexos de contratos:', error);
+    }
+  }, []);
+
   const normalizarEmpresaKey = (empresa) => String(empresa || '').trim().toLowerCase();
 
   const persistirIconosEmpresa = (nextIconos) => {
@@ -375,6 +740,105 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     } catch (error) {
       console.warn('No se pudo guardar PDF del contrato:', error);
     }
+  };
+
+  const persistirSuplementosContrato = (nextMap) => {
+    setContratoSuplementosMap(nextMap);
+    try {
+      localStorage.setItem(CONTRATOS_SUPLEMENTOS_STORAGE_KEY, JSON.stringify(nextMap));
+    } catch (error) {
+      console.warn('No se pudieron guardar suplementos:', error);
+    }
+  };
+
+  const normalizarListaSuplementos = (entry) => {
+    if (!Array.isArray(entry)) return [];
+    return renumerarSuplementosLista(
+      entry
+        .map((s, idx) => ({
+          id: String(s?.id || `sup_${idx}`),
+          numero: Number(s?.numero) > 0 ? Number(s.numero) : idx + 1,
+          nombre: String(s?.nombre || '').trim(),
+          tipo: s?.tipo === 'word' ? 'word' : 'pdf',
+          dataUrl: String(s?.dataUrl || ''),
+          serverId: s?.serverId != null ? Number(s.serverId) : null,
+        }))
+        .filter((s) => s.nombre || s.dataUrl || s.serverId)
+    );
+  };
+
+  const getSuplementosContrato = useCallback(
+    (numeroContrato) => {
+      const key = normalizarNumeroContratoKey(numeroContrato);
+      if (!key) return [];
+      return normalizarListaSuplementos(contratoSuplementosMap[key]);
+    },
+    [contratoSuplementosMap]
+  );
+
+  const guardarSuplementosListaContrato = (numeroContrato, lista) => {
+    const key = normalizarNumeroContratoKey(numeroContrato);
+    if (!key) return;
+    const next = { ...contratoSuplementosMap };
+    if (!lista?.length) {
+      delete next[key];
+    } else {
+      next[key] = renumerarSuplementosLista(lista);
+    }
+    persistirSuplementosContrato(next);
+  };
+
+  const persistirAnexosContrato = (nextMap) => {
+    setContratoAnexosMap(nextMap);
+    try {
+      localStorage.setItem(CONTRATOS_ANEXOS_STORAGE_KEY, JSON.stringify(nextMap));
+    } catch (error) {
+      console.warn('No se pudieron guardar anexos:', error);
+    }
+  };
+
+  const normalizarListaAnexos = (entry) => {
+    if (!Array.isArray(entry)) return [];
+    return renumerarAnexosLista(
+      entry
+        .map((s, idx) => ({
+          id: String(s?.id || `anx_${idx}`),
+          numero: Number(s?.numero) > 0 ? Number(s.numero) : idx + 1,
+          nombre: String(s?.nombre || '').trim(),
+          tipo: s?.tipo === 'word' ? 'word' : 'pdf',
+          dataUrl: String(s?.dataUrl || ''),
+          serverId: s?.serverId != null ? Number(s.serverId) : null,
+        }))
+        .filter((s) => s.nombre || s.dataUrl || s.serverId)
+    );
+  };
+
+  const getAnexosEstadoContrato = useCallback(
+    (numeroContrato) => {
+      const key = normalizarNumeroContratoKey(numeroContrato);
+      if (!key) return { activo: false, items: [] };
+      const estado = contratoAnexosMap[key];
+      if (!estado) return { activo: false, items: [] };
+      return {
+        activo: estado.activo === true,
+        items: normalizarListaAnexos(estado.items),
+      };
+    },
+    [contratoAnexosMap]
+  );
+
+  const guardarAnexosEstadoContrato = (numeroContrato, estado) => {
+    const key = normalizarNumeroContratoKey(numeroContrato);
+    if (!key) return;
+    const next = { ...contratoAnexosMap };
+    const activo = Boolean(estado?.activo);
+    const items = normalizarListaAnexos(estado?.items);
+    if (!activo && !items.length) {
+      delete next[key];
+    } else {
+      next[key] = { activo, items: renumerarAnexosLista(items) };
+    }
+    persistirAnexosContrato(next);
   };
 
   const generarPdfId = () => `pdf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -409,7 +873,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const getPdfsContrato = useCallback((numeroContrato) => {
     const key = normalizarNumeroContratoKey(numeroContrato);
     if (!key) return [];
-    return normalizarListaPdfs(contratoPdfs[key]);
+    return deduplicarPdfsContrato(normalizarListaPdfs(contratoPdfs[key]));
   }, [contratoPdfs]);
 
   const getPdfContrato = (numeroContrato) => {
@@ -435,7 +899,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     }
     persistirPdfsContrato({
       ...contratoPdfs,
-      [key]: pdfs,
+      [key]: deduplicarPdfsContrato(pdfs),
     });
   };
 
@@ -449,9 +913,28 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     ]);
   };
 
-  const eliminarPdfContrato = (numeroContrato, pdfId = null) => {
+  const aplicarDocumentosServidorAlContrato = async (numeroContrato) => {
     const key = normalizarNumeroContratoKey(numeroContrato);
-    if (!key || !contratoPdfs[key]) return;
+    if (!key) return;
+    try {
+      const res = await Axios.get(`${API_BASE}/contratos-documentos`);
+      const docs = (Array.isArray(res.data) ? res.data : []).filter(
+        (d) => normalizarNumeroContratoKey(d.numero_contrato) === key
+      );
+      const pdfsSrv = docs.filter(
+        (d) => String(d.tipo_documento || 'contrato').toLowerCase() === 'contrato'
+      );
+      const cachePdfs = getPdfsContrato(key);
+      guardarPdfsListaContrato(key, combinarDocumentosServidorYCache(pdfsSrv, cachePdfs));
+    } catch (err) {
+      console.warn('No se pudieron sincronizar PDFs del contrato:', err?.message || err);
+    }
+  };
+
+  const eliminarPdfContrato = async (numeroContrato, pdfId = null) => {
+    const key = normalizarNumeroContratoKey(numeroContrato);
+    if (!key) return;
+
     const eliminarEnEstado = () => {
       if (!pdfId) {
         const nextPdfs = { ...contratoPdfs };
@@ -464,29 +947,57 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       guardarPdfsListaContrato(numeroContrato, filtrados);
     };
 
+    const pdfs = getPdfsContrato(numeroContrato);
     if (!pdfId) {
-      const pdfs = getPdfsContrato(numeroContrato);
-      pdfs.filter((p) => p.serverId).forEach((p) => {
-        Axios.delete(
-          `${API_BASE}/contratos/${encodeURIComponent(numeroContrato)}/documentos/${p.serverId}`
-        ).catch((err) => console.warn('No se pudo borrar PDF en servidor:', err?.message || err));
-      });
+      if (!pdfs.length) return;
+      await Promise.all(
+        pdfs
+          .map((p) => Number(p.serverId))
+          .filter((sid) => Number.isFinite(sid) && sid > 0)
+          .map((serverId) =>
+            Axios.delete(
+              `${API_BASE}/contratos/${encodeURIComponent(key)}/documentos/${serverId}`
+            ).catch((err) => console.warn('No se pudo borrar PDF en servidor:', err?.message || err))
+          )
+      );
       eliminarEnEstado();
       return;
     }
 
-    const pdf = getPdfsContrato(numeroContrato).find((p) => p.id === pdfId);
-    if (pdf?.serverId) {
-      Axios.delete(
-        `${API_BASE}/contratos/${encodeURIComponent(numeroContrato)}/documentos/${pdf.serverId}`
-      )
-        .then(eliminarEnEstado)
-        .catch((err) => {
-          Swal.fire('Error', err.response?.data?.message || err.message, 'error');
-        });
+    const pdf = pdfs.find((p) => p.id === pdfId);
+    if (!pdf) return;
+
+    const serverId = pdf.serverId != null ? Number(pdf.serverId) : null;
+    const tieneServer = Number.isFinite(serverId) && serverId > 0;
+
+    if (!tieneServer) {
+      eliminarEnEstado();
       return;
     }
-    eliminarEnEstado();
+
+    try {
+      await Axios.delete(
+        `${API_BASE}/contratos/${encodeURIComponent(key)}/documentos/${serverId}`
+      );
+      eliminarEnEstado();
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 404) {
+        eliminarEnEstado();
+        return;
+      }
+      Swal.fire(
+        'Error',
+        err.response?.data?.message || err.message || 'No se pudo eliminar el archivo.',
+        'error'
+      );
+    }
+  };
+
+  const cerrarDocPicker = () => {
+    setDocPicker(null);
+    setDocPickerPos(null);
+    setDocPickerCategoria(null);
   };
 
   const dataUrlToObjectUrl = (dataUrl) => {
@@ -502,6 +1013,48 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     }
     const blob = new Blob([bytes], { type: mimeType });
     return URL.createObjectURL(blob);
+  };
+
+  const descargarDocumentoDataUrl = (dataUrl, nombreArchivo) => {
+    const url = dataUrlToObjectUrl(dataUrl);
+    if (!url) {
+      Swal.fire('Error', 'No se pudo preparar la descarga.', 'error');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombreArchivo || 'documento';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const abrirVistaPreviaDocumento = ({
+    numero,
+    nombre,
+    tituloTipo,
+    dataUrl,
+    tipo = 'pdf',
+  }) => {
+    let objectUrl = null;
+    if (tipo !== 'word') {
+      try {
+        objectUrl = dataUrlToObjectUrl(dataUrl);
+      } catch (error) {
+        console.error('No se pudo preparar el documento para el visor:', error);
+      }
+    }
+    setPdfVistaPrevia({
+      numero: String(numero || '').trim() || '—',
+      nombre: nombre || (tipo === 'word' ? 'Documento.docx' : 'Documento.pdf'),
+      tituloTipo,
+      dataUrl: String(dataUrl),
+      objectUrl,
+      tipo,
+    });
+    setPdfVistaMaximizada(false);
+    setPdfHasCustomPos(false);
+    setPdfDragPos({ x: 0, y: 0 });
+    setPdfRenderNonce((n) => n + 1);
   };
 
   const abrirPdfContrato = async (numeroContrato, pdfItem = null) => {
@@ -536,35 +1089,121 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       return;
     }
 
-    let objectUrl = null;
-    try {
-      objectUrl = dataUrlToObjectUrl(pdf.dataUrl);
-    } catch (error) {
-      console.error('No se pudo preparar el PDF para el visor:', error);
-    }
-    setPdfVistaPrevia({
-      numero: String(numeroContrato || '').trim() || '—',
+    abrirVistaPreviaDocumento({
+      numero: numeroContrato,
       nombre: pdf.nombre || 'Contrato.pdf',
-      dataUrl: String(pdf.dataUrl),
-      objectUrl,
+      tituloTipo: 'Contrato',
+      dataUrl: pdf.dataUrl,
+      tipo: 'pdf',
     });
-    setPdfVistaMaximizada(false);
-    setPdfHasCustomPos(false);
-    setPdfDragPos({ x: 0, y: 0 });
-    setPdfRenderNonce((n) => n + 1);
-    setPdfMenuContrato(null);
-    setPdfMenuPos(null);
+    cerrarDocPicker();
+  };
+
+  const getCategoriasDocumentos = (numeroContrato, contratoRow) => {
+    const numero = String(numeroContrato || '').trim();
+    const itemsContrato = getPdfsContrato(numero).map((p) => ({
+      ...p,
+      tipo: 'pdf',
+      etiqueta: p.nombre || 'Contrato.pdf',
+    }));
+    let itemsSup = getSuplementosContrato(numero);
+    if (!itemsSup.length && contratoRow) {
+      itemsSup = parseSuplementosFromContrato(contratoRow).items;
+    }
+    let estadoAnex = getAnexosEstadoContrato(numero);
+    if (!estadoAnex.items.length && contratoRow) {
+      estadoAnex = parseAnexosFromContrato(contratoRow);
+    }
+    const cats = [];
+    if (itemsContrato.length) {
+      cats.push({ id: 'contrato', label: 'Contrato', items: itemsContrato });
+    }
+    if (itemsSup.length) {
+      cats.push({
+        id: 'suplemento',
+        label: 'Suplemento',
+        items: itemsSup.map((s) => ({
+          ...s,
+          etiqueta: `Suplemento ${s.numero} — ${s.nombre || 'documento'}`,
+        })),
+      });
+    }
+    if (estadoAnex.activo && estadoAnex.items.length) {
+      cats.push({
+        id: 'anexo',
+        label: 'Anexo',
+        items: estadoAnex.items.map((a) => ({
+          ...a,
+          etiqueta: `Anexo ${a.numero} — ${a.nombre || 'documento'}`,
+        })),
+      });
+    }
+    return cats;
+  };
+
+  const abrirDocumentoTabla = async (numeroContrato, item, categoria) => {
+    const numero = String(numeroContrato || '').trim();
+    if (!numero || !item) return;
+    cerrarDocPicker();
+
+    let doc = { ...item };
+    const esWord = esDocumentoWord(doc);
+
+    if (!doc.dataUrl && doc.serverId) {
+      try {
+        Swal.fire({
+          title: 'Cargando documento…',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading(),
+        });
+        const dataUrl = await cargarPdfBlobServidor(numero, doc.serverId);
+        Swal.close();
+        doc = { ...doc, dataUrl };
+
+        if (categoria === 'contrato') {
+          const list = getPdfsContrato(numero).map((p) =>
+            p.id === doc.id || p.serverId === doc.serverId ? { ...p, dataUrl } : p
+          );
+          guardarPdfsListaContrato(numero, list);
+        } else if (categoria === 'suplemento') {
+          const list = getSuplementosContrato(numero).map((s) =>
+            s.id === doc.id ? { ...s, dataUrl } : s
+          );
+          guardarSuplementosListaContrato(numero, list);
+        } else if (categoria === 'anexo') {
+          const estado = getAnexosEstadoContrato(numero);
+          const list = estado.items.map((s) => (s.id === doc.id ? { ...s, dataUrl } : s));
+          guardarAnexosEstadoContrato(numero, { activo: true, items: list });
+        }
+      } catch (error) {
+        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+        return;
+      }
+    }
+
+    if (!doc.dataUrl) {
+      Swal.fire('Sin archivo', 'No hay documento disponible.', 'info');
+      return;
+    }
+
+    const labels = { contrato: 'Contrato', suplemento: 'Suplemento', anexo: 'Anexo' };
+    const tituloTipo = labels[categoria] || 'Documento';
+
+    abrirVistaPreviaDocumento({
+      numero,
+      nombre: doc.etiqueta || doc.nombre || (esWord ? 'Documento.docx' : 'Documento.pdf'),
+      tituloTipo,
+      dataUrl: doc.dataUrl,
+      tipo: esWord ? 'word' : 'pdf',
+    });
   };
 
   useEffect(() => {
-    if (!pdfMenuContrato) return undefined;
-    const onDocClick = () => {
-      setPdfMenuContrato(null);
-      setPdfMenuPos(null);
-    };
+    if (!docPicker) return undefined;
+    const onDocClick = () => cerrarDocPicker();
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
-  }, [pdfMenuContrato]);
+  }, [docPicker]);
 
   useEffect(() => {
     return () => {
@@ -620,31 +1259,35 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoSeleccionado((prev) => (prev === rowId ? null : rowId));
   };
 
-  const renderCeldaDocumentoPdf = (numeroContrato) => {
-    const pdfs = getPdfsContrato(numeroContrato);
+  const renderCeldaDocumentoPdf = (numeroContrato, contratoRow = null) => {
     const numeroNorm = String(numeroContrato || '').trim();
-    const isPdfAbierto = pdfVistaPrevia != null && String(pdfVistaPrevia.numero || '').trim() === numeroNorm;
-    if (!pdfs.length) {
+    const categorias = getCategoriasDocumentos(numeroNorm, contratoRow);
+    const totalDocs = categorias.reduce((n, c) => n + c.items.length, 0);
+    const isVistaAbierta =
+      pdfVistaPrevia != null && String(pdfVistaPrevia.numero || '').trim() === numeroNorm;
+    const menuAbierto = docPicker?.numero === numeroNorm;
+
+    if (!totalDocs) {
       return <span className="text-muted">—</span>;
     }
-    if (pdfs.length === 1) {
-      const pdf = pdfs[0];
-      return (
-        <div className="d-flex align-items-center justify-content-center">
-          <button
-            type="button"
-            className={`btn btn-link p-0 contratos-pdf-inline${isPdfAbierto ? ' contratos-pdf-inline--active' : ''}`}
-            title={pdf.nombre || `Ver PDF del contrato ${numeroContrato}`}
-            aria-label={`Ver PDF del contrato ${numeroContrato}`}
-            onClick={() => abrirPdfContrato(numeroContrato, pdf)}
-          >
-            <i className="bi bi-file-earmark-pdf-fill" aria-hidden="true" />
-          </button>
-          <span className="ms-1">Pdf</span>
-        </div>
-      );
-    }
-    const menuAbierto = pdfMenuContrato === numeroNorm;
+
+    const abrirPicker = (e) => {
+      e.stopPropagation();
+      if (menuAbierto) {
+        cerrarDocPicker();
+        return;
+      }
+      const rect = e.currentTarget.getBoundingClientRect();
+      setDocPickerPos({ top: rect.bottom + 4, left: Math.max(8, rect.left - 40) });
+      setDocPicker({ numero: numeroNorm, contratoRow });
+      setDocPickerCategoria(null);
+    };
+
+    const abrirDirectoSiUno =
+      categorias.length === 1 && categorias[0].items.length === 1
+        ? () => abrirDocumentoTabla(numeroNorm, categorias[0].items[0], categorias[0].id)
+        : null;
+
     return (
       <div
         className="contratos-pdf-picker position-relative d-inline-flex align-items-center justify-content-center"
@@ -652,25 +1295,16 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       >
         <button
           type="button"
-          className={`btn btn-link p-0 contratos-pdf-inline contratos-pdf-inline--multi${isPdfAbierto ? ' contratos-pdf-inline--active' : ''}`}
-          title={`${pdfs.length} PDFs — elegir cuál abrir`}
-          aria-label={`Ver PDFs del contrato ${numeroContrato}`}
+          className={`btn btn-link p-0 contratos-pdf-inline contratos-pdf-inline--multi${isVistaAbierta ? ' contratos-pdf-inline--active' : ''}`}
+          title="Ver documentos del contrato"
+          aria-label={`Documentos del contrato ${numeroContrato}`}
           aria-expanded={menuAbierto}
-          onClick={(e) => {
-            if (menuAbierto) {
-              setPdfMenuContrato(null);
-              setPdfMenuPos(null);
-              return;
-            }
-            const rect = e.currentTarget.getBoundingClientRect();
-            setPdfMenuPos({ top: rect.bottom + 4, left: rect.left });
-            setPdfMenuContrato(numeroNorm);
-          }}
+          onClick={abrirDirectoSiUno || abrirPicker}
         >
-          <i className="bi bi-file-earmark-pdf-fill" aria-hidden="true" />
-          <span className="contratos-pdf-picker__count">{pdfs.length}</span>
+          <i className="bi bi-folder2-open" aria-hidden="true" />
+          {totalDocs > 1 ? <span className="contratos-pdf-picker__count">{totalDocs}</span> : null}
         </button>
-        <span className="ms-1">{pdfs.length} PDFs</span>
+        <span className="ms-1 small text-muted">Docs</span>
       </div>
     );
   };
@@ -749,30 +1383,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     });
   };
 
-  const sumarTiempoConVigencia = (fechaStr, vigenciaValor) => {
-    if (!fechaStr) return fechaStr;
-    const fecha = new Date(fechaStr + 'T00:00:00');
+  const vigenciaParaGuardar = () => partesAVigenciaAlmacenada(contratoVigenciaPartes);
 
-    let vigencia = parseFloat(vigenciaValor);
-    if (Number.isNaN(vigencia)) return '';
-    let entero = Math.trunc(vigencia);
-    let decimal = vigencia - Math.trunc(vigencia);
-
-    fecha.setFullYear(fecha.getFullYear() + entero);
-
-    let diasDecimal = decimal * 365.25;
-    let ParteEnteraDe_diasDecimal = Math.trunc(diasDecimal);
-    console.log('cantidad de dias' + diasDecimal);
-
-    fecha.setDate(fecha.getDate() + ParteEnteraDe_diasDecimal);
-
-    const año = fecha.getFullYear();
-    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-    const dia = String(fecha.getDate()).padStart(2, '0');
-    return `${año}-${mes}-${dia}`;
-  };
-
-  const sumarTiempo = (fechaStr) => sumarTiempoConVigencia(fechaStr, contratoVigencia);
+  const sumarTiempo = (fechaStr) =>
+    sumarFechaConVigencia(fechaStr, vigenciaParaGuardar());
 
   const toISODate = (value) => {
     if (!value) return '';
@@ -845,10 +1459,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoNumeroOriginal('');
     setContratoProveedorCliente(false);
     setContratoEmpresa('');
-    setContratoCorreoNotificacion('');
-    setContratoSuplementos('');
-    setContratoVigencia('');
+    setContratoContactosNotificacion([]);
+    setContratoVigenciaPartes({ anios: '', meses: '', dias: '' });
     setContratoTipo('');
+    setContratoPrioridad('media');
     setContratoFechaInicio('');
     setEditarContrato(false);
     setNombreArchivoIcono('');
@@ -872,17 +1486,27 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   };
 
   const addContrato = () => {
+    const errContactos = validarContactosParaGuardar(contratoContactosNotificacion);
+    if (errContactos) {
+      Swal.fire('Contactos de notificación', errContactos, 'warning');
+      return;
+    }
     const nuevaFechaFin = sumarTiempo(contratoFechaInicio);
     const vencidoCalc = diasParaVencer(nuevaFechaFin) != null && diasParaVencer(nuevaFechaFin) < 0 ? 1 : 0;
+    const payloadContactos = prepararPayloadContactos(contratoContactosNotificacion);
+    const payloadSuplementos = prepararSuplementosPayload(getSuplementosContrato(contratoNumero));
+    const payloadAnexos = prepararAnexosPayload(getAnexosEstadoContrato(contratoNumero));
 
     const bodyCreate = {
       numero_contrato: contratoNumero,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
       empresa: contratoEmpresa,
-      correo_notificacion: contratoCorreoNotificacion ? String(contratoCorreoNotificacion).trim() : null,
-      suplementos: contratoSuplementos,
-      vigencia: contratoVigencia,
+      ...payloadContactos,
+      ...payloadSuplementos,
+      ...payloadAnexos,
+      vigencia: vigenciaParaGuardar(),
       tipo_contrato: contratoTipo,
+      prioridad: contratoPrioridad,
       fecha_inicio: contratoFechaInicio,
       fecha_fin: nuevaFechaFin,
       vencido: vencidoCalc,
@@ -891,12 +1515,18 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       .then(async () => {
         try {
           await syncPdfsServidor(contratoNumero);
+          await syncSuplementosServidor(contratoNumero);
+          await syncAnexosServidor(contratoNumero);
         } catch (syncErr) {
-          console.warn('PDFs no sincronizados al servidor:', syncErr);
+          console.warn('Documentos no sincronizados al servidor:', syncErr);
         }
         getContratos();
         cerrarModalContrato();
-        Swal.fire('Registro exitoso', 'Contrato agregado', 'success');
+        Swal.fire(
+          'Enviado a aprobación',
+          'El contrato quedó pendiente. Aparecerá activo cuando un autorizador lo apruebe en la sección Pendientes.',
+          'success'
+        );
       })
       .catch((error) => {
         const msg =
@@ -919,16 +1549,26 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       return;
     }
 
+    const errContactos = validarContactosParaGuardar(contratoContactosNotificacion);
+    if (errContactos) {
+      Swal.fire('Contactos de notificación', errContactos, 'warning');
+      return;
+    }
     const numOriginalSeguro = String(contratoNumeroOriginal ?? numeroNuevo ?? '').trim() || numeroNuevo;
+    const payloadContactos = prepararPayloadContactos(contratoContactosNotificacion);
+    const payloadSuplementos = prepararSuplementosPayload(getSuplementosContrato(contratoNumero));
+    const payloadAnexos = prepararAnexosPayload(getAnexosEstadoContrato(contratoNumero));
     const bodyUpdate = {
       numero_contrato: numeroNuevo,
       numero_contrato_original: numOriginalSeguro,
       proveedor_cliente: contratoProveedorCliente ? 1 : 0,
       empresa: contratoEmpresa,
-      correo_notificacion: contratoCorreoNotificacion ? String(contratoCorreoNotificacion).trim() : null,
-      suplementos: contratoSuplementos,
-      vigencia: contratoVigencia,
+      ...payloadContactos,
+      ...payloadSuplementos,
+      ...payloadAnexos,
+      vigencia: vigenciaParaGuardar(),
       tipo_contrato: contratoTipo,
+      prioridad: contratoPrioridad,
       fecha_inicio: contratoFechaInicio,
       fecha_fin: nuevaFechaFin,
       vencido: vencidoCalc,
@@ -937,8 +1577,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       .then(async () => {
         try {
           await syncPdfsServidor(numeroNuevo);
+          await syncSuplementosServidor(numeroNuevo);
+          await syncAnexosServidor(numeroNuevo);
         } catch (syncErr) {
-          console.warn('PDFs no sincronizados al servidor:', syncErr);
+          console.warn('Documentos no sincronizados al servidor:', syncErr);
         }
         return Axios.get(`${API_BASE}/contratos`);
       })
@@ -963,8 +1605,24 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           delete nextPdfs[String(numeroOriginalRaw)];
           persistirPdfsContrato(nextPdfs);
         }
+        if (numeroOriginal !== numeroNuevo && contratoSuplementosMap[String(numeroOriginalRaw)]) {
+          const nextS = { ...contratoSuplementosMap };
+          nextS[numeroNuevo] = nextS[String(numeroOriginalRaw)];
+          delete nextS[String(numeroOriginalRaw)];
+          persistirSuplementosContrato(nextS);
+        }
+        if (numeroOriginal !== numeroNuevo && contratoAnexosMap[String(numeroOriginalRaw)]) {
+          const nextA = { ...contratoAnexosMap };
+          nextA[numeroNuevo] = nextA[String(numeroOriginalRaw)];
+          delete nextA[String(numeroOriginalRaw)];
+          persistirAnexosContrato(nextA);
+        }
         cerrarModalContrato();
-        Swal.fire('Actualización exitosa', 'Contrato actualizado', 'success');
+        Swal.fire(
+          'Enviado a aprobación',
+          'Los cambios quedaron pendientes. El contrato activo no se modifica hasta que un autorizador los apruebe.',
+          'success'
+        );
       })
       .catch((error) => {
         const msg =
@@ -990,17 +1648,104 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const marcarContratoCanceladoEnServidor = (val) =>
     Axios.post(`${API_BASE}/contratos/${encodeURIComponent(val.numero_contrato)}/cancelar`)
-      .then(() => {
+      .then((res) => {
         getContratos();
+        if (res.data?.pendiente) {
+          Swal.fire(
+            'Solicitud enviada',
+            res.data.message ||
+              'La cancelación quedó pendiente de aprobación. El contrato sigue activo hasta que un autorizador la apruebe.',
+            'success'
+          );
+          return;
+        }
         Swal.fire(
           'Contrato cancelado',
-          'Quedó en estado Cancelado. Use eliminar cuando desee archivarlo definitivamente.',
+          res.data?.message ||
+            'Quedó en estado Cancelado. Si esperaba una aprobación pendiente, reinicie el servidor Node (puerto 3001) para cargar la versión nueva.',
           'success'
         );
       })
       .catch((error) => {
         Swal.fire('Error', mensajeErrorApi(error), 'error');
       });
+
+  const aprobarContratoPendiente = async (con) => {
+    const accion = etiquetaAccionPendiente(con.aprobacion_accion);
+    const result = await Swal.fire({
+      title: '¿Aprobar solicitud?',
+      html: `<p class="mb-2">Contrato <strong>${con.numero_contrato}</strong> — ${String(con.empresa || '').trim() || 'Sin empresa'}</p>
+        <p class="mb-0">Acción: <strong>${accion}</strong></p>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Aprobar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#15803d',
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const res = await Axios.post(
+        `${API_BASE}/contratos/${encodeURIComponent(con.numero_contrato)}/aprobar`
+      );
+      getContratos();
+      const msg =
+        res.data?.accion === 'cancelacion'
+          ? 'El contrato quedó cancelado.'
+          : res.data?.accion === 'alta'
+            ? 'El contrato quedó activo.'
+            : 'Los cambios fueron aplicados y el contrato quedó activo.';
+      Swal.fire('Aprobado', msg, 'success');
+    } catch (error) {
+      Swal.fire('Error', mensajeErrorApi(error), 'error');
+    }
+  };
+
+  const rechazarContratoPendiente = async (con) => {
+    const accion = etiquetaAccionPendiente(con.aprobacion_accion);
+    const result = await Swal.fire({
+      title: '¿Rechazar solicitud?',
+      html: `<p class="mb-2">Contrato <strong>${con.numero_contrato}</strong> — ${String(con.empresa || '').trim() || 'Sin empresa'}</p>
+        <p class="mb-0">Acción: <strong>${accion}</strong></p>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Rechazar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      input: 'textarea',
+      inputLabel: 'Motivo del rechazo',
+      inputPlaceholder: 'Explique por qué se rechaza esta solicitud (obligatorio)',
+      inputAttributes: {
+        maxlength: 500,
+        rows: 3,
+        'aria-label': 'Motivo del rechazo',
+        required: 'required',
+      },
+      inputValidator: (value) => {
+        if (!String(value || '').trim()) {
+          return 'Debe indicar el motivo del rechazo.';
+        }
+        return undefined;
+      },
+    });
+    if (!result.isConfirmed) return;
+    const motivo = String(result.value || '').trim().slice(0, 500);
+    try {
+      const res = await Axios.post(
+        `${API_BASE}/contratos/${encodeURIComponent(con.numero_contrato)}/rechazar`,
+        { motivo }
+      );
+      getContratos();
+      const msg =
+        res.data?.accion === 'alta'
+          ? 'El borrador del contrato fue descartado.'
+          : res.data?.accion === 'cancelacion'
+            ? 'Se descartó la solicitud de cancelación.'
+            : 'Se descartaron los cambios propuestos.';
+      Swal.fire('Rechazado', msg, 'success');
+    } catch (error) {
+      Swal.fire('Error', mensajeErrorApi(error), 'error');
+    }
+  };
 
   const archivarContratoEnServidor = (val, motivo, exito) => {
     const pdfs = getPdfsContrato(val.numero_contrato);
@@ -1056,7 +1801,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         <p class="mb-2">Contrato <strong>${val.numero_contrato}</strong> — ${String(val.empresa || '').trim() || 'Sin empresa'}</p>
         <p class="mb-0 small text-muted">
           <strong>Cancelar y eliminar contrato:</strong> se archiva por 5 años (datos y PDFs en servidor) y deja de aparecer en la lista activa.<br />
-          <strong>Solo cancelar contrato:</strong> marca el contrato como <strong>Cancelado</strong> en la tabla; luego podrá eliminarlo con el icono de papelera.
+          <strong>Solo cancelar contrato:</strong> envía una solicitud de cancelación a aprobación; el contrato sigue activo hasta que un autorizador la apruebe.
         </p>
       `,
       icon: 'warning',
@@ -1138,7 +1883,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
             <p><strong>Empresa:</strong> ${det.empresa || '-'}</p>
             <p><strong>Tipo:</strong> ${det.tipo_contrato || '-'}</p>
             <p><strong>Parte:</strong> ${Number(det.proveedor_cliente) === 1 ? 'Proveedor' : 'Cliente'}</p>
-            <p><strong>Vigencia:</strong> ${det.vigencia ?? '-'} año(s)</p>
+            <p><strong>Vigencia:</strong> ${vigenciaLegibleOGuion(det.vigencia)}</p>
             <p><strong>Inicio / Fin:</strong> ${fechaParaExportEs(det.fecha_inicio) || '-'} — ${fechaParaExportEs(det.fecha_fin) || '-'}</p>
             <p><strong>Eliminado por:</strong> ${det.eliminado_por || '-'}</p>
             <p><strong>Fecha baja:</strong> ${bajaTxt}</p>
@@ -1167,15 +1912,13 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const construirFilasExportacionArchivo = () =>
     archivoList.map((a) => {
-      const vig = a.vigencia;
-      const vigCell = vig === '' || vig == null ? '' : Number(vig);
       const dias = a.dias_restantes_retencion;
       return [
         a.numero_contrato,
         Number(a.proveedor_cliente) === 1 ? 'Proveedor' : 'Cliente',
         String(a.empresa || '').trim(),
         etiquetaTipoContratoLegible(a.tipo_contrato),
-        vigCell === '' || Number.isNaN(vigCell) ? '' : vigCell,
+        convertirVigenciaLegible(a.vigencia),
         fechaParaExportEs(a.fecha_inicio),
         fechaParaExportEs(a.fecha_fin),
         String(a.eliminado_por || '').trim(),
@@ -1252,20 +1995,57 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoNumeroOriginal(val.numero_contrato);
     setContratoProveedorCliente(val.proveedor_cliente === 1);
     setContratoEmpresa(val.empresa);
-    setContratoCorreoNotificacion(val.correo_notificacion || '');
-    setContratoSuplementos(val.suplementos || '');
-    setContratoVigencia(val.vigencia);
+    setContratoContactosNotificacion(contactosStateFromContrato(val));
+    const { items } = parseSuplementosFromContrato(val);
+    const cache = normalizarListaSuplementos(contratoSuplementosMap[String(val.numero_contrato || '').trim()]);
+    const merged = renumerarSuplementosLista(
+      items.length
+        ? items.map((it) => {
+            const hit = cache.find((c) => c.serverId === it.serverId || c.id === it.id);
+            return { ...it, id: it.id || hit?.id || `sup_${it.numero}`, dataUrl: hit?.dataUrl || it.dataUrl || '' };
+          })
+        : cache
+    );
+    guardarSuplementosListaContrato(val.numero_contrato, merged);
+    const anexosParsed = parseAnexosFromContrato(val);
+    const cacheAnexos = contratoAnexosMap[String(val.numero_contrato || '').trim()];
+    const itemsAnexos = anexosParsed.items.length
+      ? anexosParsed.items.map((it) => {
+          const hit = cacheAnexos?.items?.find((c) => c.serverId === it.serverId || c.id === it.id);
+          return { ...it, id: it.id || hit?.id || `anx_${it.numero}`, dataUrl: hit?.dataUrl || it.dataUrl || '' };
+        })
+      : cacheAnexos?.items || [];
+    guardarAnexosEstadoContrato(val.numero_contrato, {
+      activo: anexosParsed.activo || (itemsAnexos.length > 0),
+      items: renumerarAnexosLista(itemsAnexos),
+    });
+    setContratoVigenciaPartes(vigenciaAPartes(val.vigencia));
     setContratoTipo(val.tipo_contrato);
+    const pri = String(val.prioridad || 'media').toLowerCase();
+    setContratoPrioridad(['alta', 'media', 'baja'].includes(pri) ? pri : 'media');
     const fechaInicio = val.fecha_inicio ? val.fecha_inicio.substring(0, 10) : '';
     setContratoFechaInicio(fechaInicio);
     setShowContratoModal(true);
+    aplicarDocumentosServidorAlContrato(val.numero_contrato);
+  };
+
+  const abrirInfoContrato = (contrato) => {
+    if (!contrato) return;
+    setContratoInfo(contrato);
+    setShowInfoModal(true);
+  };
+
+  const abrirCambiosPendientes = (contrato) => {
+    if (!contrato) return;
+    setContratoCambios(contrato);
+    setShowCambiosModal(true);
   };
 
   const renovarContrato = (contrato) => {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const inicioRenovacion = toISODate(hoy.toISOString());
-    const sugeridaFin = sumarTiempoConVigencia(inicioRenovacion, contrato.vigencia) || inicioRenovacion;
+    const sugeridaFin = sumarFechaConVigencia(inicioRenovacion, contrato.vigencia) || inicioRenovacion;
 
     Swal.fire({
       title: 'Renovar contrato',
@@ -1306,12 +2086,16 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
       Axios.put(`${API_BASE}/update-contrato`, {
         numero_contrato: contrato.numero_contrato,
+        operacion: 'renovacion',
         proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
         empresa: contrato.empresa,
+        contactos_notificacion: contactosFromContrato(contrato),
         correo_notificacion: contrato.correo_notificacion || null,
-        suplementos: contrato.suplementos || '',
+        ...prepararSuplementosPayload(getSuplementosContrato(contrato.numero_contrato)),
+        ...prepararAnexosPayload(parseAnexosFromContrato(contrato)),
         vigencia: contrato.vigencia,
         tipo_contrato: contrato.tipo_contrato,
+        prioridad: contrato.prioridad || 'media',
         fecha_inicio: inicioRenovacion,
         fecha_fin: nuevaFechaFin,
         vencido: 0,
@@ -1328,22 +2112,26 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const enviarRecordatorioContrato = (contrato) => {
     if (!contrato?.numero_contrato) return;
-    const correoDestino = String(contrato.correo_notificacion || '').trim();
-    if (!correoDestino) {
+    const contactos = contactosFromContrato(contrato);
+    if (!contactos.length) {
       Swal.fire(
         'Correo requerido',
-        'Este contrato no tiene correo de notificación. Agrégalo en Editar contrato para poder enviar recordatorios.',
+        'Este contrato no tiene contactos de notificación. Agréguelos en Editar contrato para poder enviar recordatorios.',
         'info'
       );
       return;
     }
+    const destinosHtml = contactos
+      .map((c) => `<li>${c.nombre ? `${c.nombre} — ` : ''}${c.correo}</li>`)
+      .join('');
 
     Swal.fire({
       title: '¿Enviar recordatorio?',
       html: `
         <div style="text-align:left">
           <p style="margin:0 0 0.35rem;"><strong>Contrato:</strong> ${contrato.numero_contrato}</p>
-          <p style="margin:0;"><strong>Destino:</strong> ${correoDestino}</p>
+          <p style="margin:0 0 0.25rem;"><strong>Destinos:</strong></p>
+          <ul style="margin:0;padding-left:1.2rem;text-align:left">${destinosHtml}</ul>
         </div>
       `,
       icon: 'question',
@@ -1377,9 +2165,19 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     });
   }, [contratosList]);
 
+  const contratosOperativos = useMemo(
+    () => contratosEnriquecidos.filter(esContratoVisibleListaOperativa),
+    [contratosEnriquecidos]
+  );
+
+  const contratosPendientes = useMemo(
+    () => contratosEnriquecidos.filter(esContratoConSolicitudPendiente),
+    [contratosEnriquecidos]
+  );
+
   const contratosFiltrados = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return contratosEnriquecidos.filter((con) => {
+    return contratosOperativos.filter((con) => {
       const matchTerm =
         !term ||
         String(con.numero_contrato).toLowerCase().includes(term) ||
@@ -1400,35 +2198,43 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
       return matchTerm && matchTipo && matchParte && matchEstado && matchVencimiento;
     });
-  }, [contratosEnriquecidos, searchTerm, filtroTipo, filtroParte, filtroEstado, filtroVencimiento]);
+  }, [contratosOperativos, searchTerm, filtroTipo, filtroParte, filtroEstado, filtroVencimiento]);
 
   const resumen = useMemo(() => {
-    const total = contratosEnriquecidos.length;
-    const activos = contratosEnriquecidos.filter((c) => c.estado === 'Activo').length;
-    const porVencer = contratosEnriquecidos.filter((c) => c.estado === 'Por vencer').length;
-    const vencidos = contratosEnriquecidos.filter((c) => c.estado === 'Vencido').length;
-    const seguimiento = contratosEnriquecidos.filter((c) => c.estado === 'En seguimiento').length;
+    const total = contratosOperativos.length;
+    const activos = contratosOperativos.filter((c) => c.estado === 'Activo').length;
+    const porVencer = contratosOperativos.filter((c) => c.estado === 'Por vencer').length;
+    const vencidos = contratosOperativos.filter((c) => c.estado === 'Vencido').length;
+    const seguimiento = contratosOperativos.filter((c) => c.estado === 'En seguimiento').length;
     return { total, activos, porVencer, vencidos, seguimiento };
-  }, [contratosEnriquecidos]);
+  }, [contratosOperativos]);
 
   const tiposDisponibles = useMemo(() => {
-    const setTipos = new Set(contratosEnriquecidos.map((c) => c.tipo_contrato).filter(Boolean));
-    return Array.from(setTipos);
-  }, [contratosEnriquecidos]);
+    const setTipos = new Set();
+    tiposCatalogoActivos.forEach((t) => {
+      if (t.nombre) setTipos.add(String(t.nombre).trim());
+    });
+    contratosOperativos.forEach((c) => {
+      const leg = etiquetaTipoContratoLegible(c.tipo_contrato) || c.tipo_contrato;
+      if (leg) setTipos.add(String(leg).trim());
+    });
+    return Array.from(setTipos).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [contratosOperativos, tiposCatalogoActivos]);
 
   const contratosPrioritarios = useMemo(() => {
-    return contratosEnriquecidos
+    return contratosOperativos
       .filter((c) => c.diasRestantes != null && c.diasRestantes <= 90)
       .sort((a, b) => (a.diasRestantes ?? 9999) - (b.diasRestantes ?? 9999));
-  }, [contratosEnriquecidos]);
+  }, [contratosOperativos]);
 
-  const contratosPorVencer = useMemo(() => contratosEnriquecidos.filter((c) => c.estado === 'Por vencer'), [contratosEnriquecidos]);
-  const contratosVencidos = useMemo(() => contratosEnriquecidos.filter((c) => c.estado === 'Vencido'), [contratosEnriquecidos]);
+  const contratosPorVencer = useMemo(() => contratosOperativos.filter((c) => c.estado === 'Por vencer'), [contratosOperativos]);
+  const contratosVencidos = useMemo(() => contratosOperativos.filter((c) => c.estado === 'Vencido'), [contratosOperativos]);
   const contratosCriticos = useMemo(() => {
-    return contratosEnriquecidos
+    return contratosOperativos
       .filter((c) => c.estado === 'Por vencer' || c.estado === 'Vencido')
       .sort((a, b) => (a.diasRestantes ?? 9999) - (b.diasRestantes ?? 9999));
-  }, [contratosEnriquecidos]);
+  }, [contratosOperativos]);
+
   const contratosBandejaVencimientos = useMemo(() => {
     if (bandejaVencimientosModo === 'por-vencer') return contratosPorVencer;
     if (bandejaVencimientosModo === 'vencidos') return contratosVencidos;
@@ -1479,7 +2285,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     const activos = Array(12).fill(0);
     const vencidos = Array(12).fill(0);
-    contratosEnriquecidos.forEach((c) => {
+    contratosOperativos.forEach((c) => {
       if (c.fecha_fin) {
         const m = new Date(`${toISODate(c.fecha_fin)}T00:00:00`).getMonth();
         if (c.estado === 'Vencido') vencidos[m] += 1;
@@ -1495,20 +2301,20 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       alturaActivos: Math.round((activos[i] / maxActivos) * 100),
       alturaVencidos: Math.round((vencidos[i] / maxVencidos) * 100),
     }));
-  }, [contratosEnriquecidos]);
+  }, [contratosOperativos]);
 
   /* Porcentaje (sobre el total) de inmediatos y vencidos para barras de progreso del panel */
   const porcentajePanel = useMemo(() => {
-    const total = contratosEnriquecidos.length || 1;
+    const total = contratosOperativos.length || 1;
     return {
       inmediatos: Math.round((contratosPorVencer.length / total) * 100),
       vencidos: Math.round((contratosVencidos.length / total) * 100),
     };
-  }, [contratosEnriquecidos, contratosPorVencer, contratosVencidos]);
+  }, [contratosOperativos, contratosPorVencer, contratosVencidos]);
 
   const topEmpresas = useMemo(() => {
     const mapa = new Map();
-    contratosEnriquecidos.forEach((c) => {
+    contratosOperativos.forEach((c) => {
       const key = c.empresa || 'Sin empresa';
       mapa.set(key, (mapa.get(key) || 0) + 1);
     });
@@ -1516,18 +2322,18 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       .map(([empresa, cantidad]) => ({ empresa, cantidad }))
       .sort((a, b) => b.cantidad - a.cantidad)
       .slice(0, 6);
-  }, [contratosEnriquecidos]);
+  }, [contratosOperativos]);
 
   const cockpitCalidadGlobal = useMemo(() => {
-    const total = contratosEnriquecidos.length;
+    const total = contratosOperativos.length;
     if (total === 0) {
       return { sinCorreo: 0, sinPdf: 0, pctDocumental: 100, total: 0 };
     }
-    const sinCorreo = contratosEnriquecidos.filter((c) => !String(c.correo_notificacion || '').trim()).length;
-    const sinPdf = contratosEnriquecidos.filter((c) => getPdfsContrato(c.numero_contrato).length === 0).length;
+    const sinCorreo = contratosOperativos.filter((c) => !tieneContactoNotificacion(c)).length;
+    const sinPdf = contratosOperativos.filter((c) => getPdfsContrato(c.numero_contrato).length === 0).length;
     const pctDocumental = Math.round(((total - sinCorreo + total - sinPdf) / (total * 2)) * 100);
     return { sinCorreo, sinPdf, pctDocumental, total };
-  }, [contratosEnriquecidos, getPdfsContrato]);
+  }, [contratosOperativos, getPdfsContrato]);
 
   const cockpitSalud = useMemo(() => {
     const total = resumen.total || 1;
@@ -1551,7 +2357,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const cockpitBalanceParte = useMemo(() => {
     let proveedor = 0;
     let cliente = 0;
-    contratosEnriquecidos.forEach((c) => {
+    contratosOperativos.forEach((c) => {
       if (c.proveedor_cliente) proveedor += 1;
       else cliente += 1;
     });
@@ -1562,7 +2368,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       pctProv: Math.round((proveedor / total) * 100),
       pctCli: Math.round((cliente / total) * 100),
     };
-  }, [contratosEnriquecidos]);
+  }, [contratosOperativos]);
 
   const cockpitConcentracion = useMemo(() => {
     if (resumen.total === 0 || topEmpresas.length === 0) return null;
@@ -1573,11 +2379,11 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   }, [topEmpresas, resumen.total]);
 
   const cockpitTimeline = useMemo(() => {
-    return contratosEnriquecidos
+    return contratosOperativos
       .filter((c) => c.diasRestantes != null && c.diasRestantes >= 0 && c.diasRestantes <= 90)
       .sort((a, b) => (a.diasRestantes ?? 9999) - (b.diasRestantes ?? 9999))
       .slice(0, 10);
-  }, [contratosEnriquecidos]);
+  }, [contratosOperativos]);
 
   const cockpitAcciones = useMemo(() => {
     const items = [];
@@ -1636,12 +2442,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   }, [resumen, contratosVencidos, contratosCriticos, cockpitCalidadGlobal]);
 
   const empresasReporteOpciones = useMemo(() => {
-    const s = new Set(contratosEnriquecidos.map((c) => c.empresa || 'Sin empresa'));
+    const s = new Set(contratosOperativos.map((c) => c.empresa || 'Sin empresa'));
     return Array.from(s).sort((a, b) => a.localeCompare(b, 'es'));
-  }, [contratosEnriquecidos]);
+  }, [contratosOperativos]);
 
   const contratosFiltradosReporte = useMemo(() => {
-    return contratosEnriquecidos.filter((c) => {
+    return contratosOperativos.filter((c) => {
       if (reporteTipo !== 'todos' && c.tipo_contrato !== reporteTipo) return false;
       if (reporteEmpresa !== 'todas' && (c.empresa || 'Sin empresa') !== reporteEmpresa) return false;
       if (reporteFechaDesde || reporteFechaHasta) {
@@ -1658,7 +2464,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       }
       return true;
     });
-  }, [contratosEnriquecidos, reporteFechaDesde, reporteFechaHasta, reporteTipo, reporteEmpresa]);
+  }, [contratosOperativos, reporteFechaDesde, reporteFechaHasta, reporteTipo, reporteEmpresa]);
 
   const reportePorTipoRows = useMemo(() => {
     const m = new Map();
@@ -1705,7 +2511,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const reporteCalidadDatos = useMemo(() => {
     const list = contratosFiltradosReporte;
-    const sinCorreo = list.filter((c) => !String(c.correo_notificacion || '').trim()).length;
+    const sinCorreo = list.filter((c) => !tieneContactoNotificacion(c)).length;
     const sinPdf = list.filter((c) => getPdfsContrato(c.numero_contrato).length === 0).length;
     return {
       sinCorreo,
@@ -1771,7 +2577,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const inicioRenovacion = toISODate(hoy.toISOString());
-    const sugeridaFin = sumarTiempoConVigencia(inicioRenovacion, 1) || inicioRenovacion;
+    const sugeridaFin = sumarFechaConVigencia(inicioRenovacion, '1|0|0') || inicioRenovacion;
 
     Swal.fire({
       title: 'Renovar contratos vencidos',
@@ -1823,12 +2629,16 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         contratosVencidos.map((contrato) => {
           return Axios.put(`${API_BASE}/update-contrato`, {
             numero_contrato: contrato.numero_contrato,
+            operacion: 'renovacion',
             proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
             empresa: contrato.empresa,
+            contactos_notificacion: contactosFromContrato(contrato),
             correo_notificacion: contrato.correo_notificacion || null,
-            suplementos: contrato.suplementos || '',
+            ...prepararSuplementosPayload(getSuplementosContrato(contrato.numero_contrato)),
+            ...prepararAnexosPayload(parseAnexosFromContrato(contrato)),
             vigencia: contrato.vigencia,
             tipo_contrato: contrato.tipo_contrato,
+            prioridad: contrato.prioridad || 'media',
             fecha_inicio: inicioRenovacion,
             fecha_fin: nuevaFechaFinSeleccionada,
             vencido: 0,
@@ -1854,9 +2664,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       html: `
         <div style="text-align:left">
           <p><strong>Empresa:</strong> ${contrato.empresa || '-'}</p>
-          <p><strong>Correo notificación:</strong> ${contrato.correo_notificacion || '-'}</p>
+          <p><strong>Correo notificación:</strong> ${resumenCorreosNotificacion(contrato) || '-'}</p>
           <p><strong>Tipo:</strong> ${contrato.tipo_contrato || '-'}</p>
-          <p><strong>Vigencia:</strong> ${contrato.vigencia || '-'} año(s)</p>
+          <p><strong>Vigencia:</strong> ${vigenciaLegibleOGuion(contrato.vigencia)}</p>
           <p><strong>Inicio:</strong> ${toISODate(contrato.fecha_inicio) || '-'}</p>
           <p><strong>Fin:</strong> ${toISODate(contrato.fecha_fin) || '-'}</p>
           <p><strong>Estado:</strong> ${contrato.estado}</p>
@@ -1877,16 +2687,14 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const construirFilasExportacionExcel = () =>
     contratosFiltradosReporte.map((c) => {
       const etiquetaPdf = getEtiquetaPdfsContrato(c.numero_contrato);
-      const vig = c.vigencia;
-      const vigCell = vig === '' || vig == null ? '' : Number(vig);
       return [
         c.numero_contrato,
         c.proveedor_cliente ? 'Proveedor' : 'Cliente',
         String(c.empresa || '').trim(),
-        String(c.correo_notificacion || '').trim(),
+        resumenCorreosNotificacion(c),
         etiquetaTipoContratoLegible(c.tipo_contrato),
-        vigCell === '' || Number.isNaN(vigCell) ? '' : vigCell,
-        String(c.suplementos || '').replace(/\s+/g, ' ').trim(),
+        convertirVigenciaLegible(c.vigencia),
+        resumenSuplementos(c),
         fechaParaExportEs(c.fecha_inicio),
         fechaParaExportEs(c.fecha_fin),
         c.estado || '',
@@ -2055,10 +2863,13 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const seccionLabel = {
     resumen: 'Resumen',
     contratos: 'Contratos',
+    pendientes: contratosPendientes.length ? `Pendientes (${contratosPendientes.length})` : 'Pendientes',
     vencimientos: 'Vencimientos',
     renovaciones: 'Renovaciones',
+    correo: 'Correo',
     reportes: 'Reportes',
     archivo: 'Archivo histórico',
+    tipos: 'Tipos de contrato',
   };
 
   const AvatarEmpresaClic = ({ empresa }) => {
@@ -2101,9 +2912,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 <i className="bi bi-file-earmark-pdf me-1" aria-hidden="true" />
                 PDF
               </button>
-              <button type="button" className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center" onClick={() => Swal.fire({ icon: 'info', title: 'Programar envío', text: 'Podrás programar el envío del reporte por correo en una próxima versión.' })}>
+              <button type="button" className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center" onClick={() => irASeccion('correo')}>
                 <i className="bi bi-calendar-event me-1" aria-hidden="true" />
-                Programar
+                Recordatorios auto
               </button>
               <button type="button" className="btn btn-sm reportes-export-btn-csv d-inline-flex align-items-center text-white" onClick={exportarReporteCsvUtf8} title="Mismas columnas que Excel; separador ; y UTF-8">
                 <i className="bi bi-filetype-csv me-1" aria-hidden="true" />
@@ -2200,22 +3011,19 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               />
             </div>
 
-            <div className="minimal-field">
-              <label className="minimal-label">Correo de notificación:</label>
-              <input
-                type="email"
-                className="minimal-input"
-                placeholder="empresa@dominio.com"
-                value={contratoCorreoNotificacion}
-                onChange={(e) => setContratoCorreoNotificacion(e.target.value)}
-              />
-              <small className="text-muted d-block mt-1">
-                A este correo se enviará el recordatorio de vencimiento del contrato.
-              </small>
-            </div>
+            <ContratosContactosNotificacionField
+              contactos={contratoContactosNotificacion}
+              onChange={setContratoContactosNotificacion}
+              disabled={false}
+            />
 
             <div className="minimal-field">
-              <label className="minimal-label">Icono empresa:</label>
+              <label
+                className="minimal-label contrato-anexos-label-tip"
+                title="Selecciona una imagen (max 1 MB)."
+              >
+                Icono empresa:
+              </label>
               <input
                 ref={inputIconoEmpresaRef}
                 type="file"
@@ -2226,7 +3034,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               <div className="d-flex align-items-center gap-2">
                 <button
                   type="button"
-                  className="btn btn-sm btn-outline-secondary"
+                  className="btn btn-sm contratos-btn-add"
                   onClick={() => inputIconoEmpresaRef.current?.click()}
                 >
                   Elegir archivo
@@ -2235,15 +3043,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                   <small className="text-muted text-truncate">{nombreArchivoIcono}</small>
                 )}
               </div>
-              <small className="text-muted d-block mt-1">
-                Selecciona una imagen (max 1 MB).
-              </small>
               {getIconoEmpresa(contratoEmpresa) && (
                 <div className="d-flex align-items-center gap-2 mt-2">
                   <img src={getIconoEmpresa(contratoEmpresa)} alt="" className="contrato-empresa-icon-preview" />
                   <button
                     type="button"
-                    className="btn btn-sm btn-outline-danger"
+                    className="btn btn-sm contratos-btn-remove"
                     onClick={() => eliminarIconoEmpresa(contratoEmpresa)}
                   >
                     Quitar icono
@@ -2253,7 +3058,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
             </div>
 
             <div className="minimal-field">
-              <label className="minimal-label">Archivos PDF del contrato:</label>
+              <label
+                className="minimal-label contrato-anexos-label-tip"
+                title="Puedes seleccionar uno o varios PDF (max 5 MB cada uno)."
+              >
+                Archivos PDF del contrato:
+              </label>
               <input
                 ref={inputPdfContratoRef}
                 type="file"
@@ -2265,7 +3075,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               <div className="d-flex align-items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  className="btn btn-sm btn-outline-secondary"
+                  className="btn btn-sm contratos-btn-add"
                   onClick={() => inputPdfContratoRef.current?.click()}
                 >
                   Agregar PDF(s)
@@ -2274,9 +3084,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                   <small className="text-muted text-truncate">{nombreArchivoPdf}</small>
                 )}
               </div>
-              <small className="text-muted d-block mt-1">
-                Puedes seleccionar uno o varios PDF (max 5 MB cada uno).
-              </small>
               {getPdfsContrato(contratoNumero).length > 0 && (
                 <ul className="list-unstyled mb-0 mt-2 contratos-pdf-modal-list">
                   {getPdfsContrato(contratoNumero).map((pdf) => (
@@ -2287,14 +3094,14 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       <div className="d-flex align-items-center gap-1 flex-shrink-0">
                         <button
                           type="button"
-                          className="btn btn-sm btn-outline-primary"
+                          className="btn btn-sm contratos-btn-view"
                           onClick={() => abrirPdfContrato(contratoNumero, pdf)}
                         >
                           Ver
                         </button>
                         <button
                           type="button"
-                          className="btn btn-sm btn-outline-danger"
+                          className="btn btn-sm contratos-btn-remove"
                           onClick={() => eliminarPdfContrato(contratoNumero, pdf.id)}
                         >
                           Quitar
@@ -2306,28 +3113,38 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               )}
             </div>
 
-            <div className="minimal-field">
-              <label className="minimal-label">Suplementos:</label>
-              <input
-                type="text"
-                className="minimal-input"
-                placeholder="------------------------"
-                value={contratoSuplementos}
-                onChange={(e) => setContratoSuplementos(e.target.value)}
-              />
-            </div>
+            <ContratosSuplementosField
+              numeroContrato={contratoNumero}
+              suplementos={getSuplementosContrato(contratoNumero)}
+              onChange={(lista) => guardarSuplementosListaContrato(contratoNumero, lista)}
+              onVerDocumento={abrirSuplementoContrato}
+              onEliminarServidor={(sup) =>
+                Axios.delete(
+                  `${API_BASE}/contratos/${encodeURIComponent(contratoNumero)}/documentos/${sup.serverId}`
+                )
+              }
+              disabled={false}
+            />
 
-            <div className="minimal-field">
-              <label className="minimal-label">Vigencia:</label>
-              <input
-                type="number"
-                step="0.01"
-                className="minimal-input"
-                placeholder="--- años ---"
-                value={contratoVigencia}
-                onChange={(e) => setContratoVigencia(e.target.value)}
-              />
-            </div>
+            <ContratosAnexosField
+              numeroContrato={contratoNumero}
+              activo={getAnexosEstadoContrato(contratoNumero).activo}
+              items={getAnexosEstadoContrato(contratoNumero).items}
+              onChange={(estado) => guardarAnexosEstadoContrato(contratoNumero, estado)}
+              onVerDocumento={abrirAnexoContrato}
+              onEliminarServidor={(anx) =>
+                Axios.delete(
+                  `${API_BASE}/contratos/${encodeURIComponent(contratoNumero)}/documentos/${anx.serverId}`
+                )
+              }
+              disabled={false}
+            />
+
+            <ContratosVigenciaField
+              partes={contratoVigenciaPartes}
+              onChange={setContratoVigenciaPartes}
+              disabled={false}
+            />
 
             <div className="minimal-field">
               <label className="minimal-label">Tipo de contrato:</label>
@@ -2338,10 +3155,34 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 onChange={(e) => setContratoTipo(e.target.value)}
               >
                 <option value="" disabled hidden>--- Seleccione ---</option>
-                <option value="Alimento">Alimento</option>
-                <option value="Servicio">Servicio</option>
-                <option value="Compra">Compra</option>
-                <option value="Otro">Otro</option>
+                {tiposCatalogoActivos.length > 0 ? (
+                  tiposCatalogoActivos.map((t) => (
+                    <option key={t.id_tipo_contrato} value={t.nombre}>
+                      {t.nombre}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="Alimento">Alimento</option>
+                    <option value="Servicio">Servicio</option>
+                    <option value="Compra">Compra</option>
+                    <option value="Otro">Otro</option>
+                  </>
+                )}
+              </AppSelect>
+            </div>
+
+            <div className="minimal-field">
+              <label className="minimal-label">Prioridad (recordatorios):</label>
+              <AppSelect
+                variant="modal"
+                className={`minimal-select ${contratoPrioridad ? 'is-selected' : ''}`}
+                value={contratoPrioridad}
+                onChange={(e) => setContratoPrioridad(e.target.value)}
+              >
+                <option value="alta">Alta — avisos 60, 30, 15, 7 y 1 día</option>
+                <option value="media">Media — avisos 30, 15 y 7 días</option>
+                <option value="baja">Baja — avisos 15 y 7 días</option>
               </AppSelect>
             </div>
 
@@ -2609,6 +3450,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       {showCol('tipo') ? <th>Tipo</th> : null}
                       {showCol('empresa') ? <th>Empresa</th> : null}
                       {showCol('vigencia') ? <th>Vigencia</th> : null}
+                      {showCol('suplemento') ? <th>Suplemento</th> : null}
                       {showCol('fechaInicio') ? <th>Fecha Inicio</th> : null}
                       {showCol('fechaFin') ? <th>Fecha Fin</th> : null}
                       {showCol('estado') ? <th>Estado</th> : null}
@@ -2648,22 +3490,49 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                           </div>
                         </td>
                         ) : null}
-                        {showCol('vigencia') ? <td>{con.vigencia != null && String(con.vigencia).trim() !== '' ? `${con.vigencia} años` : '—'}</td> : null}
+                        {showCol('vigencia') ? <td>{vigenciaLegibleOGuion(con.vigencia)}</td> : null}
+                        {showCol('suplemento') ? (
+                          <td className="text-center">
+                            {(() => {
+                              const cel = celdaSuplementosTabla(
+                                con,
+                                getSuplementosContrato(con.numero_contrato)
+                              );
+                              return (
+                                <span title={cel.title}>{cel.display}</span>
+                              );
+                            })()}
+                          </td>
+                        ) : null}
                         {showCol('fechaInicio') ? <td>{fmtDisplayDate(con.fecha_inicio)}</td> : null}
                         {showCol('fechaFin') ? <td>{fmtDisplayDate(con.fecha_fin)}</td> : null}
-                        {showCol('estado') ? <td><span className={`badge ${getBadgeClass(con.estado)}`}>{con.estado}</span></td> : null}
+                        {showCol('estado') ? (
+                        <td>
+                          <div className="contratos-estado-cell">
+                            <span className={`badge ${getBadgeClass(con.estado)}`}>{con.estado}</span>
+                            {badgeAprobacionPendiente(con) ? (
+                              <span className="badge bg-warning text-dark contratos-estado-cell__pendiente">
+                                {badgeAprobacionPendiente(con)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
+                        ) : null}
                         {showCol('dias') ? <td>{con.diasRestantes == null ? '-' : con.diasRestantes < 0 ? `-${Math.abs(con.diasRestantes)}` : con.diasRestantes}</td> : null}
-                        {showCol('documento') ? <td className="text-center">{renderCeldaDocumentoPdf(con.numero_contrato)}</td> : null}
+                        {showCol('documento') ? (
+                          <td className="text-center">{renderCeldaDocumentoPdf(con.numero_contrato, con)}</td>
+                        ) : null}
                         {showCol('acciones') ? (
                         <td className="contratos-td-actions">
                           <div className="d-inline-flex align-items-center gap-1 flex-nowrap">
+                            <InfoTableActionButton onClick={() => abrirInfoContrato(con)} />
                             <EditTableActionButton onClick={() => editarContratoTabla(con)} />
                             <RenewTableActionButton onClick={() => renovarContrato(con)} />
                             {muestraBotonEliminar(con) ? (
                               <DeleteTableActionButton onClick={() => eliminarContrato(con)} />
-                            ) : (
+                            ) : !esContratoConSolicitudPendiente(con) ? (
                               <CancelTableActionButton onClick={() => cancelarContrato(con)} />
-                            )}
+                            ) : null}
                           </div>
                         </td>
                         ) : null}
@@ -2677,6 +3546,97 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               </div>
             </div>
           </>
+        )}
+
+        {activeSection === 'pendientes' && (
+          <div className="card p-3 contratos-table-card">
+            <p className="text-muted small mb-3">
+              Contratos, modificaciones y cancelaciones que esperan aprobación. Quien tenga permiso de aprobar puede resolver cada solicitud.
+            </p>
+            <div className="table-responsive">
+              <table className="table table-data-compact table-bordered table-striped">
+                <thead>
+                  <tr>
+                    <th>N° Contrato</th>
+                    <th>Empresa</th>
+                    <th>Acción</th>
+                    <th>Solicitado por</th>
+                    <th>Fecha solicitud</th>
+                    <th>Cambios / detalle</th>
+                    <th>Estado actual</th>
+                    <th className="contratos-th-actions">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contratosPendientes.map((con) => (
+                    <tr key={con.numero_contrato}>
+                      <td>{renderNumeroContrato(con.numero_contrato)}</td>
+                      <td>
+                        <div className="d-inline-flex align-items-center gap-2">
+                          <AvatarEmpresaClic empresa={con.empresa} />
+                          <span>{con.empresa || 'Sin empresa'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge bg-secondary">{etiquetaAccionPendiente(con.aprobacion_accion)}</span>
+                      </td>
+                      <td>{con.aprobacion_solicitado_por || '—'}</td>
+                      <td>{con.aprobacion_solicitado_en ? formatAppDate(con.aprobacion_solicitado_en) : '—'}</td>
+                      <td className="contratos-pendientes-detalle-td">
+                        <ContratosPendientesDetalle
+                          contrato={con}
+                          fmtDisplayDate={fmtDisplayDate}
+                          tipoLegible={etiquetaTipoContratoLegible}
+                          onVerCambios={abrirCambiosPendientes}
+                        />
+                      </td>
+                      <td>
+                        {String(con.aprobacion_accion || '').toLowerCase() === 'alta' ? (
+                          <span className="badge bg-warning text-dark">Pendiente de alta</span>
+                        ) : (
+                          <span className={`badge ${getBadgeClass(con.estado)}`}>{con.estado}</span>
+                        )}
+                      </td>
+                      <td className="contratos-td-actions">
+                        <div className="d-inline-flex align-items-center gap-1 flex-nowrap">
+                          <InfoTableActionButton onClick={() => abrirInfoContrato(con)} />
+                          {puedeAprobarContratos ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-success"
+                                onClick={() => aprobarContratoPendiente(con)}
+                                title="Aprobar"
+                              >
+                                <i className="bi bi-check-lg" aria-hidden="true" />
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => rechazarContratoPendiente(con)}
+                                title="Rechazar"
+                              >
+                                <i className="bi bi-x-lg" aria-hidden="true" />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-muted small">Sin permiso de aprobar</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {contratosPendientes.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="text-center text-muted py-3">
+                        No hay solicitudes pendientes de aprobación.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         {activeSection === 'vencimientos' && (
@@ -2703,7 +3663,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       <td>{toISODate(c.fecha_fin)}</td>
                       <td>{c.diasRestantes}</td>
                       <td><span className={`badge ${getBadgeClass(c.estado)}`}>{c.estado}</span></td>
-                      <td className="text-center">{renderCeldaDocumentoPdf(c.numero_contrato)}</td>
+                      <td className="text-center">{renderCeldaDocumentoPdf(c.numero_contrato, c)}</td>
                       <td>
                         <button
                           type="button"
@@ -2723,6 +3683,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
             </div>
           </div>
         )}
+
+        {activeSection === 'correo' && <ContratosCorreoConfig />}
 
         {activeSection === 'renovaciones' && (
           <div className="renovaciones-dashboard">
@@ -2882,7 +3844,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                             return (
                               <tr key={c.numero_contrato}>
                                 <td className="fw-semibold text-nowrap renov-cola-td-num">{renderNumeroContrato(c.numero_contrato)}</td>
-                                <td className="text-center align-middle">{renderCeldaDocumentoPdf(c.numero_contrato)}</td>
+                                <td className="text-center align-middle">
+                                  {renderCeldaDocumentoPdf(c.numero_contrato, c)}
+                                </td>
                                 <td>
                                   <div className="d-inline-flex align-items-center gap-2">
                                     <AvatarEmpresaClic empresa={c.empresa} />
@@ -2993,10 +3957,11 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       onChange={(e) => setReporteTipo(e.target.value)}
                     >
                       <option value="todos">Todos los tipos</option>
-                      <option value="Alimento">Alimento</option>
-                      <option value="Servicio">Servicio</option>
-                      <option value="Compra">Compra</option>
-                      <option value="Otro">Otro</option>
+                      {tiposDisponibles.map((tipo) => (
+                        <option key={tipo} value={tipo}>
+                          {tipo}
+                        </option>
+                      ))}
                     </AppSelect>
                   </div>
                   <div className="col-12 col-sm-6 col-lg">
@@ -3211,7 +4176,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                               <tr key={c.numero_contrato}>
                                 <td className="text-nowrap fw-semibold">{c.numero_contrato}</td>
                                 <td className="text-truncate" style={{ maxWidth: '8rem' }} title={c.empresa || ''}>{c.empresa || '—'}</td>
-                                <td className="text-truncate small" style={{ maxWidth: '9rem' }} title={String(c.correo_notificacion || '')}>{c.correo_notificacion?.trim() || '—'}</td>
+                                <td className="text-truncate small" style={{ maxWidth: '9rem' }} title={resumenCorreosNotificacion(c)}>{resumenCorreosNotificacion(c) || '—'}</td>
                                 <td className="small">{etiquetaTipoContratoLegible(c.tipo_contrato) || '—'}</td>
                                 <td>{c.proveedor_cliente ? 'Prov.' : 'Cli.'}</td>
                                 <td>{c.estado}</td>
@@ -3233,6 +4198,15 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'tipos' && (
+          <div className="card border-0 shadow-sm">
+            <div className="card-body p-3 p-md-4">
+              <h5 className="mb-3">Catálogo de tipos de contrato</h5>
+              <CatalogoTiposContrato onCatalogChange={cargarTiposCatalogo} />
             </div>
           </div>
         )}
@@ -3369,25 +4343,68 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           </div>
         )}
 
-      {hasDocument && pdfMenuContrato && pdfMenuPos && createPortal(
-        <ul
-          className="contratos-pdf-picker__menu contratos-pdf-picker__menu--fixed list-unstyled mb-0"
-          style={{ top: pdfMenuPos.top, left: pdfMenuPos.left }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          {getPdfsContrato(pdfMenuContrato).map((p) => (
-            <li key={p.id}>
-              <button
-                type="button"
-                className="contratos-pdf-picker__item"
-                onClick={() => abrirPdfContrato(pdfMenuContrato, p)}
-              >
-                <i className="bi bi-file-earmark-pdf me-1 flex-shrink-0" aria-hidden="true" />
-                <span className="text-truncate">{p.nombre}</span>
-              </button>
-            </li>
-          ))}
-        </ul>,
+      {hasDocument && docPicker && docPickerPos && createPortal(
+        (() => {
+          const categorias = getCategoriasDocumentos(docPicker.numero, docPicker.contratoRow);
+          const catActiva = categorias.find((c) => c.id === docPickerCategoria);
+          return (
+            <div
+              className="contratos-doc-picker contratos-pdf-picker__menu contratos-pdf-picker__menu--fixed"
+              style={{ top: docPickerPos.top, left: docPickerPos.left }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <p className="contratos-doc-picker__title mb-1">Tipo de documento</p>
+              <div className="contratos-doc-picker__cats">
+                {categorias.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    className={`contratos-doc-picker__cat${docPickerCategoria === cat.id ? ' is-active' : ''}`}
+                    onClick={() =>
+                      setDocPickerCategoria((prev) => (prev === cat.id ? null : cat.id))
+                    }
+                  >
+                    {cat.label}
+                    <span className="contratos-doc-picker__cat-count">{cat.items.length}</span>
+                  </button>
+                ))}
+              </div>
+              {catActiva ? (
+                <>
+                  <p className="contratos-doc-picker__subtitle mb-1 mt-2">
+                    Archivos — {catActiva.label}
+                  </p>
+                  <ul className="contratos-doc-picker__files list-unstyled mb-0">
+                    {catActiva.items.map((doc) => {
+                      const esWord =
+                        doc.tipo === 'word' || /\.docx?$/i.test(String(doc.nombre || ''));
+                      return (
+                        <li key={doc.id || `${catActiva.id}-${doc.numero}-${doc.nombre}`}>
+                          <button
+                            type="button"
+                            className="contratos-pdf-picker__item"
+                            onClick={() =>
+                              abrirDocumentoTabla(docPicker.numero, doc, catActiva.id)
+                            }
+                          >
+                            <i
+                              className={`bi ${esWord ? 'bi-file-earmark-word' : 'bi-file-earmark-pdf'} me-1 flex-shrink-0`}
+                              aria-hidden="true"
+                            />
+                            <span className="text-truncate">{doc.etiqueta || doc.nombre}</span>
+                            <span className="contratos-doc-picker__tipo-badge ms-1">
+                              {esWord ? 'Word' : 'PDF'}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              ) : null}
+            </div>
+          );
+        })(),
         document.body
       )}
 
@@ -3396,7 +4413,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           className="contrato-pdf-preview-backdrop"
           role="dialog"
           aria-modal="true"
-          aria-label={`Vista previa del PDF del contrato ${pdfVistaPrevia.numero}`}
+          aria-label={`Vista previa del documento del contrato ${pdfVistaPrevia.numero}`}
           onClick={() => {
             setPdfVistaPrevia(null);
             setPdfVistaMaximizada(false);
@@ -3436,7 +4453,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               }}
             >
               <div className="contrato-pdf-preview-title-wrap">
-                <strong className="contrato-pdf-preview-title">Contrato {pdfVistaPrevia.numero}</strong>
+                <strong className="contrato-pdf-preview-title">
+                  {pdfVistaPrevia.tituloTipo || 'Contrato'} {pdfVistaPrevia.numero}
+                </strong>
                 <small className="contrato-pdf-preview-name">{pdfVistaPrevia.nombre}</small>
               </div>
               <div className="contrato-pdf-preview-actions">
@@ -3449,11 +4468,24 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                     if (pdfVistaMaximizada) setPdfHasCustomPos(false);
                     setPdfRenderNonce((n) => n + 1);
                   }}
-                  aria-label={pdfVistaMaximizada ? 'Restaurar tamaño visor PDF' : 'Maximizar visor PDF'}
+                  aria-label={pdfVistaMaximizada ? 'Restaurar tamaño del visor' : 'Maximizar visor'}
                   title={pdfVistaMaximizada ? 'Restaurar' : 'Maximizar'}
                 >
                   <i className={`bi ${pdfVistaMaximizada ? 'bi-fullscreen-exit' : 'bi-fullscreen'}`} aria-hidden="true" />
                 </button>
+                {pdfVistaPrevia.tipo === 'word' && (
+                  <button
+                    type="button"
+                    className="contrato-pdf-preview-maximize"
+                    onClick={() =>
+                      descargarDocumentoDataUrl(pdfVistaPrevia.dataUrl, pdfVistaPrevia.nombre)
+                    }
+                    aria-label="Descargar documento Word"
+                    title="Descargar"
+                  >
+                    <i className="bi bi-download" aria-hidden="true" />
+                  </button>
+                )}
                 <button
                   type="button"
                   className="contrato-pdf-preview-close"
@@ -3463,24 +4495,63 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                     setPdfHasCustomPos(false);
                     setPdfDragging(false);
                   }}
-                  aria-label="Cerrar visor PDF"
+                  aria-label="Cerrar visor de documento"
                 >
                   <i className="bi bi-x-lg" aria-hidden="true" />
                 </button>
               </div>
             </div>
             <div className="contrato-pdf-preview-body">
-              <iframe
-                key={`${pdfVistaPrevia.numero}-${pdfVistaMaximizada ? 'max' : 'min'}-${pdfRenderNonce}`}
-                src={buildPdfViewerSrc(pdfVistaPrevia, pdfVistaMaximizada, pdfRenderNonce)}
-                title={`PDF del contrato ${pdfVistaPrevia.numero}`}
-                className="contrato-pdf-preview-iframe"
-              />
+              {pdfVistaPrevia.tipo === 'word' ? (
+                <ContratoWordPreviewPane
+                  key={`word-${pdfVistaPrevia.numero}-${pdfVistaPrevia.nombre}`}
+                  dataUrl={pdfVistaPrevia.dataUrl}
+                  nombre={pdfVistaPrevia.nombre}
+                  maximizado={pdfVistaMaximizada}
+                  onDescargar={() =>
+                    descargarDocumentoDataUrl(pdfVistaPrevia.dataUrl, pdfVistaPrevia.nombre)
+                  }
+                />
+              ) : (
+                <iframe
+                  key={`${pdfVistaPrevia.numero}-${pdfVistaMaximizada ? 'max' : 'min'}-${pdfRenderNonce}`}
+                  src={buildPdfViewerSrc(pdfVistaPrevia, pdfVistaMaximizada, pdfRenderNonce)}
+                  title={`PDF del contrato ${pdfVistaPrevia.numero}`}
+                  className="contrato-pdf-preview-iframe"
+                />
+              )}
             </div>
           </div>
         </div>,
         document.body
       )}
+
+      <ContratosInfoModal
+        show={showInfoModal}
+        onHide={() => {
+          setShowInfoModal(false);
+          setContratoInfo(null);
+        }}
+        numeroContrato={contratoInfo?.numero_contrato}
+        fmtDisplayDate={fmtDisplayDate}
+        getIconoEmpresa={getIconoEmpresa}
+        getPdfsContrato={getPdfsContrato}
+        onVerPdf={abrirPdfContrato}
+      />
+
+      <ContratosCambiosPendientesModal
+        show={showCambiosModal}
+        onHide={() => {
+          setShowCambiosModal(false);
+          setContratoCambios(null);
+        }}
+        contratoActual={contratoCambios}
+        fmtDisplayDate={fmtDisplayDate}
+        tipoLegible={etiquetaTipoContratoLegible}
+        getIconoEmpresa={getIconoEmpresa}
+        getPdfsContrato={getPdfsContrato}
+        onVerPdf={abrirPdfContrato}
+      />
 
       {empresaVistaPrevia != null && (
         <div

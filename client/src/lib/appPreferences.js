@@ -449,8 +449,18 @@ export function saveLastSection(email, sectionKey) {
   localStorage.setItem(getLastSectionKey(email), sectionKey);
 }
 
+const LEGACY_NAV_KEYS = {
+  'app-configuracion': 'config-aplicacion',
+  'config-recordatorios': 'contratos-correo',
+};
+
+export function normalizeNavSectionKey(key) {
+  const k = String(key || '').trim();
+  return LEGACY_NAV_KEYS[k] || k;
+}
+
 export function loadLastSection(email) {
-  return localStorage.getItem(getLastSectionKey(email)) || '';
+  return normalizeNavSectionKey(localStorage.getItem(getLastSectionKey(email)) || '');
 }
 
 export function getSystemThemeId() {
@@ -596,7 +606,7 @@ export function getInitialModuleKey(prefs, rol, allowedKeys, roleDefaultKey, ema
   if (merged.defaultModule && allowedKeys.has(merged.defaultModule)) return merged.defaultModule;
   if (roleDefaultKey && allowedKeys.has(roleDefaultKey)) return roleDefaultKey;
   if (allowedKeys.size > 0) return [...allowedKeys][0];
-  return 'app-configuracion';
+  return 'config-aplicacion';
 }
 
 export function isColumnVisible(preferences, tableId, columnId) {

@@ -37,6 +37,14 @@ function resolveRouteAction(method, rawPath) {
     return { module: 'auditoria', action: 'view' };
   }
 
+  if (path.includes('/recordatorios/ejecutar')) {
+    return { module: 'contratos', action: 'approve' };
+  }
+
+  if (path.includes('/recordatorios-envios') || path.startsWith('/config/recordatorios-contratos')) {
+    return { module: 'contratos', action: m === 'GET' ? 'view' : 'edit' };
+  }
+
   if (path.startsWith('/config/')) {
     return { module: 'configuracion', action: actionFromMethod(m) };
   }
@@ -50,6 +58,10 @@ function resolveRouteAction(method, rawPath) {
     return { module: 'usuarios', action: actionFromMethod(m) };
   }
 
+  if (path.startsWith('/catalogo/')) {
+    return { module: 'contratos', action: actionFromMethod(m) };
+  }
+
   if (
     path.startsWith('/contratos') ||
     path.includes('contrato') ||
@@ -58,6 +70,9 @@ function resolveRouteAction(method, rawPath) {
     path === '/send-contrato-reminder'
   ) {
     if (m === 'POST' && path.includes('/archivar')) return { module: 'contratos', action: 'delete' };
+    if (m === 'POST' && (path.includes('/aprobar') || path.includes('/rechazar'))) {
+      return { module: 'contratos', action: 'approve' };
+    }
     if (path === '/send-contrato-reminder') return { module: 'contratos', action: 'approve' };
     return { module: 'contratos', action: actionFromMethod(m) };
   }

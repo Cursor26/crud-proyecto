@@ -14,7 +14,7 @@ export function FormModal({
   primaryLabel = 'Guardar',
   primaryDisabled = false,
   size,
-  scrollable = true,
+  scrollable = false,
 }) {
   return (
     <Modal

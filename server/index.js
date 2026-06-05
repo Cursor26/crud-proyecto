@@ -18,11 +18,13 @@ const {
   STORAGE_ROOT,
   ACTIVOS_DIR,
   saveActivoPdf,
+  saveActivoDocumento,
   saveArchivoPdf,
   copyFileToArchivo,
   resolveAbsPath,
   removeDirIfExists,
   calcRetencionHasta,
+  contentTypeFromNombre,
 } = require('./lib/contratosDocumentosStorage');
 const {
   envSmtpConfig,
@@ -52,6 +54,7 @@ const {
   SQL_CONTRATO_SELECT,
   idRolDesdeCodigo,
   idsContratoDesdeBody,
+  prioridadDesdeBody,
 } = require('./db/queryHelpers');
 
 const db = mysql.createConnection({
@@ -83,6 +86,19 @@ const { createAuditService } = require('./lib/auditLog');
 const audit = createAuditService(dbQuery);
 const { createRbacService } = require('./lib/rbac');
 const rbac = createRbacService(dbQuery);
+const { createContratosRecordatoriosService } = require('./lib/contratosRecordatorios');
+const {
+  prepareContactosForSave,
+  contactosFromContrato,
+} = require('./lib/contratosContactosNotificacion');
+const { prepareAnexosForSave } = require('./lib/contratosAnexos');
+const {
+  usuarioDesdeReq,
+  normalizarAprobacionEstado,
+  aplicarDatosContratoDesdeBody,
+  aprobarContratoPendiente,
+  rechazarContratoPendiente,
+} = require('./lib/contratosAprobacion');
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const hashResetToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -165,6 +181,15 @@ const sendMailWithFallback = async (mailOptions) => {
 const shouldUseGracefulMailFallback = (error) =>
   MAIL_FALLBACK_MODE === 'graceful' && isSmtpTransientError(error);
 
+const recordatoriosContratos = createContratosRecordatoriosService(dbQuery, {
+  SQL_CONTRATO_SELECT,
+  normalizeEmail,
+  isValidEmail,
+  sendMailWithFallback,
+  mailer,
+  shouldUseGracefulMailFallback,
+});
+
 const ensurePasswordResetTable = async () => {
   await dbQuery(`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -193,6 +218,22 @@ const ensureContratoCorreoColumn = async () => {
   const exists = Number(rows?.[0]?.cnt || 0) > 0;
   if (!exists) {
     await dbQuery('ALTER TABLE contratos_generales ADD COLUMN correo_notificacion VARCHAR(255) NULL AFTER empresa');
+  }
+};
+
+const ensureContratoContactosNotificacionColumn = async () => {
+  const rows = await dbQuery(
+    `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'contratos_generales'
+        AND COLUMN_NAME = 'contactos_notificacion'`
+  );
+  const exists = Number(rows?.[0]?.cnt || 0) > 0;
+  if (!exists) {
+    await dbQuery(
+      'ALTER TABLE contratos_generales ADD COLUMN contactos_notificacion JSON NULL AFTER correo_notificacion'
+    );
   }
 };
 
@@ -260,6 +301,191 @@ const ensureContratosArchivoTables = async () => {
     await dbQuery(stmt);
   }
   fs.mkdirSync(STORAGE_ROOT, { recursive: true });
+};
+
+const ensureContratoAnexosColumn = async () => {
+  const rows = await dbQuery(
+    `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'contratos_generales'
+        AND COLUMN_NAME = 'anexos'`
+  );
+  const exists = Number(rows?.[0]?.cnt || 0) > 0;
+  if (!exists) {
+    await dbQuery('ALTER TABLE contratos_generales ADD COLUMN anexos JSON NULL AFTER suplementos');
+  }
+};
+
+const ensureContratosDocumentosColumns = async () => {
+  const defs = [
+    {
+      name: 'tipo_documento',
+      sql: "ALTER TABLE contratos_documentos ADD COLUMN tipo_documento VARCHAR(20) NOT NULL DEFAULT 'contrato' AFTER numero_contrato",
+    },
+    {
+      name: 'numero_suplemento',
+      sql: 'ALTER TABLE contratos_documentos ADD COLUMN numero_suplemento SMALLINT UNSIGNED NULL AFTER tipo_documento',
+    },
+  ];
+  for (const def of defs) {
+    const rows = await dbQuery(
+      `SELECT COUNT(*) AS cnt
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'contratos_documentos'
+          AND COLUMN_NAME = ?`,
+      [def.name]
+    );
+    const exists = Number(rows?.[0]?.cnt || 0) > 0;
+    if (!exists) await dbQuery(def.sql);
+  }
+};
+
+const ensureContratoVigenciaVarchar = async () => {
+  const rows = await dbQuery(
+    `SELECT DATA_TYPE AS tipo
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'contratos_generales'
+        AND COLUMN_NAME = 'vigencia'
+      LIMIT 1`
+  );
+  const tipo = String(rows?.[0]?.tipo || '').toLowerCase();
+  if (tipo && tipo !== 'varchar' && tipo !== 'char') {
+    await dbQuery('ALTER TABLE contratos_generales MODIFY vigencia VARCHAR(32) NULL DEFAULT NULL');
+  }
+  const arch = await dbQuery(
+    `SELECT DATA_TYPE AS tipo
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'contratos_archivo'
+        AND COLUMN_NAME = 'vigencia'
+      LIMIT 1`
+  );
+  const tipoArch = String(arch?.[0]?.tipo || '').toLowerCase();
+  if (tipoArch && tipoArch !== 'varchar' && tipoArch !== 'char') {
+    await dbQuery('ALTER TABLE contratos_archivo MODIFY vigencia VARCHAR(32) NULL DEFAULT NULL');
+  }
+};
+
+const ensureContratosRecordatoriosTable = async () => {
+  const sqlPath = path.join(__dirname, 'sql', 'contratos_recordatorios.sql');
+  const raw = fs.readFileSync(sqlPath, 'utf8');
+  const statements = raw
+    .split(';')
+    .map((s) => s.replace(/--[^\n]*/g, '').trim())
+    .filter(Boolean);
+  for (const stmt of statements) {
+    await dbQuery(stmt);
+  }
+};
+
+const ensureContratoPrioridadColumn = async () => {
+  const rows = await dbQuery(
+    `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'contratos_generales'
+        AND COLUMN_NAME = 'prioridad'`
+  );
+  if (Number(rows?.[0]?.cnt || 0) > 0) return;
+  try {
+    await dbQuery(
+      "ALTER TABLE contratos_generales ADD COLUMN prioridad VARCHAR(10) NOT NULL DEFAULT 'media' AFTER id_tipo_contrato"
+    );
+  } catch (err) {
+    if (err?.code !== 'ER_DUP_FIELDNAME') throw err;
+  }
+};
+
+const ensureContratoAprobacionColumns = async () => {
+  const defs = [
+    {
+      name: 'aprobacion_estado',
+      sql: "ALTER TABLE contratos_generales ADD COLUMN aprobacion_estado VARCHAR(20) NOT NULL DEFAULT 'aprobado' AFTER cancelado_por",
+    },
+    {
+      name: 'aprobacion_accion',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN aprobacion_accion VARCHAR(20) NULL AFTER aprobacion_estado',
+    },
+    {
+      name: 'aprobacion_propuesta',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN aprobacion_propuesta JSON NULL AFTER aprobacion_accion',
+    },
+    {
+      name: 'aprobacion_solicitado_por',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN aprobacion_solicitado_por VARCHAR(255) NULL AFTER aprobacion_propuesta',
+    },
+    {
+      name: 'aprobacion_solicitado_en',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN aprobacion_solicitado_en DATETIME NULL AFTER aprobacion_solicitado_por',
+    },
+    {
+      name: 'aprobacion_resuelto_por',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN aprobacion_resuelto_por VARCHAR(255) NULL AFTER aprobacion_solicitado_en',
+    },
+    {
+      name: 'aprobacion_resuelto_en',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN aprobacion_resuelto_en DATETIME NULL AFTER aprobacion_resuelto_por',
+    },
+    {
+      name: 'aprobacion_resolucion_nota',
+      sql: 'ALTER TABLE contratos_generales ADD COLUMN aprobacion_resolucion_nota VARCHAR(500) NULL AFTER aprobacion_resuelto_en',
+    },
+  ];
+  for (const def of defs) {
+    const rows = await dbQuery(
+      `SELECT COUNT(*) AS cnt
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'contratos_generales'
+          AND COLUMN_NAME = ?`,
+      [def.name]
+    );
+    const exists = Number(rows?.[0]?.cnt || 0) > 0;
+    if (!exists) await dbQuery(def.sql);
+  }
+};
+
+const ensureDirectorContratosApprove = async () => {
+  await dbQuery(
+    `UPDATE rbac_role_permissions rp
+     INNER JOIN roles r ON r.id_rol = rp.id_rol
+     SET rp.can_approve = 1
+     WHERE r.codigo = 'director' AND rp.module_codigo = 'contratos'`
+  );
+};
+
+const contratoAprobacionDeps = () => ({
+  idsContratoDesdeBody,
+  prioridadDesdeBody,
+  prepareContactosForSave,
+  prepareAnexosForSave,
+  resolveAbsPath,
+});
+
+const ensureCatalogoTipoContratoActivo = async () => {
+  const rows = await dbQuery(
+    `SELECT COUNT(*) AS cnt
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'catalogo_tipo_contrato'
+        AND COLUMN_NAME = 'activo'`
+  );
+  if (Number(rows?.[0]?.cnt || 0) === 0) {
+    try {
+      await dbQuery(
+        'ALTER TABLE catalogo_tipo_contrato ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1 AFTER nombre'
+      );
+    } catch (err) {
+      if (err?.code !== 'ER_DUP_FIELDNAME') throw err;
+    }
+  }
+  const defaults = ['Alimento', 'Servicio', 'Compra', 'Otro'];
+  for (const nombre of defaults) {
+    await dbQuery('INSERT IGNORE INTO catalogo_tipo_contrato (nombre, activo) VALUES (?, 1)', [nombre]);
+  }
 };
 
 const ensureConfigSistemaTable = async () => {
@@ -972,6 +1198,76 @@ app.get('/rbac/me/permissions', verificarToken, async (req, res) => {
 
 
 
+// ==================== RECORDATORIOS AUTOMÁTICOS CONTRATOS ====================
+
+app.get('/config/recordatorios-contratos', verificarToken, autorizarRol(['admin', 'contratacion']), async (req, res) => {
+  try {
+    const config = await recordatoriosContratos.loadConfig();
+    const envios = await recordatoriosContratos.listEnvios(30);
+    const tipos = await dbQuery(
+      `SELECT id_tipo_contrato, nombre, COALESCE(activo, 1) AS activo
+         FROM catalogo_tipo_contrato
+        ORDER BY activo DESC, nombre ASC`
+    );
+    return res.json({ config, ultimos_envios: envios, tipos_contrato: tipos });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || 'Error al cargar configuración.' });
+  }
+});
+
+app.put('/config/recordatorios-contratos', verificarToken, autorizarRol(['admin', 'contratacion']), async (req, res) => {
+  try {
+    const updatedBy = String(req.user?.email || req.user?.nombre || '').trim() || null;
+    const config = await recordatoriosContratos.saveConfig(req.body || {}, updatedBy);
+    return res.json({ ok: true, message: 'Configuración de recordatorios guardada.', config });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || 'Error al guardar.' });
+  }
+});
+
+app.post(
+  '/contratos/recordatorios/ejecutar-ahora',
+  verificarToken,
+  autorizarRol(['admin', 'contratacion']),
+  async (req, res) => {
+    try {
+      const result = await recordatoriosContratos.ejecutarAutomaticos({
+        forzar: Boolean(req.body?.forzar),
+      });
+      if (result.skipped && result.reason === 'desactivado') {
+        return res.status(400).json({
+          message: 'Los recordatorios automáticos están desactivados. Actívelos en Correo del sistema o use forzar en admin.',
+          result,
+        });
+      }
+      return res.json({
+        message: `Proceso completado: ${result.enviados} enviado(s), ${result.omitidos} omitido(s), ${result.errores} error(es).`,
+        result,
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: err.message || 'Error al ejecutar recordatorios.' });
+    }
+  }
+);
+
+app.get(
+  '/contratos/recordatorios-envios',
+  verificarToken,
+  autorizarRol(['admin', 'contratacion', 'director']),
+  async (req, res) => {
+    try {
+      const lim = Number(req.query.limit) || 50;
+      const rows = await recordatoriosContratos.listEnvios(lim);
+      return res.json(rows);
+    } catch (err) {
+      return res.status(500).json({ message: err.message || 'Error al listar envíos.' });
+    }
+  }
+);
+
 // ==================== CONFIGURACIÓN CORREO (admin) ====================
 
 app.get('/config/correo', verificarToken, autorizarRol(['admin']), async (req, res) => {
@@ -1240,36 +1536,166 @@ app.get("/tabla1", verificarToken, autorizarRol(['admin']), (req, res)=>{
 
 //Contratos:
 
+// ==================== CATÁLOGO TIPOS DE CONTRATO ====================
+const ROLES_CONTRATOS_LECTURA = ['admin', 'contratacion', 'director'];
+const ROLES_CONTRATOS_GESTION = ['admin', 'contratacion'];
+
+app.get(
+  '/catalogo/tipos-contrato',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    try {
+      const todos = String(req.query.todos || '') === '1';
+      const whereActivo = todos ? '' : ' WHERE t.activo = 1';
+      const rows = await dbQuery(
+        `SELECT t.id_tipo_contrato, t.nombre, COALESCE(t.activo, 1) AS activo,
+                (SELECT COUNT(*) FROM contratos_generales c WHERE c.id_tipo_contrato = t.id_tipo_contrato) AS num_contratos
+           FROM catalogo_tipo_contrato t
+           ${whereActivo}
+          ORDER BY t.activo DESC, t.nombre ASC`
+      );
+      return res.json(rows);
+    } catch (err) {
+      console.error('GET /catalogo/tipos-contrato:', err);
+      return res.status(500).json({ message: 'Error al listar tipos de contrato.' });
+    }
+  }
+);
+
+app.post(
+  '/catalogo/tipos-contrato',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_GESTION),
+  async (req, res) => {
+    const nombre = String(req.body?.nombre || '').trim();
+    if (!nombre) return res.status(400).json({ message: 'El nombre es obligatorio.' });
+    if (nombre.length > 100) return res.status(400).json({ message: 'El nombre no puede superar 100 caracteres.' });
+    try {
+      const dup = await dbQuery(
+        'SELECT id_tipo_contrato FROM catalogo_tipo_contrato WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?)) LIMIT 1',
+        [nombre]
+      );
+      if (dup.length) {
+        return res.status(409).json({ message: `Ya existe un tipo con el nombre «${nombre}».` });
+      }
+      const ins = await dbQuery('INSERT INTO catalogo_tipo_contrato (nombre, activo) VALUES (?, 1)', [nombre]);
+      return res.status(201).json({
+        id_tipo_contrato: ins.insertId,
+        nombre,
+        activo: 1,
+        num_contratos: 0,
+      });
+    } catch (err) {
+      console.error('POST /catalogo/tipos-contrato:', err);
+      return res.status(500).json({ message: 'Error al crear el tipo de contrato.' });
+    }
+  }
+);
+
+app.put(
+  '/catalogo/tipos-contrato/:id',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_GESTION),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ message: 'Identificador inválido.' });
+    const nombreBody = req.body?.nombre;
+    const activoBody = req.body?.activo;
+    const hasNombre = nombreBody !== undefined && nombreBody !== null;
+    const hasActivo = activoBody !== undefined && activoBody !== null;
+    if (!hasNombre && !hasActivo) {
+      return res.status(400).json({ message: 'Indique nombre y/o estado activo.' });
+    }
+    try {
+      const existing = await dbQuery(
+        'SELECT id_tipo_contrato, nombre, COALESCE(activo, 1) AS activo FROM catalogo_tipo_contrato WHERE id_tipo_contrato = ? LIMIT 1',
+        [id]
+      );
+      if (!existing.length) return res.status(404).json({ message: 'Tipo de contrato no encontrado.' });
+
+      let nombre = existing[0].nombre;
+      let activo = Number(existing[0].activo);
+
+      if (hasNombre) {
+        nombre = String(nombreBody).trim();
+        if (!nombre) return res.status(400).json({ message: 'El nombre no puede estar vacío.' });
+        const dup = await dbQuery(
+          'SELECT id_tipo_contrato FROM catalogo_tipo_contrato WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?)) AND id_tipo_contrato <> ? LIMIT 1',
+          [nombre, id]
+        );
+        if (dup.length) {
+          return res.status(409).json({ message: `Ya existe otro tipo con el nombre «${nombre}».` });
+        }
+      }
+      if (hasActivo) activo = normalizarActivo(activoBody);
+
+      await dbQuery('UPDATE catalogo_tipo_contrato SET nombre = ?, activo = ? WHERE id_tipo_contrato = ?', [
+        nombre,
+        activo,
+        id,
+      ]);
+
+      const countRows = await dbQuery(
+        'SELECT COUNT(*) AS cnt FROM contratos_generales WHERE id_tipo_contrato = ?',
+        [id]
+      );
+      return res.json({
+        id_tipo_contrato: id,
+        nombre,
+        activo,
+        num_contratos: Number(countRows[0]?.cnt || 0),
+      });
+    } catch (err) {
+      console.error('PUT /catalogo/tipos-contrato/:id:', err);
+      return res.status(500).json({ message: 'Error al actualizar el tipo de contrato.' });
+    }
+  }
+);
+
 // ==================== RUTAS PARA CONTRATOS ====================
+
 app.post("/create-contrato", verificarToken, autorizarRol(['admin', 'contratacion']), async (req, res) => {
   const {
     numero_contrato,
     empresa,
-    correo_notificacion,
     suplementos,
     vigencia,
     fecha_inicio,
     fecha_fin,
   } = req.body;
+  const solicitadoPor = usuarioDesdeReq(req);
   try {
     const { idContraparte, idTipo } = await idsContratoDesdeBody(dbQuery, req.body);
+    const prioridad = prioridadDesdeBody(req.body);
+    const { contactosJson, correoPrincipal } = prepareContactosForSave(req.body);
+    const anexosJson = prepareAnexosForSave(req.body);
     await dbQuery(
       `INSERT INTO contratos_generales
-        (numero_contrato, id_contraparte, empresa, correo_notificacion, suplementos, vigencia, id_tipo_contrato, fecha_inicio, fecha_fin)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+        (numero_contrato, id_contraparte, empresa, correo_notificacion, contactos_notificacion, suplementos, anexos, vigencia, id_tipo_contrato, prioridad, fecha_inicio, fecha_fin,
+         aprobacion_estado, aprobacion_accion, aprobacion_solicitado_por, aprobacion_solicitado_en)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pendiente','alta',?,NOW())`,
       [
         numero_contrato,
         idContraparte,
         empresa,
-        correo_notificacion ? String(correo_notificacion).trim() : null,
+        correoPrincipal,
+        contactosJson,
         suplementos,
+        anexosJson,
         vigencia,
         idTipo,
+        prioridad,
         fecha_inicio,
         fecha_fin,
+        solicitadoPor,
       ]
     );
-    res.send({ ok: true });
+    res.json({
+      ok: true,
+      pendiente: true,
+      message: 'Contrato registrado y enviado a aprobación. Aparecerá activo cuando un autorizador lo apruebe.',
+    });
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
@@ -1282,7 +1708,6 @@ app.put("/update-contrato", verificarToken, autorizarRol(['admin', 'contratacion
     numero_contrato,
     numero_contrato_original,
     empresa,
-    correo_notificacion,
     suplementos,
     vigencia,
     fecha_inicio,
@@ -1300,72 +1725,86 @@ app.put("/update-contrato", verificarToken, autorizarRol(['admin', 'contratacion
     return res.status(400).json({ message: 'El número de contrato no puede estar vacío.' });
   }
 
+  const solicitadoPor = usuarioDesdeReq(req);
+
   try {
-    const { idContraparte, idTipo } = await idsContratoDesdeBody(dbQuery, body);
-    const result = await dbQuery(
-      `UPDATE contratos_generales
-          SET numero_contrato = ?,
-              id_contraparte = ?,
-              empresa = ?,
-              correo_notificacion = ?,
-              suplementos = ?,
-              vigencia = ?,
-              id_tipo_contrato = ?,
-              fecha_inicio = ?,
-              fecha_fin = ?,
-              cancelado = IF(? IS NOT NULL AND ? >= CURDATE(), 0, cancelado),
-              cancelado_en = IF(? IS NOT NULL AND ? >= CURDATE(), NULL, cancelado_en),
-              cancelado_por = IF(? IS NOT NULL AND ? >= CURDATE(), NULL, cancelado_por)
-        WHERE numero_contrato = ?`,
-      [
-        numeroNuevo,
-        idContraparte,
-        empresa,
-        correo_notificacion ? String(correo_notificacion).trim() : null,
-        suplementos,
-        vigencia,
-        idTipo,
-        fecha_inicio,
-        fecha_fin,
-        fecha_fin,
-        fecha_fin,
-        fecha_fin,
-        fecha_fin,
-        fecha_fin,
-        fecha_fin,
-        numeroContratoWhere,
-      ]
+    const existentes = await dbQuery(
+      `SELECT numero_contrato, aprobacion_estado, aprobacion_accion
+         FROM contratos_generales
+        WHERE numero_contrato = ?
+        LIMIT 1`,
+      [numeroContratoWhere]
     );
-    const nRows = Number(result.affectedRows) || 0;
-    if (nRows === 0) {
-      const rows = await dbQuery(
-        'SELECT 1 AS ok FROM contratos_generales WHERE numero_contrato = ? LIMIT 1',
-        [numeroContratoWhere]
-      );
-      if (!rows?.length) {
-        return res.status(404).json({
-          message: `No existe un contrato con número «${numeroContratoWhere}».`,
-        });
-      }
-      return res.json({
-        ok: true,
-        affectedRows: 0,
-        warning: 'No hubo cambios en MySQL (datos idénticos).',
-        numero_contrato: numeroNuevo,
+    if (!existentes.length) {
+      return res.status(404).json({
+        message: `No existe un contrato con número «${numeroContratoWhere}».`,
       });
     }
-    return res.json({
-      ok: true,
-      affectedRows: nRows,
-      numero_contrato: numeroNuevo,
-    });
+
+    const actual = existentes[0];
+    const estadoAprob = normalizarAprobacionEstado(actual.aprobacion_estado);
+    const accionAprob = String(actual.aprobacion_accion || '').toLowerCase();
+
+    if (estadoAprob === 'pendiente' && accionAprob === 'cancelacion') {
+      return res.status(409).json({
+        message: 'Hay una solicitud de cancelación pendiente. Espere su resolución antes de editar.',
+      });
+    }
+
+    if (estadoAprob === 'pendiente' && accionAprob === 'alta') {
+      const { result, numeroNuevo: numFinal } = await aplicarDatosContratoDesdeBody(
+        dbQuery,
+        contratoAprobacionDeps(),
+        numeroContratoWhere,
+        body
+      );
+      await dbQuery(
+        `UPDATE contratos_generales
+            SET aprobacion_solicitado_por = ?,
+                aprobacion_solicitado_en = NOW(),
+                aprobacion_propuesta = NULL
+          WHERE numero_contrato = ?`,
+        [solicitadoPor, numFinal]
+      );
+      const nRows = Number(result.affectedRows) || 0;
+      return res.json({
+        ok: true,
+        pendiente: true,
+        affectedRows: nRows,
+        numero_contrato: numFinal,
+        message: 'Contrato actualizado y pendiente de aprobación.',
+      });
+    }
+
+    if (estadoAprob === 'aprobado' || (estadoAprob === 'pendiente' && accionAprob === 'edicion')) {
+      const propuestaJson = JSON.stringify(body);
+      await dbQuery(
+        `UPDATE contratos_generales
+            SET aprobacion_estado = 'pendiente',
+                aprobacion_accion = 'edicion',
+                aprobacion_propuesta = ?,
+                aprobacion_solicitado_por = ?,
+                aprobacion_solicitado_en = NOW(),
+                aprobacion_resuelto_por = NULL,
+                aprobacion_resuelto_en = NULL,
+                aprobacion_resolucion_nota = NULL
+          WHERE numero_contrato = ?`,
+        [propuestaJson, solicitadoPor, numeroContratoWhere]
+      );
+      return res.json({
+        ok: true,
+        pendiente: true,
+        numero_contrato: numeroContratoWhere,
+        message: 'Cambios enviados a aprobación. El contrato activo no cambia hasta que un autorizador los apruebe.',
+      });
+    }
+
+    return res.status(409).json({ message: 'Estado de aprobación no válido para editar este contrato.' });
   } catch (err) {
     console.log(err);
     return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
   }
 });
-
-const ROLES_CONTRATOS_LECTURA = ['admin', 'contratacion', 'director'];
 
 app.post(
   '/contratos/:numero_contrato/cancelar',
@@ -1379,7 +1818,8 @@ app.post(
 
     try {
       const rows = await dbQuery(
-        `SELECT numero_contrato, fecha_fin, COALESCE(cancelado, 0) AS cancelado
+        `SELECT numero_contrato, fecha_fin, COALESCE(cancelado, 0) AS cancelado,
+                aprobacion_estado, aprobacion_accion
            FROM contratos_generales
           WHERE numero_contrato = ?
           LIMIT 1`,
@@ -1390,6 +1830,13 @@ app.post(
       const c = rows[0];
       if (Number(c.cancelado) === 1) {
         return res.status(400).json({ message: 'El contrato ya está cancelado.' });
+      }
+      const estadoAprob = normalizarAprobacionEstado(c.aprobacion_estado);
+      const accionAprob = String(c.aprobacion_accion || '').toLowerCase();
+      if (estadoAprob === 'pendiente') {
+        return res.status(409).json({
+          message: 'Este contrato ya tiene una solicitud pendiente de aprobación.',
+        });
       }
       const vencido = await dbQuery(
         `SELECT 1 AS ok FROM contratos_generales
@@ -1403,15 +1850,88 @@ app.post(
 
       await dbQuery(
         `UPDATE contratos_generales
-            SET cancelado = 1, cancelado_en = NOW(), cancelado_por = ?
+            SET aprobacion_estado = 'pendiente',
+                aprobacion_accion = 'cancelacion',
+                aprobacion_propuesta = NULL,
+                aprobacion_solicitado_por = ?,
+                aprobacion_solicitado_en = NOW(),
+                aprobacion_resuelto_por = NULL,
+                aprobacion_resuelto_en = NULL,
+                aprobacion_resolucion_nota = NULL,
+                cancelado = 0,
+                cancelado_en = NULL,
+                cancelado_por = NULL
           WHERE numero_contrato = ?`,
         [canceladoPor, numero]
       );
 
-      return res.json({ ok: true, numero_contrato: numero, estado: 'Cancelado' });
+      return res.json({
+        ok: true,
+        pendiente: true,
+        numero_contrato: numero,
+        message: 'Solicitud de cancelación enviada a aprobación.',
+      });
     } catch (err) {
       console.log(err);
       return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  '/contratos/:numero_contrato/aprobar',
+  verificarToken,
+  autorizarPermiso('contratos', 'approve'),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+    const resueltoPor = usuarioDesdeReq(req);
+    try {
+      const result = await aprobarContratoPendiente(dbQuery, contratoAprobacionDeps(), numero, resueltoPor);
+      return res.json(result);
+    } catch (err) {
+      const status = err.status || 500;
+      if (status >= 500) console.log(err);
+      return res.status(status).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  '/contratos/:numero_contrato/rechazar',
+  verificarToken,
+  autorizarPermiso('contratos', 'approve'),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+    const resueltoPor = usuarioDesdeReq(req);
+    const motivo = String(req.body?.motivo || '').trim().slice(0, 500);
+    if (!motivo) {
+      return res.status(400).json({ message: 'Debe indicar el motivo del rechazo.' });
+    }
+    try {
+      const result = await rechazarContratoPendiente(
+        dbQuery,
+        contratoAprobacionDeps(),
+        numero,
+        resueltoPor,
+        motivo
+      );
+      await audit.logEvent({
+        category: 'update',
+        action: 'contrato_aprobacion_rechazada',
+        actor: { email: req.user?.email, nombre: req.user?.nombre },
+        targetType: 'contrato',
+        targetId: numero,
+        targetLabel: result.empresa ? `${numero} — ${result.empresa}` : numero,
+        details: { accion: result.accion, motivo },
+        req,
+      });
+      return res.json(result);
+    } catch (err) {
+      const status = err.status || 500;
+      if (status >= 500) console.log(err);
+      return res.status(status).json({ message: err.message || String(err) });
     }
   }
 );
@@ -1513,7 +2033,7 @@ app.post(
         actor: { email: req.user?.email, nombre: req.user?.nombre },
         targetType: 'contrato',
         targetId: numero,
-        targetLabel: `#${numero}`,
+        targetLabel: c.empresa ? `${numero} — ${c.empresa}` : numero,
         details: { motivo, id_archivo: idArchivo, empresa: c.empresa },
         req,
       });
@@ -1643,7 +2163,8 @@ app.get(
   async (req, res) => {
     try {
       const rows = await dbQuery(
-        `SELECT id_documento, numero_contrato, nombre_archivo, tamano_bytes, cliente_id, subido_en
+        `SELECT id_documento, numero_contrato, tipo_documento, numero_suplemento,
+                nombre_archivo, tamano_bytes, cliente_id, subido_en
            FROM contratos_documentos
           ORDER BY numero_contrato ASC, id_documento ASC`
       );
@@ -1689,17 +2210,31 @@ app.post(
           }
         }
 
-        const saved = saveActivoPdf(numero, nombre, dataUrl);
+        const tipoRaw = String(item?.tipoDocumento || item?.tipo_documento || 'contrato').toLowerCase();
+        const tipoDoc =
+          tipoRaw === 'suplemento' ? 'suplemento' : tipoRaw === 'anexo' ? 'anexo' : 'contrato';
+        const numOrden =
+          (tipoDoc === 'suplemento' || tipoDoc === 'anexo') &&
+          Number(item?.numeroSuplemento ?? item?.numero_suplemento ?? item?.numeroAnexo ?? item?.numero_anexo) > 0
+            ? Number(
+                item.numeroSuplemento ?? item.numero_suplemento ?? item.numeroAnexo ?? item.numero_anexo
+              )
+            : null;
+        const mimeHint = item?.mimeType || item?.mime_type || null;
+        const saved = saveActivoDocumento(numero, nombre, dataUrl, mimeHint);
         const insert = await dbQuery(
-          `INSERT INTO contratos_documentos (numero_contrato, nombre_archivo, ruta_relativa, tamano_bytes, cliente_id)
-           VALUES (?,?,?,?,?)`,
-          [numero, saved.nombreArchivo, saved.rutaRelativa, saved.tamanoBytes, clienteId]
+          `INSERT INTO contratos_documentos
+            (numero_contrato, tipo_documento, numero_suplemento, nombre_archivo, ruta_relativa, tamano_bytes, cliente_id)
+           VALUES (?,?,?,?,?,?,?)`,
+          [numero, tipoDoc, numOrden, saved.nombreArchivo, saved.rutaRelativa, saved.tamanoBytes, clienteId]
         );
         guardados.push({
           id_documento: insert.insertId,
           nombre_archivo: saved.nombreArchivo,
           tamano_bytes: saved.tamanoBytes,
           cliente_id: clienteId,
+          tipo_documento: tipoDoc,
+          numero_suplemento: numOrden,
         });
       }
 
@@ -1707,6 +2242,56 @@ app.post(
     } catch (err) {
       console.log(err);
       return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.get(
+  '/contratos/:numero_contrato/informacion',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+
+    try {
+      const rows = await dbQuery(`${SQL_CONTRATO_SELECT} WHERE c.numero_contrato = ? LIMIT 1`, [numero]);
+      if (!rows.length) return res.status(404).json({ message: 'Contrato no encontrado.' });
+
+      const contrato = rows[0];
+      const diasRestantes = recordatoriosContratos.calcDiasRestantes(contrato.fecha_fin);
+      let estado = 'Activo';
+      if (Number(contrato.cancelado) === 1) estado = 'Cancelado';
+      else if (Number(contrato.vencido) === 1) estado = 'Vencido';
+      else if (diasRestantes != null && diasRestantes <= 30 && diasRestantes >= 0) estado = 'Por vencer';
+
+      const config = await recordatoriosContratos.loadConfig();
+      const regla = recordatoriosContratos.describeReglaRecordatorio(contrato, config);
+      const documentos = await dbQuery(
+        `SELECT id_documento, tipo_documento, numero_suplemento, nombre_archivo, tamano_bytes, cliente_id, subido_en
+           FROM contratos_documentos
+          WHERE numero_contrato = ?
+          ORDER BY id_documento ASC`,
+        [numero]
+      );
+      const envios = await recordatoriosContratos.listEnviosByContrato(numero, 100);
+
+      return res.json({
+        contrato: { ...contrato, dias_restantes: diasRestantes, estado },
+        documentos,
+        recordatorios: {
+          automaticos_activos: config.activo,
+          correo_destino: contrato.correo_notificacion,
+          contactos_destino: contactosFromContrato(contrato),
+          hitos_dias: regla.hitos,
+          regla_origen: regla.origen,
+          regla_descripcion: regla.descripcion,
+          envios,
+        },
+      });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ message: err.message || 'Error al cargar información del contrato.' });
     }
   }
 );
@@ -1721,7 +2306,7 @@ app.get(
 
     try {
       const rows = await dbQuery(
-        `SELECT id_documento, nombre_archivo, tamano_bytes, cliente_id, subido_en
+        `SELECT id_documento, tipo_documento, numero_suplemento, nombre_archivo, tamano_bytes, cliente_id, subido_en
            FROM contratos_documentos
           WHERE numero_contrato = ?
           ORDER BY id_documento ASC`,
@@ -1755,12 +2340,13 @@ app.get(
       if (!rows.length) return res.status(404).json({ message: 'Documento no encontrado.' });
 
       const abs = resolveAbsPath(rows[0].ruta_relativa);
-      if (!fs.existsSync(abs)) return res.status(404).json({ message: 'Archivo PDF no encontrado en disco.' });
+      if (!fs.existsSync(abs)) return res.status(404).json({ message: 'Archivo no encontrado en disco.' });
 
-      res.setHeader('Content-Type', 'application/pdf');
+      const nombreArchivo = String(rows[0].nombre_archivo || 'documento');
+      res.setHeader('Content-Type', contentTypeFromNombre(nombreArchivo));
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="${String(rows[0].nombre_archivo || 'documento.pdf').replace(/"/g, '')}"`
+        `attachment; filename="${nombreArchivo.replace(/"/g, '')}"`
       );
       return res.sendFile(abs);
     } catch (err) {
@@ -1817,7 +2403,6 @@ app.post("/send-contrato-reminder", verificarToken, autorizarRol(['admin', 'cont
 
   try {
     const rows = await dbQuery(`${SQL_CONTRATO_SELECT} WHERE c.numero_contrato = ? LIMIT 1`, [numeroContrato]);
-
     if (!rows.length) {
       return res.status(404).json({ message: 'Contrato no encontrado.' });
     }
@@ -1826,78 +2411,37 @@ app.post("/send-contrato-reminder", verificarToken, autorizarRol(['admin', 'cont
     if (Number(contrato.cancelado) === 1) {
       return res.status(400).json({ message: 'No se pueden enviar recordatorios de contratos cancelados.' });
     }
-    const destino = normalizeEmail(contrato.correo_notificacion);
-    if (!destino || !isValidEmail(destino)) {
-      return res.status(400).json({ message: 'Este contrato no tiene un correo de notificación válido.' });
+    if (normalizarAprobacionEstado(contrato.aprobacion_estado) === 'pendiente') {
+      return res.status(400).json({ message: 'No se pueden enviar recordatorios de contratos pendientes de aprobación.' });
     }
 
-    const diasRestantes = (() => {
-      if (!contrato.fecha_fin) return null;
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const fin = new Date(contrato.fecha_fin);
-      fin.setHours(0, 0, 0, 0);
-      return Math.ceil((fin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-    })();
-    const estadoTiempo =
-      diasRestantes == null
-        ? 'Sin fecha de fin'
-        : diasRestantes < 0
-          ? `Vencido hace ${Math.abs(diasRestantes)} día(s)`
-          : `${diasRestantes} día(s) restantes`;
-
-    const safeDateToIso = (value) => {
-      if (!value) return '-';
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return '-';
-      return d.toISOString().slice(0, 10);
-    };
-    const fechaInicioTxt = safeDateToIso(contrato.fecha_inicio);
-    const fechaFinTxt = safeDateToIso(contrato.fecha_fin);
-
-    console.log(`[REMINDER] Intentando enviar contrato ${contrato.numero_contrato} a ${destino}`);
-    await sendMailWithFallback({
-      from: mailer.from,
-      to: destino,
-      subject: `Recordatorio de renovación - Contrato ${contrato.numero_contrato}`,
-      text:
-        `Hola,\n\n` +
-        `Te enviamos un recordatorio de renovación del contrato ${contrato.numero_contrato}.\n` +
-        `Empresa: ${contrato.empresa || '-'}\n` +
-        `Tipo: ${contrato.tipo_contrato || '-'}\n` +
-        `Fecha inicio: ${fechaInicioTxt}\n` +
-        `Fecha fin: ${fechaFinTxt}\n` +
-        `Estado de tiempo: ${estadoTiempo}\n\n` +
-        `Por favor, realiza el seguimiento correspondiente.\n`,
-      html: `
-        <div style="font-family:Segoe UI,Arial,sans-serif;color:#111827;">
-          <p>Hola,</p>
-          <p>Te enviamos un recordatorio de renovación del contrato <strong>${contrato.numero_contrato}</strong>.</p>
-          <ul style="padding-left:1rem;margin:0.5rem 0 1rem;">
-            <li><strong>Empresa:</strong> ${contrato.empresa || '-'}</li>
-            <li><strong>Tipo:</strong> ${contrato.tipo_contrato || '-'}</li>
-            <li><strong>Fecha inicio:</strong> ${fechaInicioTxt}</li>
-            <li><strong>Fecha fin:</strong> ${fechaFinTxt}</li>
-            <li><strong>Estado de tiempo:</strong> ${estadoTiempo}</li>
-          </ul>
-          <p>Por favor, realiza el seguimiento correspondiente.</p>
-        </div>
-      `,
+    const diasRestantes = recordatoriosContratos.calcDiasRestantes(contrato.fecha_fin);
+    const r = await recordatoriosContratos.sendReminderForContract(contrato, {
+      origen: 'manual',
+      diasAntes: diasRestantes != null ? diasRestantes : -1,
+      skipDuplicateCheck: Boolean(req.body?.forzar),
     });
 
-    console.log(`[REMINDER] Envío OK contrato ${contrato.numero_contrato} a ${destino}`);
-    return res.status(200).json({ message: `Recordatorio enviado a ${destino}.` });
-  } catch (error) {
-    console.error('Error en /send-contrato-reminder:', error);
-    const smtpCode = String(error?.code || '').toUpperCase();
-    if (shouldUseGracefulMailFallback(error)) {
-      return res.status(200).json({
-        message: `No se pudo enviar el correo ahora mismo (${smtpCode || 'SIN_CODIGO'}), pero el recordatorio quedó preparado.`,
-        deliveryWarning: true,
+    if (r.skipped && r.reason === 'sin_correo') {
+      return res.status(400).json({ message: 'Este contrato no tiene un correo de notificación válido.' });
+    }
+    if (r.skipped && r.reason === 'ya_enviado_hoy') {
+      return res.status(409).json({
+        message: 'Ya se envió un recordatorio hoy para este contrato. Use forzar=true para repetir.',
       });
     }
+    if (!r.ok) {
+      return res.status(500).json({ message: r.error || 'No se pudo enviar el recordatorio.' });
+    }
+
+    const msg = r.warning
+      ? `No se pudo enviar el correo ahora mismo, pero el recordatorio quedó registrado para ${r.destino}.`
+      : `Recordatorio enviado a ${r.destino}.`;
+    return res.status(200).json({ message: msg, deliveryWarning: Boolean(r.warning) });
+  } catch (error) {
+    console.error('Error en /send-contrato-reminder:', error);
     return res.status(500).json({
-      message: `No se pudo enviar el recordatorio por correo (${smtpCode || 'ERROR_INTERNO'}).`,
+      message: error?.message || 'No se pudo enviar el recordatorio por correo.',
     });
   }
 });
@@ -4660,15 +5204,28 @@ app.delete("/delete-evaluacion-medica/:id_eval_medica", verificarToken, autoriza
 Promise.all([
   ensurePasswordResetTable(),
   ensureContratoCorreoColumn(),
+  ensureContratoContactosNotificacionColumn(),
+  ensureContratoAnexosColumn(),
+  ensureContratoVigenciaVarchar(),
   ensureContratoCanceladoColumns(),
   ensureUsuariosSecurityAuditColumns(),
   ensureContratosArchivoTables(),
+  ensureContratosDocumentosColumns(),
+  ensureCatalogoTipoContratoActivo(),
+  ensureContratoPrioridadColumn(),
+  ensureContratoAprobacionColumns(),
+  ensureContratosRecordatoriosTable(),
   ensureConfigSistemaTable(),
   ensureUserPreferencesTable(),
   audit.ensureAuditTables(),
   rbac.ensureRbacSchema(),
 ])
   .then(async () => {
+    try {
+      await ensureDirectorContratosApprove();
+    } catch (err) {
+      console.warn('No se pudo actualizar permiso approve de director en contratos:', err?.message || err);
+    }
     try {
       await reloadMailerFromConfig();
     } catch (err) {
@@ -4684,6 +5241,7 @@ Promise.all([
 
     const port = Number(process.env.PORT) || 3001;
     app.listen(port, () => {
+      recordatoriosContratos.startScheduler();
       console.log(`Corriendo en el puerto ${port}`);
       console.log(`Correo remitente: ${mailer.from} (origen: ${mailer.source || 'env'}, modo: ${mailer.mode})`);
       if (mailer.mode === 'dev') {

@@ -75,7 +75,7 @@ function ColorPickRow({ label, value, fallback, onChange, onReset }) {
   );
 }
 
-function AppConfiguracion() {
+function AppConfiguracion({ embedded = false }) {
   const { preferences, resolved, syncState, updatePreference, resetPreferences, syncNow } =
     useAppPreferences();
   const [personalizacionOpen, setPersonalizacionOpen] = useState(false);
@@ -111,22 +111,25 @@ function AppConfiguracion() {
     }
   };
 
+  const actionBar = (
+    <>
+      <span className="badge text-bg-light border me-2 align-self-center">{syncLabel}</span>
+      <button type="button" className="btn btn-outline-primary btn-sm me-2" onClick={syncNow}>
+        Sincronizar ahora
+      </button>
+      <button type="button" className="btn btn-outline-secondary btn-sm" onClick={handleReset}>
+        Restablecer predeterminados
+      </button>
+    </>
+  );
+
   return (
     <div className="container-fluid px-0 app-config-page">
-      <ModuleTitleBar
-        title="Configuración de la aplicación"
-        actions={
-          <>
-            <span className="badge text-bg-light border me-2 align-self-center">{syncLabel}</span>
-            <button type="button" className="btn btn-outline-primary btn-sm me-2" onClick={syncNow}>
-              Sincronizar ahora
-            </button>
-            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={handleReset}>
-              Restablecer predeterminados
-            </button>
-          </>
-        }
-      />
+      {embedded ? (
+        <div className="d-flex flex-wrap justify-content-end align-items-center gap-2 mb-3">{actionBar}</div>
+      ) : (
+        <ModuleTitleBar title="Configuración de la aplicación" actions={actionBar} />
+      )}
 
       <div className="alert alert-light border small mb-3">
         Los cambios se aplican al instante. Se guardan en este navegador y se sincronizan con tu cuenta en el servidor

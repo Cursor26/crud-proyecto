@@ -58,6 +58,28 @@ export function CancelTableActionButton({ onClick, className = '', title = 'Canc
   );
 }
 
+export function InfoTableActionButton({
+  onClick,
+  className = '',
+  title = 'Ver información del contrato',
+  disabled: disabledProp,
+  ...rest
+}) {
+  return (
+    <button
+      type="button"
+      className={joinClass('btn-table-icon-action', 'btn-table-icon-action--info', className)}
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      disabled={disabledProp === true}
+      {...rest}
+    >
+      <i className="bi bi-info-circle" aria-hidden="true" />
+    </button>
+  );
+}
+
 export function RenewTableActionButton({ onClick, className = '', title = 'Renovar contrato', disabled: disabledProp, ...rest }) {
   const puedeEscribir = usePuedeEscribir();
   const disabled = disabledProp === true || !puedeEscribir;

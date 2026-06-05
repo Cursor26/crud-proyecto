@@ -1,48 +1,15 @@
-import { Children, useMemo } from 'react';
+import { Children, useCallback, useMemo, useState } from 'react';
 import Select from 'react-select';
-import { useAppPreferences } from '../context/AppPreferencesContext';
-import { getThemeAccentFromDocument } from '../lib/appPreferences';
+import { resolveAppSelectMenuPortal } from '../lib/appSelectMenuPortal';
 
-function makeAppSelectStyles({ primary, primaryRgb }) {
-  return {
-    control: (base, state) => ({
-      ...base,
-      minHeight: '38px',
-      borderColor: state.isFocused ? primary : '#cfd5dd',
-      boxShadow: state.isFocused ? `0 0 0 0.2rem rgba(${primaryRgb},.18)` : 'none',
-      '&:hover': { borderColor: primary },
-    }),
-    valueContainer: (base) => ({ ...base, padding: '2px 10px' }),
-    indicatorsContainer: (base) => ({ ...base, backgroundColor: primary, width: '1.6rem' }),
-    indicatorSeparator: () => ({ display: 'none' }),
-    dropdownIndicator: (base) => ({
-      ...base,
-      color: '#ffffff',
-      padding: 0,
-      '&:hover': { color: '#ffffff' },
-    }),
-    menu: (base) => ({
-      ...base,
-      marginTop: 2,
-      zIndex: 9999,
-    }),
-    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isFocused
-        ? primary
-        : state.isSelected
-          ? '#ecfdf5'
-          : '#ffffff',
-      color: state.isFocused ? '#ffffff' : state.isSelected ? primary : '#111827',
-      cursor: 'pointer',
-      transition: 'none',
-      ':active': {
-        backgroundColor: primary,
-        color: '#ffffff',
-      },
-    }),
-  };
+function childrenOptionsKey(children) {
+  return Children.toArray(children)
+    .filter((child) => child?.type === 'option')
+    .map((child) => {
+      const v = child.props.value ?? child.props.children;
+      return `${v}|${child.props.disabled ? 1 : 0}|${child.props.hidden ? 1 : 0}|${child.props.children}`;
+    })
+    .join(';');
 }
 
 const parseChildrenOptions = (children) => {
@@ -53,7 +20,8 @@ const parseChildrenOptions = (children) => {
       const rawValue = child.props.value ?? child.props.children;
       const value = rawValue == null ? '' : String(rawValue);
       const label = child.props.children;
-      const isPlaceholderCandidate = value === '' && (Boolean(child.props.disabled) || Boolean(child.props.hidden));
+      const isPlaceholderCandidate =
+        value === '' && (Boolean(child.props.disabled) || Boolean(child.props.hidden));
 
       if (isPlaceholderCandidate) {
         placeholderFromOption = String(label || '');
@@ -71,6 +39,72 @@ const parseChildrenOptions = (children) => {
   return { options, placeholderFromOption };
 };
 
+/**
+ * Select nativo en modales: sin portal ni react-select → hover estable, sin parpadeo.
+ */
+function MinimalNativeSelect({
+  value,
+  onChange,
+  children,
+  className = '',
+  disabled,
+  placeholder,
+  options: optionsProp,
+}) {
+  const childrenKey = childrenOptionsKey(children);
+  const { options: fromChildren, placeholderFromOption } = useMemo(
+    () => parseChildrenOptions(children),
+    [childrenKey]
+  );
+  const resolvedOptions = optionsProp?.length ? optionsProp : fromChildren;
+  const resolvedPlaceholder = placeholder || placeholderFromOption;
+  const selected = value == null ? '' : String(value);
+
+  return (
+    <select
+      className={`minimal-select minimal-native-select ${selected ? 'is-selected' : ''} ${className}`.trim()}
+      value={selected}
+      disabled={disabled}
+      onChange={onChange}
+    >
+      {resolvedPlaceholder ? <option value="">{resolvedPlaceholder}</option> : null}
+      {resolvedOptions.map((opt) => (
+        <option key={String(opt.value)} value={opt.value} disabled={opt.isDisabled}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+const selectClassNames = {
+  control: ({ isFocused, isDisabled }) =>
+    [
+      'app-select__control',
+      isFocused ? 'app-select__control--is-focused' : '',
+      isDisabled ? 'app-select__control--is-disabled' : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+  valueContainer: () => 'app-select__value-container',
+  singleValue: () => 'app-select__single-value',
+  placeholder: () => 'app-select__placeholder',
+  input: () => 'app-select__input',
+  indicatorsContainer: () => 'app-select__indicators-container',
+  dropdownIndicator: () => 'app-select__dropdown-indicator',
+  menu: () => 'app-select__menu',
+  menuList: () => 'app-select__menu-list',
+  option: ({ isFocused, isSelected, isDisabled }) =>
+    [
+      'app-select__option',
+      isFocused ? 'app-select__option--is-focused' : '',
+      isSelected ? 'app-select__option--is-selected' : '',
+      isDisabled ? 'app-select__option--is-disabled' : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+};
+
 function AppSelect({
   value,
   onChange,
@@ -82,25 +116,43 @@ function AppSelect({
   options,
   menuPortalTarget,
   isSearchable = false,
-  /** Reservado para compatibilidad; el color sigue el tema activo */
   variant = 'default',
-  menuPosition = 'fixed',
+  menuPosition,
+  menuPlacement: menuPlacementProp = 'bottom',
   ...rest
 }) {
-  const { preferences } = useAppPreferences();
-  const appSelectStyles = useMemo(() => {
-    const accent = getThemeAccentFromDocument();
-    return makeAppSelectStyles(accent);
-  }, [preferences.themeId, preferences.accentColor]);
-  const resolvedPortal =
-    menuPortalTarget !== undefined
-      ? menuPortalTarget
-      : typeof document !== 'undefined'
-        ? document.body
-        : null;
-  const { options: optionsFromChildren, placeholderFromOption } = parseChildrenOptions(children);
-  const resolvedOptions = options && options.length ? options : optionsFromChildren;
-  const selectedOption = resolvedOptions.find((option) => String(option.value) === String(value)) || null;
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const setAnchorRef = useCallback((node) => {
+    setAnchorEl((prev) => (prev === node ? prev : node));
+  }, []);
+
+  const useNativeInModal = useMemo(() => {
+    if (variant === 'modal') return true;
+    return Boolean(anchorEl?.closest?.('.modal'));
+  }, [variant, anchorEl]);
+
+  const childrenKey = childrenOptionsKey(children);
+  const { options: optionsFromChildren, placeholderFromOption } = useMemo(
+    () => parseChildrenOptions(children),
+    [childrenKey]
+  );
+
+  const resolvedOptions = useMemo(() => {
+    if (options?.length) return options;
+    return optionsFromChildren;
+  }, [options, optionsFromChildren]);
+
+  const menuHost = useMemo(
+    () => resolveAppSelectMenuPortal(anchorEl, menuPortalTarget, menuPosition),
+    [anchorEl, menuPortalTarget, menuPosition]
+  );
+
+  const selectedOption = useMemo(
+    () => resolvedOptions.find((option) => String(option.value) === String(value)) || null,
+    [resolvedOptions, value]
+  );
+
   const resolvedPlaceholder = placeholder || placeholderFromOption;
 
   const handleChange = (option) => {
@@ -110,23 +162,43 @@ function AppSelect({
     }
   };
 
+  if (useNativeInModal) {
+    return (
+      <MinimalNativeSelect
+        value={value}
+        onChange={onChange}
+        className={className}
+        disabled={disabled}
+        placeholder={resolvedPlaceholder}
+        options={resolvedOptions}
+      />
+    );
+  }
+
   return (
-    <Select
-      className={className}
-      classNamePrefix='app-select'
-      isDisabled={disabled}
-      value={selectedOption}
-      onChange={handleChange}
-      options={resolvedOptions}
-      placeholder={resolvedPlaceholder}
-      isClearable={Boolean(isClearable)}
-      isSearchable={isSearchable}
-      styles={appSelectStyles}
-      menuPortalTarget={resolvedPortal}
-      menuPosition={menuPosition}
-      menuShouldScrollIntoView={false}
-      {...rest}
-    />
+    <div ref={setAnchorRef} className="app-select-wrap">
+      <Select
+        unstyled
+        className={className}
+        classNamePrefix="app-select"
+        classNames={selectClassNames}
+        isDisabled={disabled}
+        value={selectedOption}
+        onChange={handleChange}
+        options={resolvedOptions}
+        placeholder={resolvedPlaceholder}
+        isClearable={Boolean(isClearable)}
+        isSearchable={isSearchable}
+        menuPortalTarget={menuHost.portal}
+        menuPosition={menuHost.position}
+        menuPlacement={menuPlacementProp || menuHost.placement}
+        menuShouldScrollIntoView={false}
+        captureMenuScroll={false}
+        closeMenuOnScroll={false}
+        blurInputOnSelect
+        {...rest}
+      />
+    </div>
   );
 }
 

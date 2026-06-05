@@ -9,8 +9,8 @@ const SIDEBAR_RRHH_KEYS = new Set([
   'salarios', 'segseguridad', 'seguridad', 'cargos', 'departamentos', 'cert-medicos', 'eval-medicas',
 ]);
 const SIDEBAR_CONTRATOS_KEYS = new Set([
-  'contratos-resumen', 'contratos-lista', 'contratos-vencimientos', 'contratos-renovaciones',
-  'contratos-reportes', 'contratos-archivo',
+  'contratos-resumen', 'contratos-lista', 'contratos-pendientes', 'contratos-vencimientos', 'contratos-renovaciones',
+  'contratos-correo', 'contratos-reportes', 'contratos-archivo', 'contratos-tipos',
 ]);
 const SIDEBAR_PROD_KEYS = new Set(['sacrificio', 'matadero', 'leche', 'produccion-historico']);
 

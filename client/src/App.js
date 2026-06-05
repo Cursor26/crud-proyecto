@@ -40,8 +40,8 @@ import Auditoria from './components/Auditoria';
 import { PermissionsProvider, usePermissions } from './context/PermissionsContext';
 import { createLegacyCan } from './lib/legacyRolAccess';
 import { hasAnyPermission } from './lib/rbacModules';
+import GestionConfiguracion from './components/GestionConfiguracion';
 import ConfigCorreoServicio from './components/ConfigCorreoServicio';
-import AppConfiguracion from './components/AppConfiguracion';
 import { PuedeEscribirProvider } from './context/PuedeEscribirContext';
 import { AppPreferencesProvider, useAppPreferences } from './context/AppPreferencesContext';
 import { NavPrefsInitializer, useDashboardNavHandlers } from './hooks/useDashboardNav';
@@ -120,10 +120,13 @@ const SIDEBAR_PROD_KEYS = new Set(['sacrificio', 'matadero', 'leche', 'produccio
 const SIDEBAR_CONTRATOS_KEYS = new Set([
   'contratos-resumen',
   'contratos-lista',
+  'contratos-pendientes',
   'contratos-vencimientos',
   'contratos-renovaciones',
+  'contratos-correo',
   'contratos-reportes',
   'contratos-archivo',
+  'contratos-tipos',
 ]);
 
 const setAuthToken = (token) => {
@@ -155,15 +158,18 @@ function App() {
     usuarios: 'Gestión de usuarios',
     'gestion-roles': 'Roles y permisos',
     auditoria: 'Auditoría de seguridad',
+    'config-aplicacion': 'Configuración · Aplicación',
     'config-correo': 'Correo del sistema',
-    'app-configuracion': 'Configuración de la aplicación',
     contratos: 'Contratación',
     'contratos-resumen': 'Contratación · Resumen',
     'contratos-lista': 'Contratación · Contratos',
+    'contratos-pendientes': 'Contratación · Pendientes',
     'contratos-vencimientos': 'Contratación · Vencimientos',
     'contratos-renovaciones': 'Contratación · Renovaciones',
+    'contratos-correo': 'Contratación · Correo',
     'contratos-reportes': 'Contratación · Reportes',
     'contratos-archivo': 'Contratación · Archivo histórico',
+    'contratos-tipos': 'Contratación · Tipos de contrato',
     empleados: 'Gestión de empleados',
     'bajas-empleados': 'Bajas de empleado',
     'reporte-personal': 'Reporte de personal',
@@ -213,7 +219,7 @@ function App() {
       selectedKey === 'gestion-roles' ||
       selectedKey === 'auditoria' ||
       selectedKey === 'config-correo' ||
-      selectedKey === 'app-configuracion' ||
+      selectedKey === 'config-aplicacion' ||
       selectedKey === 'contratos'
     ) {
       setSidebarMenuOpen(null);
@@ -230,10 +236,13 @@ function App() {
     const sectionToKey = {
       resumen: 'contratos-resumen',
       contratos: 'contratos-lista',
+      pendientes: 'contratos-pendientes',
       vencimientos: 'contratos-vencimientos',
       renovaciones: 'contratos-renovaciones',
+      correo: 'contratos-correo',
       reportes: 'contratos-reportes',
       archivo: 'contratos-archivo',
+      tipos: 'contratos-tipos',
     };
     const nextKey = sectionToKey[sectionId];
     if (!nextKey || nextKey === key) return;
@@ -393,7 +402,8 @@ function AppWithPermissions(props) {
   const mostrarUsuarios = can('usuarios', 'view');
   const mostrarGestionRoles = can('usuarios', 'edit') || can('usuarios', 'create');
   const mostrarAuditoria = can('auditoria', 'view');
-  const mostrarConfigCorreo = can('configuracion', 'view');
+  const mostrarConfigApp = can('configuracion', 'view');
+  const mostrarCorreoSistema = can('configuracion', 'view');
   const mostrarContratos = can('contratos', 'view');
   const mostrarRHum = can('empleados', 'view');
   const mostrarProduccion = can('produccion', 'view');
@@ -423,16 +433,16 @@ function AppWithPermissions(props) {
 
   const allowedModuleKeys = useMemo(() => {
     const keys = new Set();
-    if (can('configuracion', 'view')) keys.add('app-configuracion');
+    if (mostrarConfigApp) keys.add('config-aplicacion');
     if (mostrarUsuarios) keys.add('usuarios');
     if (mostrarGestionRoles) keys.add('gestion-roles');
     if (mostrarAuditoria) keys.add('auditoria');
-    if (mostrarConfigCorreo) keys.add('config-correo');
+    if (mostrarCorreoSistema) keys.add('config-correo');
     if (mostrarContratos) SIDEBAR_CONTRATOS_KEYS.forEach((k) => keys.add(k));
     if (mostrarRHum) SIDEBAR_RRHH_KEYS.forEach((k) => keys.add(k));
     if (mostrarProduccion) SIDEBAR_PROD_KEYS.forEach((k) => keys.add(k));
     return keys;
-  }, [can, mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarConfigCorreo, mostrarContratos, mostrarRHum, mostrarProduccion]);
+  }, [can, mostrarConfigApp, mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarCorreoSistema, mostrarContratos, mostrarRHum, mostrarProduccion]);
 
   useEffect(() => {
     if (!navKey || allowedModuleKeys.has(navKey)) return;
@@ -493,7 +503,8 @@ function AppWithPermissions(props) {
       mostrarUsuarios={mostrarUsuarios}
       mostrarGestionRoles={mostrarGestionRoles}
       mostrarAuditoria={mostrarAuditoria}
-      mostrarConfigCorreo={mostrarConfigCorreo}
+      mostrarConfigApp={mostrarConfigApp}
+      mostrarCorreoSistema={mostrarCorreoSistema}
       mostrarContratos={mostrarContratos}
       mostrarRHum={mostrarRHum}
       mostrarProduccion={mostrarProduccion}
@@ -539,7 +550,8 @@ function DashboardShell(props) {
     user, logout, navKey: key, sidebarMenuOpen, now, rrhhAnaliticaOpen, setRrhhAnaliticaOpen,
     moduloLabel, rolEtiqueta, puedeEscribir,
     handleContratosSectionChange, handleSidebarContratosToggle, handleSidebarRrhhToggle, handleSidebarProdToggle,
-    mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarConfigCorreo,
+    mostrarConfigApp,
+    mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarCorreoSistema,
     mostrarContratos, mostrarRHum, mostrarProduccion, mostrarEmpleados,
     mostrarAsistencias, mostrarCertificaciones, mostrarCursos, mostrarEvalcapacitacion,
     mostrarEvaluaciones, mostrarObjetivos, mostrarSalarios, mostrarVacaciones,
@@ -582,14 +594,13 @@ function DashboardShell(props) {
               </Nav.Link>
             </Nav.Item>
           )}
-          {mostrarConfigCorreo && (
+          {mostrarCorreoSistema && (
             <Nav.Item className="mb-2">
               <Nav.Link eventKey="config-correo" className="dashboard-nav-link rounded-3 p-1">
                 <i className="bi bi-envelope-at me-2" aria-hidden="true"></i>Correo del sistema
               </Nav.Link>
             </Nav.Item>
           )}
-
           {mostrarContratos && (
             <NavDropdown
               title={
@@ -609,6 +620,9 @@ function DashboardShell(props) {
               <NavDropdown.Item eventKey="contratos-lista" active={key === 'contratos-lista'}>
                 <i className="bi bi-table me-2" aria-hidden="true"></i>Contratos
               </NavDropdown.Item>
+              <NavDropdown.Item eventKey="contratos-pendientes" active={key === 'contratos-pendientes'}>
+                <i className="bi bi-hourglass-split me-2" aria-hidden="true"></i>Pendientes
+              </NavDropdown.Item>
               <NavDropdown.Item
                 eventKey="contratos-vencimientos"
                 active={key === 'contratos-vencimientos'}
@@ -619,11 +633,17 @@ function DashboardShell(props) {
               <NavDropdown.Item eventKey="contratos-renovaciones" active={key === 'contratos-renovaciones'}>
                 <i className="bi bi-arrow-repeat me-2" aria-hidden="true"></i>Renovaciones
               </NavDropdown.Item>
+              <NavDropdown.Item eventKey="contratos-correo" active={key === 'contratos-correo'}>
+                <i className="bi bi-envelope-at me-2" aria-hidden="true"></i>Correo
+              </NavDropdown.Item>
               <NavDropdown.Item eventKey="contratos-reportes" active={key === 'contratos-reportes'}>
                 <i className="bi bi-bar-chart-line me-2" aria-hidden="true"></i>Reportes
               </NavDropdown.Item>
               <NavDropdown.Item eventKey="contratos-archivo" active={key === 'contratos-archivo'}>
                 <i className="bi bi-archive me-2" aria-hidden="true"></i>Archivo histórico
+              </NavDropdown.Item>
+              <NavDropdown.Item eventKey="contratos-tipos" active={key === 'contratos-tipos'}>
+                <i className="bi bi-tags me-2" aria-hidden="true"></i>Tipos de contrato
               </NavDropdown.Item>
             </NavDropdown>
           )}
@@ -804,9 +824,10 @@ function DashboardShell(props) {
         <div className="dashboard-sidebar-footer mt-auto pt-3">
           <button
             type="button"
-            className={`dashboard-sidebar-config-btn w-100${key === 'app-configuracion' ? ' is-active' : ''}`}
-            onClick={() => handleNavSelect('app-configuracion')}
-            aria-current={key === 'app-configuracion' ? 'page' : undefined}
+            className={`dashboard-sidebar-config-btn w-100${key === 'config-aplicacion' ? ' is-active' : ''}`}
+            onClick={() => handleNavSelect('config-aplicacion')}
+            aria-current={key === 'config-aplicacion' ? 'page' : undefined}
+            disabled={!mostrarConfigApp}
           >
             <i className="bi bi-gear-wide-connected me-2" aria-hidden="true" />
             Configuración
@@ -847,6 +868,9 @@ function DashboardShell(props) {
             {(key === 'contratos' || key === 'contratos-lista') && (
               <GestionContratos vistaInicial="contratos" user={user} onSectionChange={handleContratosSectionChange} />
             )}
+            {key === 'contratos-pendientes' && (
+              <GestionContratos vistaInicial="pendientes" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
             {key === 'contratos-resumen' && (
               <GestionContratos vistaInicial="resumen" user={user} onSectionChange={handleContratosSectionChange} />
             )}
@@ -856,19 +880,25 @@ function DashboardShell(props) {
             {key === 'contratos-renovaciones' && (
               <GestionContratos vistaInicial="renovaciones" user={user} onSectionChange={handleContratosSectionChange} />
             )}
+            {key === 'contratos-correo' && mostrarContratos && (
+              <GestionContratos vistaInicial="correo" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
             {key === 'contratos-reportes' && (
               <GestionContratos vistaInicial="reportes" user={user} onSectionChange={handleContratosSectionChange} />
             )}
             {key === 'contratos-archivo' && (
               <GestionContratos vistaInicial="archivo" user={user} onSectionChange={handleContratosSectionChange} />
             )}
+            {key === 'contratos-tipos' && (
+              <GestionContratos vistaInicial="tipos" user={user} onSectionChange={handleContratosSectionChange} />
+            )}
             {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
             {key === 'gestion-roles' && mostrarGestionRoles && <GestionRoles />}
             {key === 'auditoria' && mostrarAuditoria && <Auditoria />}
-            {key === 'config-correo' && mostrarConfigCorreo && <ConfigCorreoServicio currentUser={user} />}
-            {key === 'app-configuracion' && (
-              <AppConfiguracion />
+            {key === 'config-correo' && mostrarCorreoSistema && (
+              <ConfigCorreoServicio currentUser={user} mostrarSmtp mostrarRecordatorios={false} smtpPrimero />
             )}
+            {key === 'config-aplicacion' && mostrarConfigApp && <GestionConfiguracion />}
             {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
             {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
             {key === 'leche' && mostrarLeche && <Leche />}
