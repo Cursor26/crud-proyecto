@@ -119,18 +119,24 @@ function AppSelect({
   variant = 'default',
   menuPosition,
   menuPlacement: menuPlacementProp = 'bottom',
+  title,
   ...rest
 }) {
   const [anchorEl, setAnchorEl] = useState(null);
+  const [preferNative, setPreferNative] = useState(() => variant === 'modal');
 
   const setAnchorRef = useCallback((node) => {
-    setAnchorEl((prev) => (prev === node ? prev : node));
+    if (node?.closest?.('.modal')) {
+      setPreferNative(true);
+      setAnchorEl(node);
+      return;
+    }
+    if (node) {
+      setAnchorEl(node);
+    }
   }, []);
 
-  const useNativeInModal = useMemo(() => {
-    if (variant === 'modal') return true;
-    return Boolean(anchorEl?.closest?.('.modal'));
-  }, [variant, anchorEl]);
+  const useNativeInModal = preferNative || variant === 'modal';
 
   const childrenKey = childrenOptionsKey(children);
   const { options: optionsFromChildren, placeholderFromOption } = useMemo(
@@ -164,19 +170,21 @@ function AppSelect({
 
   if (useNativeInModal) {
     return (
-      <MinimalNativeSelect
-        value={value}
-        onChange={onChange}
-        className={className}
-        disabled={disabled}
-        placeholder={resolvedPlaceholder}
-        options={resolvedOptions}
-      />
+      <div className="app-select-wrap" title={title}>
+        <MinimalNativeSelect
+          value={value}
+          onChange={onChange}
+          className={className}
+          disabled={disabled}
+          placeholder={resolvedPlaceholder}
+          options={resolvedOptions}
+        />
+      </div>
     );
   }
 
   return (
-    <div ref={setAnchorRef} className="app-select-wrap">
+    <div ref={setAnchorRef} className="app-select-wrap" title={title}>
       <Select
         unstyled
         className={className}

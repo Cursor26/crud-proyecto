@@ -3,6 +3,8 @@ import Axios, { API_BASE } from '../axiosConfig';
 import Swal from 'sweetalert2';
 import { usePermissions } from '../context/PermissionsContext';
 import { FormModal } from './FormModal';
+import { BTN_ANADIR, BTN_ANADIR_MD, BTN_CONSULTAR, BTN_ELIMINAR } from '../lib/actionButtonClasses';
+import { TIP } from '../lib/actionTooltips';
 
 function CatalogoTiposContrato({ onCatalogChange }) {
   const { can } = usePermissions();
@@ -117,7 +119,12 @@ function CatalogoTiposContrato({ onCatalogChange }) {
           Administre los tipos disponibles al registrar contratos. Los tipos en uso solo se pueden desactivar, no eliminar.
         </p>
         {puedeCrear && (
-          <button type="button" className="btn btn-primary btn-sm contratos-btn-primary" onClick={abrirNuevo}>
+          <button
+            type="button"
+            className={`${BTN_ANADIR_MD} btn-sm`}
+            onClick={abrirNuevo}
+            title={TIP.nuevoTipoContrato}
+          >
             <i className="bi bi-plus-lg me-1" aria-hidden="true" />
             Nuevo tipo
           </button>
@@ -155,16 +162,19 @@ function CatalogoTiposContrato({ onCatalogChange }) {
                     <td className="text-end">
                       <button
                         type="button"
-                        className="btn btn-outline-primary btn-sm me-1"
+                        className={`${BTN_CONSULTAR} me-1`}
                         onClick={() => abrirEditar(row)}
-                        title="Editar nombre"
+                        title={TIP.editarTipoContrato}
                       >
                         Editar
                       </button>
                       <button
                         type="button"
-                        className={`btn btn-sm ${Number(row.activo) !== 0 ? 'btn-outline-warning' : 'btn-outline-success'}`}
+                        className={Number(row.activo) !== 0 ? BTN_ELIMINAR : BTN_ANADIR}
                         onClick={() => toggleActivo(row)}
+                        title={
+                          Number(row.activo) !== 0 ? TIP.desactivarTipoContrato : TIP.activarTipoContrato
+                        }
                       >
                         {Number(row.activo) !== 0 ? 'Desactivar' : 'Activar'}
                       </button>
@@ -201,16 +211,18 @@ function CatalogoTiposContrato({ onCatalogChange }) {
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             placeholder="Ej. Servicio, Compra, Arrendamiento"
+            title="Nombre del tipo que aparecerá al registrar contratos"
           />
         </div>
         {editando && (
-          <div className="form-check">
+          <div className="form-check form-switch">
             <input
               id="tipo-contrato-activo"
               type="checkbox"
               className="form-check-input"
               checked={activo}
               onChange={(e) => setActivo(e.target.checked)}
+              title={TIP.tipoContratoActivo}
             />
             <label className="form-check-label" htmlFor="tipo-contrato-activo">
               Activo (visible al crear contratos)

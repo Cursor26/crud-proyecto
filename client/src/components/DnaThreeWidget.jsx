@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { useAppPreferences } from '../context/AppPreferencesContext';
 
 function buildHelixPoints({ turns = 3.1, samples = 220, radius = 1.18, height = 9.2, phase = 0 }) {
   const points = [];
@@ -17,6 +18,9 @@ function buildHelixPoints({ turns = 3.1, samples = 220, radius = 1.18, height = 
 
 export default function DnaThreeWidget() {
   const mountRef = useRef(null);
+  const loopControlRef = useRef(null);
+  const { preferences } = useAppPreferences();
+  const reduceMotion = Boolean(preferences.reduceMotion);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -194,17 +198,44 @@ export default function DnaThreeWidget() {
     observer.observe(mount);
 
     let frameId = 0;
-    const animate = () => {
+    let disposed = false;
+
+    const tick = () => {
       const t = performance.now() * 0.001;
       root.rotation.y += 0.0056;
       root.rotation.x = 0.14 + Math.sin(t * 0.65) * 0.018;
       root.rotation.z = -0.03 + Math.cos(t * 0.52) * 0.016;
       renderer.render(scene, camera);
+    };
+
+    const animate = () => {
+      if (disposed) return;
+      tick();
       frameId = window.requestAnimationFrame(animate);
     };
-    animate();
+
+    const pause = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = 0;
+      renderer.render(scene, camera);
+    };
+
+    const resume = () => {
+      if (disposed || frameId) return;
+      frameId = window.requestAnimationFrame(animate);
+    };
+
+    loopControlRef.current = { pause, resume };
+
+    if (reduceMotion) {
+      renderer.render(scene, camera);
+    } else {
+      resume();
+    }
 
     return () => {
+      disposed = true;
+      loopControlRef.current = null;
       window.cancelAnimationFrame(frameId);
       observer.disconnect();
       renderer.dispose();
@@ -226,6 +257,16 @@ export default function DnaThreeWidget() {
       mount.removeChild(renderer.domElement);
     };
   }, []);
+
+  useEffect(() => {
+    const control = loopControlRef.current;
+    if (!control) return;
+    if (reduceMotion) {
+      control.pause();
+    } else {
+      control.resume();
+    }
+  }, [reduceMotion]);
 
   return <div className="dashboard-side-info__dna-canvas" ref={mountRef} aria-hidden="true" />;
 }

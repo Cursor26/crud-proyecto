@@ -5,14 +5,23 @@ import { EditTableActionButton, DeleteTableActionButton } from './TableActionIco
 import { FormModal } from './FormModal';
 import ModuleTitleBar from './ModuleTitleBar';
 import AppSelect from './AppSelect';
+import { BTN_ANADIR_MD } from '../lib/actionButtonClasses';
+import { usePermissions } from '../context/PermissionsContext';
+import { normalizeTelefonoInput, telefonoValidoOpcional } from '../lib/userProfile';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 function GestionUsuarios() {
+  const { can } = usePermissions();
+  const puedeCrearUsuarios = can('usuarios', 'create');
+  const puedeEditarUsuarios = can('usuarios', 'edit');
+  const puedeEliminarUsuarios = can('usuarios', 'delete');
+  const puedeGestionarUsuarios = puedeEditarUsuarios || puedeEliminarUsuarios;
   const [usuariosList, setUsuarios] = useState([]);
   const [userEmail, setUserEmail] = useState('');
   const [userNombre, setUserNombre] = useState('');
+  const [userTelefono, setUserTelefono] = useState('');
   const [userPassword, setUserPassword] = useState('');
   const [userPasswordConfirm, setUserPasswordConfirm] = useState('');
   const [userRol, setUserRol] = useState('');
@@ -33,6 +42,14 @@ function GestionUsuarios() {
       return '';
     }
   }, []);
+
+  const esPropioUsuario = (email) => {
+    const rowEmail = String(email || '').trim().toLowerCase();
+    return Boolean(sesionEmail && rowEmail && sesionEmail === rowEmail);
+  };
+
+  const editandoPropioUsuario =
+    editandoUsuario && esPropioUsuario(userEmailOriginal);
 
   const [activoTogglePending, setActivoTogglePending] = useState(null);
   const [rolesCatalog, setRolesCatalog] = useState([]);
@@ -63,6 +80,7 @@ function GestionUsuarios() {
     setEditandoUsuario(false);
     setUserEmail('');
     setUserNombre('');
+    setUserTelefono('');
     setUserPassword('');
     setUserPasswordConfirm('');
     setUserRol('');
@@ -102,6 +120,9 @@ function GestionUsuarios() {
 
     if (!rol) errs.rol = 'Rol obligatorio.';
 
+    const tel = telefonoValidoOpcional(userTelefono);
+    if (!tel.ok) errs.telefono = tel.message;
+
     if (requierePassword) {
       if (!userPassword) errs.password = 'Contraseña obligatoria.';
       else if (!PASSWORD_RE.test(userPassword)) {
@@ -121,6 +142,7 @@ function GestionUsuarios() {
     Axios.post(`${API_BASE}/create-usuario`, {
       email: userEmail.trim().toLowerCase(),
       nombre: userNombre.trim(),
+      telefono: telefonoValidoOpcional(userTelefono).value || null,
       password: userPassword,
       rol: userRol,
       activo: userActivo ? 1 : 0,
@@ -137,13 +159,22 @@ function GestionUsuarios() {
 
   const updateUsuario = () => {
     if (!validarFormulario()) return;
-    Axios.put(`${API_BASE}/update-usuario/${encodeURIComponent(userEmailOriginal)}`, {
+    const original = usuariosList.find(
+      (row) => String(row.email || '').trim().toLowerCase() === String(userEmailOriginal || '').trim().toLowerCase()
+    );
+    const payload = {
       email: userEmail.trim().toLowerCase(),
       nombre: userNombre.trim(),
+      telefono: telefonoValidoOpcional(userTelefono).value || null,
       password: userPassword,
       rol: userRol,
       activo: userActivo ? 1 : 0,
-    })
+    };
+    if (editandoPropioUsuario && original) {
+      payload.rol = original.rol;
+      payload.activo = Number(original.activo ?? 1);
+    }
+    Axios.put(`${API_BASE}/update-usuario/${encodeURIComponent(userEmailOriginal)}`, payload)
       .then(() => {
         getUsuarios();
         cerrarModalUsuario();
@@ -156,20 +187,14 @@ function GestionUsuarios() {
 
   const toggleUsuarioActivo = (u) => {
     const rowEmail = String(u.email || '').trim().toLowerCase();
+    if (esPropioUsuario(rowEmail)) return;
     const actualmenteActivo = Number(u.activo ?? 1) === 1;
-    if (sesionEmail && sesionEmail === rowEmail && actualmenteActivo) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Acción no permitida',
-        text: 'No puedes desactivar tu propia cuenta desde aquí.',
-      });
-      return;
-    }
     const nextActivo = actualmenteActivo ? 0 : 1;
     setActivoTogglePending(u.email);
     Axios.put(`${API_BASE}/update-usuario/${encodeURIComponent(u.email)}`, {
       email: rowEmail,
       nombre: String(u.nombre || '').trim(),
+      telefono: u.telefono || null,
       password: '',
       rol: u.rol,
       activo: nextActivo,
@@ -186,6 +211,7 @@ function GestionUsuarios() {
   };
 
   const deleteUsuario = (email) => {
+    if (esPropioUsuario(email)) return;
     Swal.fire({
       title: '¿Eliminar usuario?',
       text: 'Se eliminará',
@@ -211,6 +237,7 @@ function GestionUsuarios() {
     setUserEmailOriginal(u.email);
     setUserEmail(u.email);
     setUserNombre(u.nombre);
+    setUserTelefono(u.telefono ? String(u.telefono) : '');
     setUserRol(u.rol);
     setUserActivo(Number(u.activo ?? 1) !== 0);
     setUserPassword('');
@@ -252,10 +279,17 @@ function GestionUsuarios() {
       <ModuleTitleBar
         title="Gestión de Usuarios"
         actions={
-          <button type="button" className="btn btn-primary btn-form-nowrap d-inline-flex align-items-center" onClick={abrirModalNuevoUsuario}>
-            <i className="bi bi-person-plus me-2" aria-hidden="true" />
-            Agregar usuario
-          </button>
+          puedeCrearUsuarios ? (
+            <button
+              type="button"
+              className={`${BTN_ANADIR_MD} btn-form-nowrap`}
+              onClick={abrirModalNuevoUsuario}
+              title="Abrir formulario para registrar un usuario nuevo"
+            >
+              <i className="bi bi-person-plus me-2" aria-hidden="true" />
+              Agregar usuario
+            </button>
+          ) : null
         }
       />
 
@@ -272,12 +306,17 @@ function GestionUsuarios() {
         subtitle=""
         onPrimary={guardarUsuarioModal}
         primaryLabel={editandoUsuario ? 'Actualizar' : 'Crear'}
+        autoCompleteOff
       >
-        <div className="minimal-form-stack">
+        <div className="minimal-form-stack" autoComplete="off">
           <div className="minimal-field">
             <label className="minimal-label">Email:</label>
             <input
               type="email"
+              name="aepg-admin-user-email"
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               className={`minimal-input ${formErrors.email ? 'is-invalid' : ''}`}
               placeholder="------------------------"
               value={userEmail}
@@ -289,6 +328,9 @@ function GestionUsuarios() {
             <label className="minimal-label">Nombre:</label>
             <input
               type="text"
+              name="aepg-admin-user-name"
+              autoComplete="off"
+              data-1p-ignore
               className={`minimal-input ${formErrors.nombre ? 'is-invalid' : ''}`}
               placeholder="------------------------"
               value={userNombre}
@@ -297,15 +339,33 @@ function GestionUsuarios() {
             {formErrors.nombre ? <small className="text-danger">{formErrors.nombre}</small> : null}
           </div>
           <div className="minimal-field">
+            <label className="minimal-label">Teléfono (opcional):</label>
+            <input
+              type="tel"
+              name="aepg-admin-user-phone"
+              inputMode="numeric"
+              maxLength={8}
+              autoComplete="off"
+              className={`minimal-input ${formErrors.telefono ? 'is-invalid' : ''}`}
+              placeholder="8 dígitos"
+              value={userTelefono}
+              onChange={(e) => setUserTelefono(normalizeTelefonoInput(e.target.value))}
+            />
+            {formErrors.telefono ? <small className="text-danger">{formErrors.telefono}</small> : null}
+          </div>
+          <div className="minimal-field">
             <label className="minimal-label">Contraseña:</label>
             <div className="minimal-password-wrap">
               <input
                 type={verPassword ? 'text' : 'password'}
+                name="aepg-admin-user-password"
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
                 className={`minimal-input minimal-input--with-eye ${formErrors.password ? 'is-invalid' : ''}`}
                 placeholder={editandoUsuario ? 'Dejar vacía para mantener actual' : '------------------------'}
                 value={userPassword}
                 onChange={(e) => setUserPassword(e.target.value)}
-                autoComplete="new-password"
               />
               <button
                 type="button"
@@ -326,17 +386,27 @@ function GestionUsuarios() {
             <label className="minimal-label">Confirmar contraseña:</label>
             <input
               type={verPassword ? 'text' : 'password'}
+              name="aepg-admin-user-password-confirm"
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               className={`minimal-input ${formErrors.passwordConfirm ? 'is-invalid' : ''}`}
               placeholder="------------------------"
               value={userPasswordConfirm}
               onChange={(e) => setUserPasswordConfirm(e.target.value)}
-              autoComplete="new-password"
             />
             {formErrors.passwordConfirm ? <small className="text-danger">{formErrors.passwordConfirm}</small> : null}
           </div>
-          <div className="minimal-field">
+          <div className={`minimal-field ${editandoPropioUsuario ? 'minimal-field--locked' : ''}`}>
             <label className="minimal-label">Rol:</label>
-            <AppSelect className={`minimal-select ${userRol ? 'is-selected' : ''}`} value={userRol} onChange={(e) => setUserRol(e.target.value)}>
+            <AppSelect
+              variant="modal"
+              className={`minimal-select ${userRol ? 'is-selected' : ''}`}
+              value={userRol}
+              onChange={(e) => setUserRol(e.target.value)}
+              disabled={editandoPropioUsuario}
+              title={editandoPropioUsuario ? 'No puedes cambiar tu propio rol' : undefined}
+            >
               <option value="" disabled hidden>--- Seleccione ---</option>
               {rolesCatalog
                 .filter((r) => Number(r.activo ?? 1) === 1)
@@ -348,13 +418,29 @@ function GestionUsuarios() {
                 ))}
             </AppSelect>
             {formErrors.rol ? <small className="text-danger">{formErrors.rol}</small> : null}
+            {editandoPropioUsuario ? (
+              <small className="text-muted">No puedes cambiar tu propio rol mientras tienes la sesión abierta.</small>
+            ) : null}
           </div>
-          <div className="minimal-field">
-            <label className="minimal-label">Estado:</label>
-            <AppSelect className={`minimal-select ${userActivo ? 'is-selected' : ''}`} value={userActivo ? '1' : '0'} onChange={(e) => setUserActivo(e.target.value === '1')}>
-              <option value="1">Activo</option>
-              <option value="0">Inactivo</option>
-            </AppSelect>
+          <div className={`minimal-field ${editandoPropioUsuario ? 'minimal-field--locked' : ''}`}>
+            <label className="minimal-label d-block mb-2">Estado:</label>
+            <div className="form-check form-switch mb-0">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="usuario-activo"
+                checked={userActivo}
+                onChange={(e) => setUserActivo(e.target.checked)}
+                disabled={editandoPropioUsuario}
+                title={editandoPropioUsuario ? 'No puedes cambiar tu propio estado' : undefined}
+              />
+              <label className={`form-check-label ${editandoPropioUsuario ? 'text-muted' : ''}`} htmlFor="usuario-activo">
+                Usuario activo
+              </label>
+            </div>
+            {editandoPropioUsuario ? (
+              <small className="text-muted d-block mt-1">No puedes activar ni desactivar tu propia cuenta desde aquí.</small>
+            ) : null}
           </div>
         </div>
       </FormModal>
@@ -366,20 +452,24 @@ function GestionUsuarios() {
               <tr>
                 <th>Email</th>
                 <th>Nombre</th>
+                <th>Teléfono</th>
                 <th>Rol</th>
                 <th>Estado</th>
                 <th>Auditoría</th>
-                <th>Acciones</th>
+                {puedeGestionarUsuarios ? <th>Acciones</th> : null}
               </tr>
             </thead>
             <tbody>
-              {usuariosList.map((u) => (
+              {usuariosList.map((u) => {
+                const propioUsuario = esPropioUsuario(u.email);
+                return (
                 <tr
                   key={u.email}
                   className={Number(u.activo ?? 1) === 0 ? 'usuario-row-inactivo' : undefined}
                 >
                   <td>{u.email}</td>
                   <td>{u.nombre}</td>
+                  <td>{u.telefono || '—'}</td>
                   <td>{u.rol}</td>
                   <td>
                     <span className={`badge ${Number(u.activo ?? 1) === 1 ? 'bg-success' : 'bg-secondary'}`}>
@@ -390,38 +480,43 @@ function GestionUsuarios() {
                     <div><strong>Creado:</strong> {fmtActor(u.created_by)} · {fmtDate(u.created_at)}</div>
                     <div><strong>Actualizado:</strong> {fmtActor(u.updated_by)} · {fmtDate(u.updated_at)}</div>
                   </td>
-                  <td>
-                    <div className="usuario-acciones-cell">
-                      <EditTableActionButton onClick={() => editarUsuario(u)} />
-                      <DeleteTableActionButton onClick={() => deleteUsuario(u.email)} />
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={Number(u.activo ?? 1) === 1}
-                        aria-label={Number(u.activo ?? 1) === 1 ? 'Desactivar usuario' : 'Activar usuario'}
-                        title={
-                          sesionEmail && sesionEmail === String(u.email || '').trim().toLowerCase() && Number(u.activo ?? 1) === 1
-                            ? 'No puedes desactivar tu propia cuenta desde aquí'
-                            : Number(u.activo ?? 1) === 1
-                              ? 'Desactivar usuario'
-                              : 'Activar usuario'
-                        }
-                        disabled={
-                          activoTogglePending === u.email ||
-                          (sesionEmail !== '' &&
-                            sesionEmail === String(u.email || '').trim().toLowerCase() &&
-                            Number(u.activo ?? 1) === 1)
-                        }
-                        className={`usuario-toggle ${Number(u.activo ?? 1) === 1 ? 'usuario-toggle--on' : 'usuario-toggle--off'}`}
-                        onClick={() => toggleUsuarioActivo(u)}
-                      >
-                        <span className="usuario-toggle__caption">{Number(u.activo ?? 1) === 1 ? 'ON' : 'OFF'}</span>
-                        <span className="usuario-toggle__thumb" aria-hidden />
-                      </button>
-                    </div>
-                  </td>
+                  {puedeGestionarUsuarios ? (
+                    <td>
+                      <div className="usuario-acciones-cell">
+                        <EditTableActionButton module="usuarios" onClick={() => editarUsuario(u)} />
+                        <DeleteTableActionButton
+                          module="usuarios"
+                          onClick={() => deleteUsuario(u.email)}
+                          disabled={propioUsuario}
+                          title={propioUsuario ? 'No puedes eliminar tu propia cuenta' : 'Eliminar'}
+                        />
+                        {puedeEditarUsuarios ? (
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={Number(u.activo ?? 1) === 1}
+                            aria-label={Number(u.activo ?? 1) === 1 ? 'Desactivar usuario' : 'Activar usuario'}
+                            title={
+                              propioUsuario
+                                ? 'No puedes cambiar tu propio estado desde aquí'
+                                : Number(u.activo ?? 1) === 1
+                                  ? 'Desactivar usuario'
+                                  : 'Activar usuario'
+                            }
+                            disabled={activoTogglePending === u.email || propioUsuario}
+                            className={`usuario-toggle ${Number(u.activo ?? 1) === 1 ? 'usuario-toggle--on' : 'usuario-toggle--off'}${propioUsuario ? ' usuario-toggle--locked' : ''}`}
+                            onClick={() => toggleUsuarioActivo(u)}
+                          >
+                            <span className="usuario-toggle__caption">{Number(u.activo ?? 1) === 1 ? 'ON' : 'OFF'}</span>
+                            <span className="usuario-toggle__thumb" aria-hidden />
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>

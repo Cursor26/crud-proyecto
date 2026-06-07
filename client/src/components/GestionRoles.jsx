@@ -2,17 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import Axios, { API_BASE } from '../axiosConfig';
 import Swal from 'sweetalert2';
 import ModuleTitleBar from './ModuleTitleBar';
-import { RBAC_MODULES, RBAC_ACTIONS, emptyPermissions } from '../lib/rbacModules';
+import { RBAC_MODULES, RBAC_ACTIONS, emptyPermissions, normalizePermissions } from '../lib/rbacModules';
+import { BTN_ANADIR, BTN_ELIMINAR, BTN_GUARDAR } from '../lib/actionButtonClasses';
+import { TIP } from '../lib/actionTooltips';
 
 function clonePerms(src) {
-  const base = emptyPermissions();
-  for (const m of RBAC_MODULES) {
-    const row = src?.[m.codigo];
-    if (row) {
-      base[m.codigo] = { ...base[m.codigo], ...row };
-    }
-  }
-  return base;
+  return normalizePermissions(src);
+}
+
+function textoUsuariosAsignados(count) {
+  const n = Number(count) || 0;
+  return n <= 1 ? 'asignado con este rol' : 'asignados con este rol';
 }
 
 function GestionRoles() {
@@ -59,6 +59,12 @@ function GestionRoles() {
     loadRoles();
   }, [loadRoles]);
 
+  useEffect(() => {
+    if (loading || loadError || isNew || selectedId || !roles.length) return;
+    const preferred = roles.find((r) => r.codigo === 'admin') || roles[0];
+    if (preferred?.id_rol) loadRoleDetail(preferred.id_rol);
+  }, [loading, loadError, isNew, selectedId, roles, loadRoleDetail]);
+
   const nuevoRol = () => {
     setIsNew(true);
     setSelectedId(null);
@@ -69,22 +75,38 @@ function GestionRoles() {
   };
 
   const togglePerm = (moduleCodigo, actionCodigo) => {
-    setPermisos((prev) => ({
-      ...prev,
-      [moduleCodigo]: {
-        ...prev[moduleCodigo],
-        [actionCodigo]: !prev[moduleCodigo]?.[actionCodigo],
-      },
-    }));
+    setPermisos((prev) => {
+      const row = { ...prev[moduleCodigo] };
+      const nextVal = !row[actionCodigo];
+
+      if (actionCodigo === 'view') {
+        if (!nextVal) {
+          for (const a of RBAC_ACTIONS) row[a.codigo] = false;
+        } else {
+          row.view = true;
+        }
+      } else if (!nextVal) {
+        row[actionCodigo] = false;
+      } else {
+        row.view = true;
+        row[actionCodigo] = true;
+      }
+
+      return {
+        ...prev,
+        [moduleCodigo]: normalizePermissions({ [moduleCodigo]: row })[moduleCodigo],
+      };
+    });
   };
 
   const setRowAll = (moduleCodigo, value) => {
     setPermisos((prev) => {
-      const next = { ...prev };
-      const row = { ...next[moduleCodigo] };
+      const row = {};
       for (const a of RBAC_ACTIONS) row[a.codigo] = value;
-      next[moduleCodigo] = row;
-      return next;
+      return {
+        ...prev,
+        [moduleCodigo]: normalizePermissions({ [moduleCodigo]: row })[moduleCodigo],
+      };
     });
   };
 
@@ -94,9 +116,17 @@ function GestionRoles() {
       await Swal.fire('Datos incompletos', 'Indique el nombre del rol.', 'warning');
       return;
     }
+    if (!isNew && Number(selectedRole?.is_system) === 1) {
+      await Swal.fire(
+        'Rol del sistema',
+        'Los permisos de administrador, contratación y director son fijos y no se pueden modificar.',
+        'info'
+      );
+      return;
+    }
     setSaving(true);
     try {
-      const body = { nombre: nom, descripcion: descripcion.trim() || null, permisos };
+      const body = { nombre: nom, descripcion: descripcion.trim() || null, permisos: normalizePermissions(permisos) };
       if (isNew) {
         if (codigo.trim()) body.codigo = codigo.trim().toLowerCase();
         const res = await Axios.post(`${API_BASE}/rbac/roles`, body);
@@ -142,6 +172,7 @@ function GestionRoles() {
   };
 
   const selectedRole = roles.find((r) => r.id_rol === selectedId);
+  const esRolSistema = !isNew && Number(selectedRole?.is_system) === 1;
 
   return (
     <div className="contratos-module">
@@ -161,7 +192,7 @@ function GestionRoles() {
           <div className="contratos-card p-3">
             <div className="d-flex justify-content-between align-items-center mb-2">
               <h6 className="mb-0">Roles</h6>
-              <button type="button" className="btn btn-sm btn-contratos-primary" onClick={nuevoRol}>
+              <button type="button" className={BTN_ANADIR} onClick={nuevoRol} title={TIP.nuevoRol}>
                 Nuevo
               </button>
             </div>
@@ -171,7 +202,7 @@ function GestionRoles() {
                 <li key={r.id_rol} className="list-group-item px-0 py-2 border-0">
                   <button
                     type="button"
-                    className={`btn btn-sm w-100 text-start ${selectedId === r.id_rol && !isNew ? 'btn-contratos-primary' : 'btn-outline-secondary'}`}
+                    className={`btn btn-sm w-100 text-start ${selectedId === r.id_rol && !isNew ? 'contratos-btn-view' : 'btn-outline-secondary'}`}
                     onClick={() => loadRoleDetail(r.id_rol)}
                   >
                     <span className="fw-semibold">{r.nombre}</span>
@@ -200,6 +231,8 @@ function GestionRoles() {
                       value={nombre}
                       onChange={(e) => setNombre(e.target.value)}
                       placeholder="Ej. Supervisor de contratos"
+                      disabled={esRolSistema}
+                      readOnly={esRolSistema}
                     />
                   </div>
                   {isNew && (
@@ -214,27 +247,34 @@ function GestionRoles() {
                       />
                     </div>
                   )}
-                  <div className="col-12">
-                    <label className="form-label small mb-0">Descripción</label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      value={descripcion}
-                      onChange={(e) => setDescripcion(e.target.value)}
-                    />
-                  </div>
+                  {!esRolSistema && (
+                    <div className="col-12">
+                      <label className="form-label small mb-0">Descripción</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        value={descripcion}
+                        onChange={(e) => setDescripcion(e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {!isNew && selectedRole && (
-                  <p className="small text-muted">
-                    Código: <code>{selectedRole.codigo}</code>
-                    {Number(selectedRole.usuarios_count) > 0 && (
-                      <> — {selectedRole.usuarios_count} usuario(s) asignado(s)</>
-                    )}
+                  <p className="small text-muted mb-0">
+                    Usuarios: <strong>{Number(selectedRole.usuarios_count) || 0}</strong>{' '}
+                    {textoUsuariosAsignados(selectedRole.usuarios_count)}
                   </p>
                 )}
 
-                <div className="table-responsive">
+                {esRolSistema && (
+                  <div className="alert alert-secondary py-2 small mb-3 rbac-sistema-aviso" role="status">
+                    <i className="bi bi-lock-fill me-1" aria-hidden="true" />
+                    Rol predeterminado del sistema: los permisos son de solo lectura y no se pueden cambiar.
+                  </div>
+                )}
+
+                <div className={`table-responsive${esRolSistema ? ' rbac-permisos-readonly' : ''}`}>
                   <table className="table table-sm table-bordered align-middle mb-0">
                     <thead>
                       <tr>
@@ -244,7 +284,7 @@ function GestionRoles() {
                             {a.nombre}
                           </th>
                         ))}
-                        <th className="text-center small">Todo</th>
+                        {!esRolSistema ? <th className="text-center small">Todo</th> : null}
                       </tr>
                     </thead>
                     <tbody>
@@ -254,26 +294,55 @@ function GestionRoles() {
                         return (
                           <tr key={mod.codigo}>
                             <td className="fw-semibold">{mod.nombre}</td>
-                            {RBAC_ACTIONS.map((a) => (
-                              <td key={a.codigo} className="text-center">
+                            {RBAC_ACTIONS.map((a) => {
+                              const asignado = Boolean(row[a.codigo]);
+                              return (
+                              <td
+                                key={a.codigo}
+                                className="text-center"
+                              >
+                                {esRolSistema ? (
+                                  asignado ? (
+                                    <span
+                                      className="rbac-perm-indicador rbac-perm-indicador--on"
+                                      title="Permiso asignado"
+                                      aria-label={`${mod.nombre} ${a.nombre}: asignado`}
+                                    >
+                                      <i className="bi bi-check-lg" aria-hidden="true" />
+                                    </span>
+                                  ) : (
+                                    <span className="rbac-perm-indicador rbac-perm-indicador--off" aria-hidden="true">
+                                      —
+                                    </span>
+                                  )
+                                ) : (
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={asignado}
+                                    onChange={() => togglePerm(mod.codigo, a.codigo)}
+                                    disabled={a.codigo !== 'view' && !row.view}
+                                    aria-label={`${mod.nombre} ${a.nombre}`}
+                                    title={
+                                      a.codigo !== 'view' && !row.view
+                                        ? 'Active «Ver» para habilitar esta acción'
+                                        : undefined
+                                    }
+                                  />
+                                )}
+                              </td>
+                            );})}
+                            {!esRolSistema ? (
+                              <td className="text-center">
                                 <input
                                   type="checkbox"
                                   className="form-check-input"
-                                  checked={Boolean(row[a.codigo])}
-                                  onChange={() => togglePerm(mod.codigo, a.codigo)}
-                                  aria-label={`${mod.nombre} ${a.nombre}`}
+                                  checked={allOn}
+                                  onChange={(e) => setRowAll(mod.codigo, e.target.checked)}
+                                  aria-label={`Todos ${mod.nombre}`}
                                 />
                               </td>
-                            ))}
-                            <td className="text-center">
-                              <input
-                                type="checkbox"
-                                className="form-check-input"
-                                checked={allOn}
-                                onChange={(e) => setRowAll(mod.codigo, e.target.checked)}
-                                aria-label={`Todos ${mod.nombre}`}
-                              />
-                            </td>
+                            ) : null}
                           </tr>
                         );
                       })}
@@ -281,12 +350,20 @@ function GestionRoles() {
                   </table>
                 </div>
 
-                <div className="d-flex flex-wrap gap-2 mt-3">
-                  <button type="button" className="btn btn-contratos-primary btn-sm" onClick={guardar} disabled={saving}>
-                    {saving ? 'Guardando…' : isNew ? 'Crear rol' : 'Guardar permisos'}
-                  </button>
-                  {!isNew && selectedId && Number(selectedRole?.is_system) !== 1 && (
-                    <button type="button" className="btn btn-outline-danger btn-sm" onClick={eliminarRol}>
+                <div className="contratos-form-actions">
+                  {!esRolSistema ? (
+                    <button
+                      type="button"
+                      className={BTN_GUARDAR}
+                      onClick={guardar}
+                      disabled={saving}
+                      title={TIP.guardarRol}
+                    >
+                      {saving ? 'Guardando…' : isNew ? 'Crear rol' : 'Guardar permisos'}
+                    </button>
+                  ) : null}
+                  {!isNew && selectedId && !esRolSistema && (
+                    <button type="button" className={BTN_ELIMINAR} onClick={eliminarRol} title={TIP.eliminarRol}>
                       Eliminar rol
                     </button>
                   )}

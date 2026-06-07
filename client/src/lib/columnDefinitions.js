@@ -12,17 +12,6 @@ export const CONTRATOS_LIST_COLUMNS = [
   { id: 'acciones', label: 'Acciones', default: true, locked: true },
 ];
 
-export const EMPLEADOS_LIST_COLUMNS = [
-  { id: 'carnet', label: 'Carnet', default: true },
-  { id: 'nombre', label: 'Nombre', default: true },
-  { id: 'apellidos', label: 'Apellidos', default: true },
-  { id: 'puesto', label: 'Puesto', default: true },
-  { id: 'telefono', label: 'Teléfono', default: true },
-  { id: 'nivelEscolar', label: 'Nivel escolar', default: true },
-  { id: 'superacion', label: 'Superación', default: true },
-  { id: 'acciones', label: 'Acciones', default: true, locked: true },
-];
-
 export function defaultVisibleColumnIds(definitions) {
   return definitions.filter((c) => c.default !== false).map((c) => c.id);
 }

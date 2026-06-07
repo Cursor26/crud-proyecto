@@ -12,6 +12,10 @@ import {
 } from '../lib/appPreferences';
 import { DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS } from '../lib/formatAppDate';
 import { useAppPreferences } from '../context/AppPreferencesContext';
+import { usePermissions } from '../context/PermissionsContext';
+import { BTN_CANCELAR, BTN_CONSULTAR } from '../lib/actionButtonClasses';
+import ControlTip from './ControlTip';
+import UserProfileSettings from './UserProfileSettings';
 
 function OptionCard({ active, title, description, swatch, onClick, previewVars }) {
   return (
@@ -66,7 +70,7 @@ function ColorPickRow({ label, value, fallback, onChange, onReset }) {
         />
       </div>
       <div className="col-md-8 d-flex flex-wrap gap-2 align-items-center">
-        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={onReset}>
+        <button type="button" className={BTN_CANCELAR} onClick={onReset}>
           Usar color del tema
         </button>
         <span className="text-muted small">Actual: {value || 'color del tema'}</span>
@@ -75,10 +79,36 @@ function ColorPickRow({ label, value, fallback, onChange, onReset }) {
   );
 }
 
-function AppConfiguracion({ embedded = false }) {
+const CONFIG_TABS = [
+  { id: 'tema', label: 'Tema' },
+  { id: 'tipografia', label: 'Tipografía' },
+  { id: 'escala', label: 'Escala y menú lateral' },
+  { id: 'fecha', label: 'Fecha y hora' },
+  { id: 'accesibilidad', label: 'Accesibilidad' },
+  { id: 'interfaz', label: 'Interfaz' },
+  { id: 'usuario', label: 'Usuario' },
+];
+
+function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdated = null }) {
   const { preferences, resolved, syncState, updatePreference, resetPreferences, syncNow } =
     useAppPreferences();
+  const { can } = usePermissions();
+  const [activeTab, setActiveTab] = useState('tema');
   const [personalizacionOpen, setPersonalizacionOpen] = useState(false);
+  const tieneSubmenuContratacion = useMemo(() => {
+    const mostrarContratos = can('contratos', 'view');
+    const mostrarUsuarios = can('usuarios', 'view');
+    const mostrarGestionRoles = can('usuarios', 'edit') || can('usuarios', 'create');
+    const mostrarAuditoria = can('auditoria', 'view');
+    const mostrarCorreoSistema = can('usuarios', 'view');
+    const menuPlano =
+      mostrarContratos &&
+      !mostrarUsuarios &&
+      !mostrarGestionRoles &&
+      !mostrarAuditoria &&
+      !mostrarCorreoSistema;
+    return mostrarContratos && !menuPlano;
+  }, [can]);
   const themeList = useMemo(() => Object.values(THEME_PRESETS), []);
   const fontList = useMemo(() => Object.values(FONT_FAMILIES), []);
   const fontSizeList = useMemo(() => Object.values(FONT_SIZES), []);
@@ -114,10 +144,10 @@ function AppConfiguracion({ embedded = false }) {
   const actionBar = (
     <>
       <span className="badge text-bg-light border me-2 align-self-center">{syncLabel}</span>
-      <button type="button" className="btn btn-outline-primary btn-sm me-2" onClick={syncNow}>
+      <button type="button" className={`${BTN_CONSULTAR} me-2`} onClick={syncNow}>
         Sincronizar ahora
       </button>
-      <button type="button" className="btn btn-outline-secondary btn-sm" onClick={handleReset}>
+      <button type="button" className={BTN_CANCELAR} onClick={handleReset}>
         Restablecer predeterminados
       </button>
     </>
@@ -126,16 +156,41 @@ function AppConfiguracion({ embedded = false }) {
   return (
     <div className="container-fluid px-0 app-config-page">
       {embedded ? (
-        <div className="d-flex flex-wrap justify-content-end align-items-center gap-2 mb-3">{actionBar}</div>
+        <div className="contratos-topbar app-config-topbar app-config-topbar--title-only">
+          <div className="contratos-topbar__left">
+            <h2 className="contratos-page__title mb-0">Configuración</h2>
+          </div>
+        </div>
       ) : (
         <ModuleTitleBar title="Configuración de la aplicación" actions={actionBar} />
       )}
 
-      <div className="alert alert-light border small mb-3">
+      <div className={embedded ? 'app-config-below-avatar' : undefined}>
+        {embedded ? (
+          <div className="app-config-topbar__actions">{actionBar}</div>
+        ) : null}
+
+      <div className="alert alert-light border small mb-2 app-config-sync-hint">
         Los cambios se aplican al instante. Se guardan en este navegador y se sincronizan con tu cuenta en el servidor
         para usar la misma apariencia en otro equipo.
       </div>
 
+      <div className="contratos-tabs-card app-config-tabs-card mb-2">
+        <div className="contratos-tabs-row">
+          {CONFIG_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`btn btn-sm contratos-tab app-config-tab${activeTab === tab.id ? ' contratos-tab--active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === 'tema' ? (
       <div className="app-config-preview card shadow-sm border-0 mb-4">
         <div className="card-body">
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -153,7 +208,7 @@ function AppConfiguracion({ embedded = false }) {
               <div className="app-config-preview__card">
                 <strong>Ejemplo de contenido</strong>
                 <p>Así se verán fondo, tipografía y bordes en los módulos.</p>
-                <button type="button" className="btn btn-primary btn-sm">
+                <button type="button" className={BTN_CONSULTAR}>
                   Acción
                 </button>
               </div>
@@ -161,8 +216,11 @@ function AppConfiguracion({ embedded = false }) {
           </div>
         </div>
       </div>
+      ) : null}
 
       <div className="app-config-grid">
+        {activeTab === 'tema' ? (
+        <>
         <ConfigSection title="Tema de color" description="Paleta general de la interfaz (fondo, tarjetas y acentos).">
           <div className="app-config-option-grid">
             {themeList.map((theme) => (
@@ -305,16 +363,54 @@ function AppConfiguracion({ embedded = false }) {
             </div>
           ) : null}
         </ConfigSection>
+        </>
+        ) : null}
 
+        {activeTab === 'tipografia' ? (
+        <>
+        <div className="app-config-preview card shadow-sm border-0 mb-3">
+          <div className="card-body">
+            <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+              <h6 className="mb-0">Vista previa de tipografía</h6>
+              <span className="badge text-bg-secondary">
+                {resolved.font.label} · {resolved.fontSize.label}
+              </span>
+            </div>
+            <p
+              className="app-config-text-sample mb-2"
+              style={{
+                fontFamily: resolved.font.stack,
+                fontSize: `${resolved.fontSize.scale}rem`,
+                fontWeight: resolved.font.weight ?? 400,
+                letterSpacing: resolved.font.letterSpacing || 'normal',
+              }}
+            >
+              El veloz murciélago hindú comía feliz cardillo y kiwi. La tipografía seleccionada se aplica a toda la
+              aplicación al instante.
+            </p>
+            <p className="text-muted small mb-0">
+              Fuente activa: <strong>{resolved.font.label}</strong> — Tamaño: <strong>{resolved.fontSize.label}</strong>
+            </p>
+          </div>
+        </div>
         <ConfigSection title="Tipografía" description="Familia y tamaño base del texto en toda la aplicación.">
           <label className="form-label small fw-semibold">Fuente</label>
+          <p className="text-muted small mb-2">
+            Cuatro estilos distintos: normal del equipo, molde en negrita, serif clásica y monoespaciada.
+          </p>
           <div className="app-config-chip-row mb-3">
             {fontList.map((font) => (
               <button
                 key={font.id}
                 type="button"
                 className={`app-config-chip${preferences.fontFamily === font.id ? ' is-active' : ''}`}
-                style={{ fontFamily: font.stack }}
+                data-font-preview
+                style={{
+                  '--chip-font-family': font.stack,
+                  '--chip-font-weight': font.weight ?? 400,
+                  '--chip-letter-spacing': font.letterSpacing || 'normal',
+                }}
+                title={font.description || font.label}
                 onClick={() => updatePreference('fontFamily', font.id)}
               >
                 {font.label}
@@ -335,7 +431,10 @@ function AppConfiguracion({ embedded = false }) {
             ))}
           </div>
         </ConfigSection>
+        </>
+        ) : null}
 
+        {activeTab === 'escala' ? (
         <ConfigSection title="Escala y menú lateral">
           <label className="form-label small fw-semibold">Escala de interfaz</label>
           <div className="app-config-chip-row mb-3">
@@ -375,7 +474,7 @@ function AppConfiguracion({ embedded = false }) {
               Tema automático según el sistema (claro / oscuro)
             </label>
           </div>
-          <div className="form-check form-switch">
+          <div className="form-check form-switch mb-2">
             <input
               className="form-check-input"
               type="checkbox"
@@ -384,27 +483,18 @@ function AppConfiguracion({ embedded = false }) {
               onChange={(e) => updatePreference('sidebarCollapsed', e.target.checked)}
             />
             <label className="form-check-label" htmlFor="pref-sidebar-collapsed">
-              Menú lateral colapsado (solo iconos)
+              Menú lateral compacto (solo iconos)
             </label>
           </div>
+          <p className="text-muted small mb-0">
+            Oculta los nombres de las opciones y estrecha el menú; permanecen los iconos. Pase el cursor sobre un
+            icono para ver el nombre.
+          </p>
         </ConfigSection>
+        ) : null}
 
-        <ConfigSection title="Navegación" description="Comportamiento al usar el menú lateral.">
-          <div className="form-check form-switch">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              id="pref-remember"
-              checked={preferences.rememberSection}
-              onChange={(e) => updatePreference('rememberSection', e.target.checked)}
-            />
-            <label className="form-check-label" htmlFor="pref-remember">
-              Recordar última sección al recargar
-            </label>
-          </div>
-        </ConfigSection>
-
-        <ConfigSection title="Hora y fechas">
+        {activeTab === 'fecha' ? (
+        <ConfigSection title="Fecha y hora">
           <label className="form-label small fw-semibold">Formato de fecha</label>
           <div className="app-config-chip-row mb-3">
             {Object.values(DATE_FORMAT_OPTIONS).map((opt) => (
@@ -432,8 +522,11 @@ function AppConfiguracion({ embedded = false }) {
             ))}
           </div>
         </ConfigSection>
+        ) : null}
 
-        <ConfigSection title="Accesibilidad">          <label className="form-label small fw-semibold">Espaciado entre líneas</label>
+        {activeTab === 'accesibilidad' ? (
+        <ConfigSection title="Accesibilidad">
+          <label className="form-label small fw-semibold">Espaciado entre líneas</label>
           <div className="app-config-chip-row mb-3">
             {lineHeightList.map((opt) => (
               <button
@@ -459,6 +552,10 @@ function AppConfiguracion({ embedded = false }) {
                 Subrayar enlaces y botones de texto
               </label>
             </div>
+            <p className="text-muted small mb-2">
+              Aplica en menú lateral, pestañas, opciones de configuración, enlaces mailto y botones tipo enlace en
+              contratos y el resto de módulos. No afecta botones sólidos (Guardar, PDF, iconos de acción).
+            </p>
             <div className="form-check form-switch">
               <input
                 className="form-check-input"
@@ -473,15 +570,21 @@ function AppConfiguracion({ embedded = false }) {
             </div>
           </div>
         </ConfigSection>
+        ) : null}
 
+        {activeTab === 'interfaz' ? (
         <ConfigSection title="Interfaz" description="Densidad, bordes y accesibilidad visual.">
           <label className="form-label small fw-semibold">Bordes redondeados</label>
+          <p className="text-muted small mb-2">
+            Afecta botones, tarjetas, campos de formulario, menú lateral y paneles de configuración.
+          </p>
           <div className="app-config-chip-row mb-3">
             {radiusList.map((radius) => (
               <button
                 key={radius.id}
                 type="button"
-                className={`app-config-chip${preferences.borderRadius === radius.id ? ' is-active' : ''}`}
+                className={`app-config-chip app-config-radius-option${preferences.borderRadius === radius.id ? ' is-active' : ''}`}
+                style={{ '--chip-radius-preview': radius.value }}
                 onClick={() => updatePreference('borderRadius', radius.id)}
               >
                 {radius.label}
@@ -490,30 +593,34 @@ function AppConfiguracion({ embedded = false }) {
           </div>
 
           <div className="app-config-toggle-list">
-            <div className="form-check form-switch">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="pref-compact"
-                checked={preferences.compactMode}
-                onChange={(e) => updatePreference('compactMode', e.target.checked)}
-              />
-              <label className="form-check-label" htmlFor="pref-compact">
-                Modo compacto (menos espaciado en tablas y formularios)
-              </label>
-            </div>
-            <div className="form-check form-switch">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="pref-motion"
-                checked={preferences.reduceMotion}
-                onChange={(e) => updatePreference('reduceMotion', e.target.checked)}
-              />
-              <label className="form-check-label" htmlFor="pref-motion">
-                Reducir animaciones
-              </label>
-            </div>
+            <ControlTip title="Reduce padding de celdas, campos, botones y tarjetas. Notable en Contratos, Usuarios y listados.">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="pref-compact"
+                  checked={preferences.compactMode}
+                  onChange={(e) => updatePreference('compactMode', e.target.checked)}
+                />
+                <label className="form-check-label" htmlFor="pref-compact">
+                  Modo compacto (menos espaciado en tablas y formularios)
+                </label>
+              </div>
+            </ControlTip>
+            <ControlTip title="Quita transiciones suaves al pasar el cursor (botones, menú lateral, campos) y pausa la espiral 3D del panel lateral. Los spinners de carga siguen activos. Opción de accesibilidad.">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="pref-motion"
+                  checked={preferences.reduceMotion}
+                  onChange={(e) => updatePreference('reduceMotion', e.target.checked)}
+                />
+                <label className="form-check-label" htmlFor="pref-motion">
+                  Reducir animaciones
+                </label>
+              </div>
+            </ControlTip>
             <div className="form-check form-switch">
               <input
                 className="form-check-input"
@@ -528,6 +635,60 @@ function AppConfiguracion({ embedded = false }) {
             </div>
           </div>
         </ConfigSection>
+        ) : null}
+
+        {activeTab === 'usuario' ? (
+        <>
+        <ConfigSection title="Mi cuenta" description="Datos personales de acceso (nombre, correo, teléfono, foto y contraseña).">
+          <UserProfileSettings user={currentUser} onProfileUpdated={onProfileUpdated} />
+        </ConfigSection>
+        <ConfigSection title="Preferencias" description="Navegación y confirmaciones.">
+          <div className="app-config-toggle-list">
+            <div className="form-check form-switch">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="pref-remember"
+                checked={preferences.rememberSection}
+                onChange={(e) => updatePreference('rememberSection', e.target.checked)}
+              />
+              <label className="form-check-label" htmlFor="pref-remember">
+                Recordar última sección al recargar
+              </label>
+            </div>
+            {tieneSubmenuContratacion ? (
+              <ControlTip title="Mantiene desplegado el submenú Contratación en el menú lateral (Resumen, Contratos, Pendientes, etc.).">
+                <div className="form-check form-switch">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="pref-pin-submenus"
+                    checked={preferences.pinSubmenus}
+                    onChange={(e) => updatePreference('pinSubmenus', e.target.checked)}
+                  />
+                  <label className="form-check-label" htmlFor="pref-pin-submenus">
+                    Mantener submenús del lateral siempre abiertos
+                  </label>
+                </div>
+              </ControlTip>
+            ) : null}
+            <div className="form-check form-switch">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="pref-confirm-delete"
+                checked={preferences.confirmBeforeDelete}
+                onChange={(e) => updatePreference('confirmBeforeDelete', e.target.checked)}
+              />
+              <label className="form-check-label" htmlFor="pref-confirm-delete">
+                Pedir confirmación antes de eliminar registros
+              </label>
+            </div>
+          </div>
+        </ConfigSection>
+        </>
+        ) : null}
+      </div>
       </div>
     </div>
   );

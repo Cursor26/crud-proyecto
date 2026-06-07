@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { BTN_CANCELAR_MD } from '../lib/actionButtonClasses';
 
 export default function ContratosMotivoCancelacionModal({
   show,
@@ -91,7 +92,7 @@ export default function ContratosMotivoCancelacionModal({
 
         <div className="modal-premium-footer modal-minimal-footer border-0">
           <span aria-hidden="true" />
-          <button type="button" className="btn btn-outline-secondary modal-minimal-btn" onClick={onHide}>
+          <button type="button" className={BTN_CANCELAR_MD} onClick={onHide}>
             Cerrar
           </button>
         </div>

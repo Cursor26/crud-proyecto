@@ -4,36 +4,8 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import { Nav, Navbar, NavDropdown } from 'react-bootstrap';
 
-import SacrificioVacuno from './components/SacrificioVacuno';
-import MataderoVivo from './components/MataderoVivo';
-import Leche from './components/Leche';
-import Asistencias from './components/Asistencias';
-import Certificaciones from './components/Certificaciones';
-import Cursos from './components/Cursos';
-import Evalcapacitacion from './components/Evalcapacitacion';
-import Evaluaciones from './components/Evaluaciones';
-import Objetivos from './components/Objetivos';
-import Salarios from './components/Salarios';
-import SegSeguridad from './components/SegSeguridad';
-import Seguridad from './components/Seguridad';
-import Cargos from './components/Cargos';
-import Departamentos from './components/Departamentos';
-import CertificadosMedicos from './components/CertificadosMedicos';
-import Vacaciones from './components/Vacaciones';
-import TurnosTrabajo from './components/TurnosTrabajo';
-import GruposTrabajo from './components/GruposTrabajo';
-import Sanciones from './components/Sanciones';
-import Reconocimientos from './components/Reconocimientos';
-import Jubilaciones from './components/Jubilaciones';
-import EvaluacionesMedicas from './components/EvaluacionesMedicas';
 import Login from './components/Login';
 import GestionContratos from './components/GestionContratos';
-import GestionEmpleados from './components/GestionEmpleados';
-import BajasEmpleados from './components/BajasEmpleados';
-import ReportePersonal from './components/ReportePersonal';
-import CambiosCargo from './components/CambiosCargo';
-import ReporteConsolidado from './components/ReporteConsolidado';
-import ProduccionHistorico from './components/ProduccionHistorico';
 import GestionUsuarios from './components/GestionUsuarios';
 import GestionRoles from './components/GestionRoles';
 import Auditoria from './components/Auditoria';
@@ -44,12 +16,20 @@ import GestionConfiguracion from './components/GestionConfiguracion';
 import ConfigCorreoServicio from './components/ConfigCorreoServicio';
 import { PuedeEscribirProvider } from './context/PuedeEscribirContext';
 import { AppPreferencesProvider, useAppPreferences } from './context/AppPreferencesContext';
-import { NavPrefsInitializer, useDashboardNavHandlers } from './hooks/useDashboardNav';
+import { NavPrefsInitializer, PinSubmenusSync, useDashboardNavHandlers } from './hooks/useDashboardNav';
+import useNativeTooltips from './hooks/useNativeTooltips';
 import { formatAppDate, formatAppTime } from './lib/formatAppDate';
-import RrhhModuloHerramientas6Modal from './components/RrhhModuloHerramientas6Modal';
 import logoAepg from './images/logo-aepg.png';
 import UserProfileAvatar from './components/UserProfileAvatar';
 import DnaThreeWidget from './components/DnaThreeWidget';
+import {
+  CONTRATOS_KEY_TO_SECTION,
+  CONTRATOS_MENU_SECTIONS,
+  CONTRATOS_SECTION_TO_KEY,
+  contratosNavKeyAllowed,
+  getContratosAllowedNavKeys,
+  getContratosSidebarNavItems,
+} from './lib/contratosNavSections';
 
 const TOKEN_KEY = 'token';
 const PERMISOS_KEY = 'permisos';
@@ -89,45 +69,37 @@ function normalizarUsuarioGuardado(raw, authToken) {
 }
 
 /** Vista inicial al entrar o al cambiar de rol — ver useDashboardNav.js */
-const SIDEBAR_RRHH_KEYS = new Set([
-  'empleados',
-  'bajas-empleados',
-  'reporte-personal',
-  'cambios-cargo',
-  'reporte-consolidado',
-  'vacaciones',
-  'turnos-trabajo',
-  'grupos-trabajo',
-  'sanciones',
-  'reconocimientos',
-  'jubilaciones',
-  'asistencias',
-  'certificaciones',
-  'cursos',
-  'evalcapacitacion',
-  'evaluaciones',
-  'objetivos',
-  'salarios',
-  'segseguridad',
-  'seguridad',
-  'cargos',
-  'departamentos',
-  'cert-medicos',
-  'eval-medicas',
-]);
+const SIDEBAR_CONTRATOS_KEYS = new Set(CONTRATOS_MENU_SECTIONS.map((section) => section.key));
 
-const SIDEBAR_PROD_KEYS = new Set(['sacrificio', 'matadero', 'leche', 'produccion-historico']);
-const SIDEBAR_CONTRATOS_KEYS = new Set([
-  'contratos-resumen',
-  'contratos-lista',
-  'contratos-pendientes',
-  'contratos-vencimientos',
-  'contratos-renovaciones',
-  'contratos-correo',
-  'contratos-reportes',
-  'contratos-archivo',
-  'contratos-tipos',
-]);
+function contratosSectionFromNavKey(navKey) {
+  return CONTRATOS_KEY_TO_SECTION[navKey] || 'contratos';
+}
+
+function isContratosNavKey(navKey) {
+  return navKey === 'contratos' || SIDEBAR_CONTRATOS_KEYS.has(navKey);
+}
+
+function ContratosSidebarLinks({ itemClassName = 'mb-2', linkClassName = 'dashboard-nav-link p-1' }) {
+  const { can } = usePermissions();
+  const items = getContratosSidebarNavItems(can);
+  return items.map((item) => (
+    <Nav.Item key={item.eventKey} className={itemClassName}>
+      <Nav.Link eventKey={item.eventKey} className={linkClassName} title={item.label}>
+        <i className={`bi ${item.icon} me-2 dashboard-sidebar-icon`} aria-hidden="true" />
+        <span className="dashboard-sidebar-label">{item.label}</span>
+      </Nav.Link>
+    </Nav.Item>
+  ));
+}
+
+function SidebarLinkLabel({ icon, label }) {
+  return (
+    <>
+      <i className={`bi ${icon} me-2 dashboard-sidebar-icon`} aria-hidden="true" />
+      <span className="dashboard-sidebar-label">{label}</span>
+    </>
+  );
+}
 
 const setAuthToken = (token) => {
   if (token) {
@@ -149,10 +121,9 @@ function App() {
   const [token, setToken] = useState(tokenInicial);
 
   const [key, setKey] = useState('');
-  /** A la vez solo un submenú lateral abierto: 'rrhh' | 'contratos' | 'prod' | null */
+  /** A la vez solo un submenú lateral abierto: 'contratos' | null */
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState(null);
   const [now, setNow] = useState(new Date());
-  const [rrhhAnaliticaOpen, setRrhhAnaliticaOpen] = useState(false);
 
   const moduloLabel = {
     usuarios: 'Gestión de usuarios',
@@ -170,42 +141,7 @@ function App() {
     'contratos-reportes': 'Contratación · Reportes',
     'contratos-archivo': 'Contratación · Archivo histórico',
     'contratos-tipos': 'Contratación · Tipos de contrato',
-    empleados: 'Gestión de empleados',
-    'bajas-empleados': 'Bajas de empleado',
-    'reporte-personal': 'Reporte de personal',
-    'cambios-cargo': 'Cambios de cargo',
-    'reporte-consolidado': 'Reporte consolidado',
-    vacaciones: 'Vacaciones',
-    'turnos-trabajo': 'Turnos de trabajo',
-    'grupos-trabajo': 'Grupos de trabajo',
-    sanciones: 'Sanciones',
-    reconocimientos: 'Reconocimientos',
-    jubilaciones: 'Jubilaciones y retiros',
-    asistencias: 'Asistencias',
-    certificaciones: 'Certificaciones',
-    cursos: 'Cursos',
-    evalcapacitacion: 'Eval. capacitación',
-    evaluaciones: 'Evaluaciones',
-    objetivos: 'Objetivos',
-    salarios: 'Salarios',
-    segseguridad: 'Seg. Seguridad',
-    seguridad: 'Seguridad',
-    cargos: 'Cargos',
-    departamentos: 'Departamentos',
-    'cert-medicos': 'Certificados médicos',
-    'eval-medicas': 'Evaluaciones médicas',
-    sacrificio: 'Sacrificio vacuno',
-    matadero: 'Matadero vivo',
-    leche: 'Leche',
-    'produccion-historico': 'Histórico producción',
-  };
-
-  const handleSidebarRrhhToggle = (nextOpen) => {
-    setSidebarMenuOpen(nextOpen ? 'rrhh' : null);
-  };
-
-  const handleSidebarProdToggle = (nextOpen) => {
-    setSidebarMenuOpen(nextOpen ? 'prod' : null);
+    'contratos-auditoria': 'Contratación · Auditoría',
   };
 
   const handleSidebarContratosToggle = (nextOpen) => {
@@ -223,28 +159,13 @@ function App() {
       selectedKey === 'contratos'
     ) {
       setSidebarMenuOpen(null);
-    } else if (SIDEBAR_RRHH_KEYS.has(selectedKey)) {
-      setSidebarMenuOpen('rrhh');
     } else if (SIDEBAR_CONTRATOS_KEYS.has(selectedKey)) {
       setSidebarMenuOpen('contratos');
-    } else if (SIDEBAR_PROD_KEYS.has(selectedKey)) {
-      setSidebarMenuOpen('prod');
     }
   };
 
   const handleContratosSectionChange = (sectionId) => {
-    const sectionToKey = {
-      resumen: 'contratos-resumen',
-      contratos: 'contratos-lista',
-      pendientes: 'contratos-pendientes',
-      vencimientos: 'contratos-vencimientos',
-      renovaciones: 'contratos-renovaciones',
-      correo: 'contratos-correo',
-      reportes: 'contratos-reportes',
-      archivo: 'contratos-archivo',
-      tipos: 'contratos-tipos',
-    };
-    const nextKey = sectionToKey[sectionId];
+    const nextKey = CONTRATOS_SECTION_TO_KEY[sectionId];
     if (!nextKey || nextKey === key) return;
     handleNavSelect(nextKey);
   };
@@ -263,24 +184,26 @@ function App() {
           setUser(null);
         }
       }
-      const stored = loadPermisosFromStorage();
-      if (!stored || !hasAnyPermission(stored)) {
-        Axios.get(`${API_BASE}/rbac/me/permissions`)
-          .then((res) => {
-            const perms = res.data?.permisos;
-            if (perms && hasAnyPermission(perms)) {
-              localStorage.setItem(PERMISOS_KEY, JSON.stringify(perms));
-              setPermisos(perms);
-            } else {
-              localStorage.removeItem(PERMISOS_KEY);
-              setPermisos(null);
-            }
-          })
-          .catch(() => {
+      Axios.get(`${API_BASE}/rbac/me/permissions`)
+        .then((res) => {
+          const perms = res.data?.permisos;
+          if (perms && hasAnyPermission(perms)) {
+            localStorage.setItem(PERMISOS_KEY, JSON.stringify(perms));
+            setPermisos(perms);
+          } else {
             localStorage.removeItem(PERMISOS_KEY);
             setPermisos(null);
-          });
-      }
+          }
+        })
+        .catch(() => {
+          const stored = loadPermisosFromStorage();
+          if (stored && hasAnyPermission(stored)) {
+            setPermisos(stored);
+          } else {
+            localStorage.removeItem(PERMISOS_KEY);
+            setPermisos(null);
+          }
+        });
     }
     setLoading(false);
   }, [token]);
@@ -345,6 +268,21 @@ function App() {
     });
   };
 
+  const handleProfileUpdated = (patch) => {
+    if (patch?.token) {
+      localStorage.setItem(TOKEN_KEY, patch.token);
+      setAuthToken(patch.token);
+      setToken(patch.token);
+    }
+    setUser((prev) => {
+      if (!prev) return prev;
+      const { token: _token, ...rest } = patch || {};
+      const next = { ...prev, ...rest };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const legacyCan = useMemo(() => (user?.rol ? createLegacyCan(user.rol) : null), [user?.rol]);
 
   return (
@@ -357,17 +295,14 @@ function App() {
         login={login}
         logout={logout}
         handleProfilePhotoUpdated={handleProfilePhotoUpdated}
+        handleProfileUpdated={handleProfileUpdated}
         navKey={key}
         setKey={setKey}
         sidebarMenuOpen={sidebarMenuOpen}
         setSidebarMenuOpen={setSidebarMenuOpen}
         now={now}
-        rrhhAnaliticaOpen={rrhhAnaliticaOpen}
-        setRrhhAnaliticaOpen={setRrhhAnaliticaOpen}
         handleNavSelect={handleNavSelect}
         handleContratosSectionChange={handleContratosSectionChange}
-        handleSidebarRrhhToggle={handleSidebarRrhhToggle}
-        handleSidebarProdToggle={handleSidebarProdToggle}
         handleSidebarContratosToggle={handleSidebarContratosToggle}
         moduloLabel={moduloLabel}
       />
@@ -382,17 +317,14 @@ function AppWithPermissions(props) {
     login,
     logout,
     handleProfilePhotoUpdated,
+    handleProfileUpdated,
     navKey,
     setKey,
     sidebarMenuOpen,
     setSidebarMenuOpen,
     now,
-    rrhhAnaliticaOpen,
-    setRrhhAnaliticaOpen,
     handleNavSelect,
     handleContratosSectionChange,
-    handleSidebarRrhhToggle,
-    handleSidebarProdToggle,
     handleSidebarContratosToggle,
     moduloLabel,
   } = props;
@@ -403,33 +335,19 @@ function AppWithPermissions(props) {
   const mostrarGestionRoles = can('usuarios', 'edit') || can('usuarios', 'create');
   const mostrarAuditoria = can('auditoria', 'view');
   const mostrarConfigApp = can('configuracion', 'view');
-  const mostrarCorreoSistema = can('configuracion', 'view');
+  const mostrarCorreoSistema = can('usuarios', 'view');
   const mostrarContratos = can('contratos', 'view');
-  const mostrarRHum = can('empleados', 'view');
-  const mostrarProduccion = can('produccion', 'view');
-  const mostrarEmpleados = mostrarRHum;
-  const mostrarAsistencias = mostrarRHum;
-  const mostrarCertificaciones = mostrarRHum;
-  const mostrarCursos = mostrarRHum;
-  const mostrarEvalcapacitacion = mostrarRHum;
-  const mostrarEvaluaciones = mostrarRHum;
-  const mostrarObjetivos = mostrarRHum;
-  const mostrarSalarios = mostrarRHum;
-  const mostrarVacaciones = mostrarRHum;
-  const mostrarTurnosTrabajo = mostrarRHum;
-  const mostrarGruposTrabajo = mostrarRHum;
-  const mostrarSanciones = mostrarRHum;
-  const mostrarReconocimientos = mostrarRHum;
-  const mostrarJubilaciones = mostrarRHum;
-  const mostrarSegSeguridad = mostrarRHum;
-  const mostrarSeguridad = mostrarRHum;
-  const mostrarCargos = mostrarRHum;
-  const mostrarDepartamentos = mostrarRHum;
-  const mostrarCertMedicos = mostrarRHum;
-  const mostrarEvalMedicas = mostrarRHum;
-  const mostrarSacrificio = mostrarProduccion;
-  const mostrarMatadero = mostrarProduccion;
-  const mostrarLeche = mostrarProduccion;
+
+  /** Solo Contratación + Configuración: menú lateral plano (sin desplegable). */
+  const menuContratacionPlano = useMemo(
+    () =>
+      mostrarContratos &&
+      !mostrarUsuarios &&
+      !mostrarGestionRoles &&
+      !mostrarAuditoria &&
+      !mostrarCorreoSistema,
+    [mostrarContratos, mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarCorreoSistema]
+  );
 
   const allowedModuleKeys = useMemo(() => {
     const keys = new Set();
@@ -438,11 +356,9 @@ function AppWithPermissions(props) {
     if (mostrarGestionRoles) keys.add('gestion-roles');
     if (mostrarAuditoria) keys.add('auditoria');
     if (mostrarCorreoSistema) keys.add('config-correo');
-    if (mostrarContratos) SIDEBAR_CONTRATOS_KEYS.forEach((k) => keys.add(k));
-    if (mostrarRHum) SIDEBAR_RRHH_KEYS.forEach((k) => keys.add(k));
-    if (mostrarProduccion) SIDEBAR_PROD_KEYS.forEach((k) => keys.add(k));
+    if (mostrarContratos) getContratosAllowedNavKeys(can).forEach((k) => keys.add(k));
     return keys;
-  }, [can, mostrarConfigApp, mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarCorreoSistema, mostrarContratos, mostrarRHum, mostrarProduccion]);
+  }, [can, mostrarConfigApp, mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarCorreoSistema, mostrarContratos]);
 
   useEffect(() => {
     if (!navKey || allowedModuleKeys.has(navKey)) return;
@@ -451,11 +367,9 @@ function AppWithPermissions(props) {
   }, [navKey, allowedModuleKeys, setKey]);
 
   const rolEtiqueta = (r) => {
-    if (r === 'estadistica' || r === 'produccion') return 'Estadística';
     if (r === 'admin') return 'Administrador';
     if (r === 'director') return 'Director (consulta)';
     if (r === 'contratacion') return 'Contratación';
-    if (r === 'rrhh') return 'Rec. humanos';
     return r || '';
   };
 
@@ -480,6 +394,7 @@ function AppWithPermissions(props) {
       setKey={setKey}
       setSidebarMenuOpen={setSidebarMenuOpen}
     />
+    <PinSubmenusSync navKey={navKey} setSidebarMenuOpen={setSidebarMenuOpen} />
     <DashboardShell
       user={user}
       logout={logout}
@@ -490,47 +405,20 @@ function AppWithPermissions(props) {
       handleNavSelect={handleNavSelect}
       handleContratosSectionChange={handleContratosSectionChange}
       handleSidebarContratosToggle={handleSidebarContratosToggle}
-      handleSidebarRrhhToggle={handleSidebarRrhhToggle}
-      handleSidebarProdToggle={handleSidebarProdToggle}
       now={now}
-      rrhhAnaliticaOpen={rrhhAnaliticaOpen}
-      setRrhhAnaliticaOpen={setRrhhAnaliticaOpen}
       moduloLabel={moduloLabel}
       rolEtiqueta={rolEtiqueta}
       puedeEscribir={puedeEscribir}
       allowedModuleKeys={allowedModuleKeys}
       onProfilePhotoUpdated={handleProfilePhotoUpdated}
+      onProfileUpdated={handleProfileUpdated}
       mostrarUsuarios={mostrarUsuarios}
       mostrarGestionRoles={mostrarGestionRoles}
       mostrarAuditoria={mostrarAuditoria}
       mostrarConfigApp={mostrarConfigApp}
       mostrarCorreoSistema={mostrarCorreoSistema}
       mostrarContratos={mostrarContratos}
-      mostrarRHum={mostrarRHum}
-      mostrarProduccion={mostrarProduccion}
-      mostrarEmpleados={mostrarEmpleados}
-      mostrarAsistencias={mostrarAsistencias}
-      mostrarCertificaciones={mostrarCertificaciones}
-      mostrarCursos={mostrarCursos}
-      mostrarEvalcapacitacion={mostrarEvalcapacitacion}
-      mostrarEvaluaciones={mostrarEvaluaciones}
-      mostrarObjetivos={mostrarObjetivos}
-      mostrarSalarios={mostrarSalarios}
-      mostrarVacaciones={mostrarVacaciones}
-      mostrarTurnosTrabajo={mostrarTurnosTrabajo}
-      mostrarGruposTrabajo={mostrarGruposTrabajo}
-      mostrarSanciones={mostrarSanciones}
-      mostrarReconocimientos={mostrarReconocimientos}
-      mostrarJubilaciones={mostrarJubilaciones}
-      mostrarSegSeguridad={mostrarSegSeguridad}
-      mostrarSeguridad={mostrarSeguridad}
-      mostrarCargos={mostrarCargos}
-      mostrarDepartamentos={mostrarDepartamentos}
-      mostrarCertMedicos={mostrarCertMedicos}
-      mostrarEvalMedicas={mostrarEvalMedicas}
-      mostrarSacrificio={mostrarSacrificio}
-      mostrarMatadero={mostrarMatadero}
-      mostrarLeche={mostrarLeche}
+      menuContratacionPlano={menuContratacionPlano}
     />
     </PuedeEscribirProvider>
     </AppPreferencesProvider>
@@ -539,6 +427,9 @@ function AppWithPermissions(props) {
 
 function DashboardShell(props) {
   const { preferences, resolved } = useAppPreferences();
+  const { can } = usePermissions();
+  useNativeTooltips();
+  const contratosSidebarItems = useMemo(() => getContratosSidebarNavItems(can), [can]);
   const { handleNavSelect, dropdownShow } = useDashboardNavHandlers({
     user: props.user,
     setKey: props.setKey,
@@ -547,18 +438,12 @@ function DashboardShell(props) {
   });
   const sidebarWidth = resolved.sidebarWidth.width;
   const {
-    user, logout, navKey: key, sidebarMenuOpen, now, rrhhAnaliticaOpen, setRrhhAnaliticaOpen,
+    user, logout, navKey: key, sidebarMenuOpen, setSidebarMenuOpen, now,
     moduloLabel, rolEtiqueta, puedeEscribir,
-    handleContratosSectionChange, handleSidebarContratosToggle, handleSidebarRrhhToggle, handleSidebarProdToggle,
+    handleContratosSectionChange, handleSidebarContratosToggle,
     mostrarConfigApp,
     mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarCorreoSistema,
-    mostrarContratos, mostrarRHum, mostrarProduccion, mostrarEmpleados,
-    mostrarAsistencias, mostrarCertificaciones, mostrarCursos, mostrarEvalcapacitacion,
-    mostrarEvaluaciones, mostrarObjetivos, mostrarSalarios, mostrarVacaciones,
-    mostrarTurnosTrabajo, mostrarGruposTrabajo, mostrarSanciones, mostrarReconocimientos,
-    mostrarJubilaciones, mostrarSegSeguridad, mostrarSeguridad, mostrarCargos,
-    mostrarDepartamentos, mostrarCertMedicos, mostrarEvalMedicas, mostrarSacrificio,
-    mostrarMatadero, mostrarLeche, onProfilePhotoUpdated,
+    mostrarContratos, menuContratacionPlano, onProfilePhotoUpdated, onProfileUpdated,
   } = props;
 
   return (
@@ -575,248 +460,74 @@ function DashboardShell(props) {
         <Nav className="flex-column flex-grow-1 dashboard-sidebar-nav" activeKey={key} onSelect={handleNavSelect}>
           {mostrarUsuarios && (
             <Nav.Item className="mb-2">
-              <Nav.Link eventKey="usuarios" className="dashboard-nav-link rounded-3 p-1">
-                <i className="bi bi-person-badge me-2" aria-hidden="true"></i>Usuarios
+              <Nav.Link eventKey="usuarios" className="dashboard-nav-link p-1" title="Usuarios">
+                <SidebarLinkLabel icon="bi-person-badge" label="Usuarios" />
               </Nav.Link>
             </Nav.Item>
           )}
           {mostrarGestionRoles && (
             <Nav.Item className="mb-2">
-              <Nav.Link eventKey="gestion-roles" className="dashboard-nav-link rounded-3 p-1">
-                <i className="bi bi-shield-lock me-2" aria-hidden="true"></i>Roles y permisos
+              <Nav.Link eventKey="gestion-roles" className="dashboard-nav-link p-1" title="Roles y permisos">
+                <SidebarLinkLabel icon="bi-shield-lock" label="Roles y permisos" />
               </Nav.Link>
             </Nav.Item>
           )}
           {mostrarAuditoria && (
             <Nav.Item className="mb-2">
-              <Nav.Link eventKey="auditoria" className="dashboard-nav-link rounded-3 p-1">
-                <i className="bi bi-journal-text me-2" aria-hidden="true"></i>Auditoría
+              <Nav.Link eventKey="auditoria" className="dashboard-nav-link p-1" title="Auditoría">
+                <SidebarLinkLabel icon="bi-journal-text" label="Auditoría" />
               </Nav.Link>
             </Nav.Item>
           )}
           {mostrarCorreoSistema && (
             <Nav.Item className="mb-2">
-              <Nav.Link eventKey="config-correo" className="dashboard-nav-link rounded-3 p-1">
-                <i className="bi bi-envelope-at me-2" aria-hidden="true"></i>Correo del sistema
+              <Nav.Link eventKey="config-correo" className="dashboard-nav-link p-1" title="Correo del sistema">
+                <SidebarLinkLabel icon="bi-envelope-at" label="Correo del sistema" />
               </Nav.Link>
             </Nav.Item>
           )}
-          {mostrarContratos && (
+          {mostrarContratos && menuContratacionPlano && (
+            <div className="dashboard-sidebar-flat-group mb-2">
+              <div className="dashboard-sidebar-section-title" role="presentation">
+                <i className="bi bi-file-earmark-ruled me-2" aria-hidden="true" />
+                Contratación
+              </div>
+              <ContratosSidebarLinks
+                itemClassName="dashboard-sidebar-flat-item"
+                linkClassName="dashboard-nav-link dashboard-nav-link--nested p-1"
+              />
+            </div>
+          )}
+          {mostrarContratos && !menuContratacionPlano && (
             <NavDropdown
               title={
                 <span className="d-inline-flex align-items-center">
-                  <i className="bi bi-file-earmark-ruled me-2" aria-hidden="true"></i>Contratación
+                  <i className="bi bi-file-earmark-ruled me-2 dashboard-sidebar-icon" aria-hidden="true" />
+                  <span className="dashboard-sidebar-label">Contratación</span>
                 </span>
               }
               id="sidebar-dropdown-contratos"
-              className="mi-dropdown-sidebar"
+              className="mi-dropdown-sidebar mb-2"
               autoClose={false}
               show={dropdownShow('contratos', sidebarMenuOpen)}
-              onToggle={(next) => !preferences.pinSubmenus && handleSidebarContratosToggle(next)}
+              onToggle={(next) => {
+                if (preferences.pinSubmenus) {
+                  setSidebarMenuOpen('all');
+                  return;
+                }
+                handleSidebarContratosToggle(next);
+              }}
             >
-              <NavDropdown.Item eventKey="contratos-resumen" active={key === 'contratos-resumen'}>
-                <i className="bi bi-speedometer2 me-2" aria-hidden="true"></i>Resumen ejecutivo
-              </NavDropdown.Item>
-              <NavDropdown.Item eventKey="contratos-lista" active={key === 'contratos-lista'}>
-                <i className="bi bi-table me-2" aria-hidden="true"></i>Contratos
-              </NavDropdown.Item>
-              <NavDropdown.Item eventKey="contratos-pendientes" active={key === 'contratos-pendientes'}>
-                <i className="bi bi-hourglass-split me-2" aria-hidden="true"></i>Pendientes
-              </NavDropdown.Item>
-              <NavDropdown.Item
-                eventKey="contratos-vencimientos"
-                active={key === 'contratos-vencimientos'}
-                className="contratos-menu-vencimientos--hidden-visual"
-              >
-                <i className="bi bi-calendar2-week me-2" aria-hidden="true"></i>Vencimientos
-              </NavDropdown.Item>
-              <NavDropdown.Item eventKey="contratos-renovaciones" active={key === 'contratos-renovaciones'}>
-                <i className="bi bi-arrow-repeat me-2" aria-hidden="true"></i>Renovaciones
-              </NavDropdown.Item>
-              <NavDropdown.Item eventKey="contratos-correo" active={key === 'contratos-correo'}>
-                <i className="bi bi-envelope-at me-2" aria-hidden="true"></i>Correo
-              </NavDropdown.Item>
-              <NavDropdown.Item eventKey="contratos-reportes" active={key === 'contratos-reportes'}>
-                <i className="bi bi-bar-chart-line me-2" aria-hidden="true"></i>Reportes
-              </NavDropdown.Item>
-              <NavDropdown.Item eventKey="contratos-archivo" active={key === 'contratos-archivo'}>
-                <i className="bi bi-archive me-2" aria-hidden="true"></i>Archivo histórico
-              </NavDropdown.Item>
-              <NavDropdown.Item eventKey="contratos-tipos" active={key === 'contratos-tipos'}>
-                <i className="bi bi-tags me-2" aria-hidden="true"></i>Tipos de contrato
-              </NavDropdown.Item>
-            </NavDropdown>
-          )}
-
-          {mostrarRHum && (
-            <NavDropdown
-              title={
-                <span className="d-inline-flex align-items-center">
-                  <i className="bi bi-people-fill me-2" aria-hidden="true"></i>Rec. Humanos
-                </span>
-              }
-              id="sidebar-dropdown-rrhh"
-              className="mi-dropdown-sidebar"
-              autoClose={false}
-              show={dropdownShow('rrhh', sidebarMenuOpen)}
-              onToggle={(next) => !preferences.pinSubmenus && handleSidebarRrhhToggle(next)}
-            >
-              {mostrarEmpleados && (
-                <NavDropdown.Item eventKey="empleados" active={key === 'empleados'}>
-                  <i className="bi bi-person-vcard me-2" aria-hidden="true"></i>Empleados
+              {contratosSidebarItems.map((item) => (
+                <NavDropdown.Item
+                  key={item.eventKey}
+                  eventKey={item.eventKey}
+                  active={key === item.eventKey}
+                >
+                  <i className={`bi ${item.icon} me-2 dashboard-sidebar-icon`} aria-hidden="true" />
+                  <span className="dashboard-sidebar-label">{item.label}</span>
                 </NavDropdown.Item>
-              )}
-              {mostrarEmpleados && (
-                <NavDropdown.Item eventKey="bajas-empleados" active={key === 'bajas-empleados'}>
-                  <i className="bi bi-person-fill-slash me-2" aria-hidden="true"></i>Bajas de empleado
-                </NavDropdown.Item>
-              )}
-              {mostrarEmpleados && (
-                <NavDropdown.Item eventKey="reporte-personal" active={key === 'reporte-personal'}>
-                  <i className="bi bi-clipboard-data me-2" aria-hidden="true"></i>Reporte de personal
-                </NavDropdown.Item>
-              )}
-              {mostrarEmpleados && (
-                <NavDropdown.Item eventKey="cambios-cargo" active={key === 'cambios-cargo'}>
-                  <i className="bi bi-arrow-left-right me-2" aria-hidden="true"></i>Cambios de cargo
-                </NavDropdown.Item>
-              )}
-              {mostrarEmpleados && (
-                <NavDropdown.Item eventKey="reporte-consolidado" active={key === 'reporte-consolidado'}>
-                  <i className="bi bi-graph-up-arrow me-2" aria-hidden="true"></i>Reporte consolidado
-                </NavDropdown.Item>
-              )}
-              {mostrarVacaciones && (
-                <NavDropdown.Item eventKey="vacaciones" active={key === 'vacaciones'}>
-                  <i className="bi bi-calendar-week me-2" aria-hidden="true"></i>Vacaciones
-                </NavDropdown.Item>
-              )}
-              {mostrarTurnosTrabajo && (
-                <NavDropdown.Item eventKey="turnos-trabajo" active={key === 'turnos-trabajo'}>
-                  <i className="bi bi-calendar-day me-2" aria-hidden="true"></i>Turnos de trabajo
-                </NavDropdown.Item>
-              )}
-              {mostrarGruposTrabajo && (
-                <NavDropdown.Item eventKey="grupos-trabajo" active={key === 'grupos-trabajo'}>
-                  <i className="bi bi-diagram-2 me-2" aria-hidden="true"></i>Grupos de trabajo
-                </NavDropdown.Item>
-              )}
-              {mostrarSanciones && (
-                <NavDropdown.Item eventKey="sanciones" active={key === 'sanciones'}>
-                  <i className="bi bi-exclamation-octagon-fill me-2" aria-hidden="true"></i>Sanciones
-                </NavDropdown.Item>
-              )}
-              {mostrarReconocimientos && (
-                <NavDropdown.Item eventKey="reconocimientos" active={key === 'reconocimientos'}>
-                  <i className="bi bi-trophy me-2" aria-hidden="true"></i>Reconocimientos
-                </NavDropdown.Item>
-              )}
-              {mostrarJubilaciones && (
-                <NavDropdown.Item eventKey="jubilaciones" active={key === 'jubilaciones'}>
-                  <i className="bi bi-suitcase-lg me-2" aria-hidden="true"></i>Jubilaciones y retiros
-                </NavDropdown.Item>
-              )}
-              {mostrarAsistencias && (
-                <NavDropdown.Item eventKey="asistencias" active={key === 'asistencias'}>
-                  <i className="bi bi-calendar-check me-2" aria-hidden="true"></i>Asistencias
-                </NavDropdown.Item>
-              )}
-              {mostrarCertificaciones && (
-                <NavDropdown.Item eventKey="certificaciones" active={key === 'certificaciones'}>
-                  <i className="bi bi-patch-check-fill me-2" aria-hidden="true"></i>Certificaciones
-                </NavDropdown.Item>
-              )}
-              {mostrarCursos && (
-                <NavDropdown.Item eventKey="cursos" active={key === 'cursos'}>
-                  <i className="bi bi-mortarboard me-2" aria-hidden="true"></i>Cursos
-                </NavDropdown.Item>
-              )}
-              {mostrarEvalcapacitacion && (
-                <NavDropdown.Item eventKey="evalcapacitacion" active={key === 'evalcapacitacion'}>
-                  <i className="bi bi-journal-richtext me-2" aria-hidden="true"></i>Eval. capacitación
-                </NavDropdown.Item>
-              )}
-              {mostrarEvaluaciones && (
-                <NavDropdown.Item eventKey="evaluaciones" active={key === 'evaluaciones'}>
-                  <i className="bi bi-clipboard2-check me-2" aria-hidden="true"></i>Evaluaciones
-                </NavDropdown.Item>
-              )}
-              {mostrarObjetivos && (
-                <NavDropdown.Item eventKey="objetivos" active={key === 'objetivos'}>
-                  <i className="bi bi-bullseye me-2" aria-hidden="true"></i>Objetivos
-                </NavDropdown.Item>
-              )}
-              {mostrarSalarios && (
-                <NavDropdown.Item eventKey="salarios" active={key === 'salarios'}>
-                  <i className="bi bi-cash-stack me-2" aria-hidden="true"></i>Salarios
-                </NavDropdown.Item>
-              )}
-              {mostrarSegSeguridad && (
-                <NavDropdown.Item eventKey="segseguridad" active={key === 'segseguridad'}>
-                  <i className="bi bi-cone-striped me-2" aria-hidden="true"></i>Seg. Seguridad
-                </NavDropdown.Item>
-              )}
-              {mostrarSeguridad && (
-                <NavDropdown.Item eventKey="seguridad" active={key === 'seguridad'}>
-                  <i className="bi bi-shield-lock me-2" aria-hidden="true"></i>Seguridad
-                </NavDropdown.Item>
-              )}
-              {mostrarCargos && (
-                <NavDropdown.Item eventKey="cargos" active={key === 'cargos'}>
-                  <i className="bi bi-briefcase-fill me-2" aria-hidden="true"></i>Cargos
-                </NavDropdown.Item>
-              )}
-              {mostrarDepartamentos && (
-                <NavDropdown.Item eventKey="departamentos" active={key === 'departamentos'}>
-                  <i className="bi bi-building me-2" aria-hidden="true"></i>Departamentos
-                </NavDropdown.Item>
-              )}
-              {mostrarCertMedicos && (
-                <NavDropdown.Item eventKey="cert-medicos" active={key === 'cert-medicos'}>
-                  <i className="bi bi-file-earmark-medical me-2" aria-hidden="true"></i>Cert. Médicos
-                </NavDropdown.Item>
-              )}
-              {mostrarEvalMedicas && (
-                <NavDropdown.Item eventKey="eval-medicas" active={key === 'eval-medicas'}>
-                  <i className="bi bi-heart-pulse me-2" aria-hidden="true"></i>Eval. médicas
-                </NavDropdown.Item>
-              )}
-            </NavDropdown>
-          )}
-
-          {mostrarProduccion && (
-            <NavDropdown
-              title={
-                <span className="d-inline-flex align-items-center">
-                  <i className="bi bi-box-seam me-2" aria-hidden="true"></i>Estadística
-                </span>
-              }
-              id="sidebar-dropdown-prod"
-              className="mi-dropdown-sidebar"
-              autoClose={false}
-              show={dropdownShow('prod', sidebarMenuOpen)}
-              onToggle={(next) => !preferences.pinSubmenus && handleSidebarProdToggle(next)}
-            >
-              {mostrarSacrificio && (
-                <NavDropdown.Item eventKey="sacrificio" active={key === 'sacrificio'}>
-                  <i className="bi bi-scissors me-2" aria-hidden="true"></i>Sacrificio vacuno
-                </NavDropdown.Item>
-              )}
-              {mostrarMatadero && (
-                <NavDropdown.Item eventKey="matadero" active={key === 'matadero'}>
-                  <i className="bi bi-activity me-2" aria-hidden="true"></i>Matadero vivo
-                </NavDropdown.Item>
-              )}
-              {mostrarLeche && (
-                <NavDropdown.Item eventKey="leche" active={key === 'leche'}>
-                  <i className="bi bi-droplet-half me-2" aria-hidden="true"></i>Leche
-                </NavDropdown.Item>
-              )}
-              {(mostrarSacrificio || mostrarMatadero || mostrarLeche) && (
-                <NavDropdown.Item eventKey="produccion-historico" active={key === 'produccion-historico'}>
-                  <i className="bi bi-archive me-2" aria-hidden="true"></i>Histórico producción
-                </NavDropdown.Item>
-              )}
+              ))}
             </NavDropdown>
           )}
         </Nav>
@@ -829,8 +540,8 @@ function DashboardShell(props) {
             aria-current={key === 'config-aplicacion' ? 'page' : undefined}
             disabled={!mostrarConfigApp}
           >
-            <i className="bi bi-gear-wide-connected me-2" aria-hidden="true" />
-            Configuración
+            <i className="bi bi-gear-wide-connected me-2 dashboard-sidebar-icon" aria-hidden="true" />
+            <span className="dashboard-sidebar-label">Configuración</span>
           </button>
         </div>
       </div>
@@ -841,11 +552,11 @@ function DashboardShell(props) {
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <div className="dashboard-topbar-avatar-wrap">
-              <UserProfileAvatar user={user} onPhotoUpdated={onProfilePhotoUpdated} />
               <div className="dashboard-topbar-user-meta">
                 <span className="dashboard-topbar-user-name">{user.nombre}</span>
                 <span className="dashboard-topbar-user-role">{rolEtiqueta(user.rol)}</span>
               </div>
+              <UserProfileAvatar user={user} onPhotoUpdated={onProfilePhotoUpdated} />
             </div>
             <Nav className="ms-auto align-items-center gap-2 dashboard-topbar-actions">
               <button type="button" className="btn btn-cerrar mb-0" onClick={logout}>
@@ -865,32 +576,12 @@ function DashboardShell(props) {
         <div className="dashboard-main-scroll">
           <div className="dashboard-content-layout">
           <div className="dashboard-content-main">
-            {(key === 'contratos' || key === 'contratos-lista') && (
-              <GestionContratos vistaInicial="contratos" user={user} onSectionChange={handleContratosSectionChange} />
-            )}
-            {key === 'contratos-pendientes' && (
-              <GestionContratos vistaInicial="pendientes" user={user} onSectionChange={handleContratosSectionChange} />
-            )}
-            {key === 'contratos-resumen' && (
-              <GestionContratos vistaInicial="resumen" user={user} onSectionChange={handleContratosSectionChange} />
-            )}
-            {key === 'contratos-vencimientos' && (
-              <GestionContratos vistaInicial="vencimientos" user={user} onSectionChange={handleContratosSectionChange} />
-            )}
-            {key === 'contratos-renovaciones' && (
-              <GestionContratos vistaInicial="renovaciones" user={user} onSectionChange={handleContratosSectionChange} />
-            )}
-            {key === 'contratos-correo' && mostrarContratos && (
-              <GestionContratos vistaInicial="correo" user={user} onSectionChange={handleContratosSectionChange} />
-            )}
-            {key === 'contratos-reportes' && (
-              <GestionContratos vistaInicial="reportes" user={user} onSectionChange={handleContratosSectionChange} />
-            )}
-            {key === 'contratos-archivo' && (
-              <GestionContratos vistaInicial="archivo" user={user} onSectionChange={handleContratosSectionChange} />
-            )}
-            {key === 'contratos-tipos' && (
-              <GestionContratos vistaInicial="tipos" user={user} onSectionChange={handleContratosSectionChange} />
+            {isContratosNavKey(key) && contratosNavKeyAllowed(key, can) && (
+              <GestionContratos
+                vistaInicial={contratosSectionFromNavKey(key)}
+                user={user}
+                onSectionChange={handleContratosSectionChange}
+              />
             )}
             {key === 'usuarios' && mostrarUsuarios && <GestionUsuarios currentUser={user} />}
             {key === 'gestion-roles' && mostrarGestionRoles && <GestionRoles />}
@@ -898,36 +589,8 @@ function DashboardShell(props) {
             {key === 'config-correo' && mostrarCorreoSistema && (
               <ConfigCorreoServicio currentUser={user} mostrarSmtp mostrarRecordatorios={false} smtpPrimero />
             )}
-            {key === 'config-aplicacion' && mostrarConfigApp && <GestionConfiguracion />}
-            {key === 'sacrificio' && mostrarSacrificio && <SacrificioVacuno />}
-            {key === 'matadero' && mostrarMatadero && <MataderoVivo />}
-            {key === 'leche' && mostrarLeche && <Leche />}
-            {key === 'asistencias' && mostrarAsistencias && <Asistencias />}
-            {key === 'certificaciones' && mostrarCertificaciones && <Certificaciones />}
-            {key === 'cursos' && mostrarCursos && <Cursos />}
-            {key === 'evalcapacitacion' && mostrarEvalcapacitacion && <Evalcapacitacion />}
-            {key === 'evaluaciones' && mostrarEvaluaciones && <Evaluaciones />}
-            {key === 'objetivos' && mostrarObjetivos && <Objetivos />}
-            {key === 'salarios' && mostrarSalarios && <Salarios />}
-            {key === 'segseguridad' && mostrarSegSeguridad && <SegSeguridad />}
-            {key === 'seguridad' && mostrarSeguridad && <Seguridad />}
-            {key === 'cargos' && mostrarCargos && <Cargos />}
-            {key === 'departamentos' && mostrarDepartamentos && <Departamentos />}
-            {key === 'cert-medicos' && mostrarCertMedicos && <CertificadosMedicos />}
-            {key === 'eval-medicas' && mostrarEvalMedicas && <EvaluacionesMedicas />}
-            {key === 'vacaciones' && mostrarVacaciones && <Vacaciones />}
-            {key === 'turnos-trabajo' && mostrarTurnosTrabajo && <TurnosTrabajo />}
-            {key === 'grupos-trabajo' && mostrarGruposTrabajo && <GruposTrabajo />}
-            {key === 'sanciones' && mostrarSanciones && <Sanciones />}
-            {key === 'reconocimientos' && mostrarReconocimientos && <Reconocimientos />}
-            {key === 'jubilaciones' && mostrarJubilaciones && <Jubilaciones />}
-            {key === 'empleados' && mostrarEmpleados && <GestionEmpleados />}
-            {key === 'bajas-empleados' && mostrarEmpleados && <BajasEmpleados />}
-            {key === 'reporte-personal' && mostrarEmpleados && <ReportePersonal />}
-            {key === 'cambios-cargo' && mostrarEmpleados && <CambiosCargo />}
-            {key === 'reporte-consolidado' && mostrarEmpleados && <ReporteConsolidado />}
-            {key === 'produccion-historico' && mostrarProduccion && (mostrarSacrificio || mostrarMatadero || mostrarLeche) && (
-              <ProduccionHistorico />
+            {key === 'config-aplicacion' && mostrarConfigApp && (
+              <GestionConfiguracion currentUser={user} onProfileUpdated={onProfileUpdated} />
             )}
           </div>
 
@@ -958,25 +621,6 @@ function DashboardShell(props) {
           </aside>
           </div>
         </div>
-        {mostrarRHum && key && SIDEBAR_RRHH_KEYS.has(key) && (
-          <>
-            <button
-              type="button"
-              className="btn btn-primary shadow rrhh-analitica-fab"
-              onClick={() => setRrhhAnaliticaOpen(true)}
-              title="6 herramientas de análisis del módulo actual (RR.HH.)"
-              aria-label="Abrir 6 herramientas específicas del módulo de recursos humanos"
-            >
-              <i className="bi bi-bar-chart-line-fill" aria-hidden="true" />
-            </button>
-            <RrhhModuloHerramientas6Modal
-              show={rrhhAnaliticaOpen}
-              onHide={() => setRrhhAnaliticaOpen(false)}
-              moduleKey={key}
-              moduleLabel={moduloLabel[key] || key}
-            />
-          </>
-        )}
       </div>
     </div>
   );

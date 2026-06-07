@@ -2,32 +2,21 @@ import { useEffect } from 'react';
 import { useAppPreferences } from '../context/AppPreferencesContext';
 import { getInitialModuleKey, saveLastSection } from '../lib/appPreferences';
 
-const SIDEBAR_RRHH_KEYS = new Set([
-  'empleados', 'bajas-empleados', 'reporte-personal', 'cambios-cargo', 'reporte-consolidado',
-  'vacaciones', 'turnos-trabajo', 'grupos-trabajo', 'sanciones', 'reconocimientos', 'jubilaciones',
-  'asistencias', 'certificaciones', 'cursos', 'evalcapacitacion', 'evaluaciones', 'objetivos',
-  'salarios', 'segseguridad', 'seguridad', 'cargos', 'departamentos', 'cert-medicos', 'eval-medicas',
-]);
 const SIDEBAR_CONTRATOS_KEYS = new Set([
   'contratos-resumen', 'contratos-lista', 'contratos-pendientes', 'contratos-vencimientos', 'contratos-renovaciones',
-  'contratos-correo', 'contratos-reportes', 'contratos-archivo', 'contratos-tipos',
+  'contratos-correo', 'contratos-reportes', 'contratos-archivo', 'contratos-tipos', 'contratos-auditoria',
 ]);
-const SIDEBAR_PROD_KEYS = new Set(['sacrificio', 'matadero', 'leche', 'produccion-historico']);
 
 function getDefaultKeyForRol(rol) {
   if (rol === 'admin') return 'usuarios';
   if (rol === 'contratacion') return 'contratos-resumen';
-  if (rol === 'rrhh') return 'empleados';
-  if (rol === 'estadistica' || rol === 'produccion') return 'sacrificio';
-  if (rol === 'director') return 'produccion-historico';
+  if (rol === 'director') return 'contratos-resumen';
   return '';
 }
 
 export function sidebarOpenForKey(key, pinSubmenus) {
   if (pinSubmenus) return 'all';
-  if (SIDEBAR_RRHH_KEYS.has(key)) return 'rrhh';
   if (SIDEBAR_CONTRATOS_KEYS.has(key)) return 'contratos';
-  if (SIDEBAR_PROD_KEYS.has(key)) return 'prod';
   return null;
 }
 
@@ -48,14 +37,25 @@ export function NavPrefsInitializer({ user, allowedKeys, setKey, setSidebarMenuO
   }, [
     user?.email,
     user?.rol,
-    preferences.defaultModule,
-    preferences.rememberSection,
-    preferences.pinSubmenus,
-    preferences,
     allowedKeys,
     setKey,
     setSidebarMenuOpen,
   ]);
+
+  return null;
+}
+
+/** Abre o cierra submenús al cambiar «Mantener submenús…» o la sección activa. */
+export function PinSubmenusSync({ navKey, setSidebarMenuOpen }) {
+  const { preferences } = useAppPreferences();
+
+  useEffect(() => {
+    if (preferences.pinSubmenus) {
+      setSidebarMenuOpen('all');
+      return;
+    }
+    setSidebarMenuOpen(sidebarOpenForKey(navKey, false));
+  }, [preferences.pinSubmenus, navKey, setSidebarMenuOpen]);
 
   return null;
 }

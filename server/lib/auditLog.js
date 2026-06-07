@@ -1,14 +1,12 @@
 const crypto = require('crypto');
+const { extractClientIp, normalizeClientIp } = require('./clientIp');
 
 const MAX_FAILED_ATTEMPTS = Number(process.env.AUDIT_MAX_FAILED_LOGINS || 5);
 const LOCKOUT_MINUTES = Number(process.env.AUDIT_LOCKOUT_MINUTES || 15);
 
 const ROL_LABELS = {
   admin: 'Administrador',
-  rrhh: 'Recursos humanos',
   contratacion: 'Contratación',
-  produccion: 'Producción / Estadística',
-  estadistica: 'Estadística',
   director: 'Director',
 };
 
@@ -26,10 +24,17 @@ function lockoutKey(identifier) {
 }
 
 function getClientMeta(req) {
-  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  const ip = forwarded || req.ip || req.socket?.remoteAddress || null;
+  const ip = extractClientIp(req);
   const userAgent = String(req.headers['user-agent'] || '').slice(0, 512) || null;
   return { ip, userAgent };
+}
+
+function mapRowIp(row) {
+  if (!row || typeof row !== 'object') return row;
+  return {
+    ...row,
+    ip_address: normalizeClientIp(row.ip_address) || row.ip_address || null,
+  };
 }
 
 function formatAuditMessage(event) {
@@ -129,7 +134,7 @@ function createAuditService(dbQuery) {
     await dbQuery(
       `INSERT INTO audit_failed_logins (identifier_attempted, user_email, reason, ip_address, user_agent)
        VALUES (?,?,?,?,?)`,
-      [String(identifier || '').trim(), userEmail || null, reason, ip, userAgent]
+      [String(identifier || '').trim(), userEmail || null, reason, normalizeClientIp(ip), userAgent]
     );
 
     if (!key) return { failCount: 0, locked: false };
@@ -168,7 +173,7 @@ function createAuditService(dbQuery) {
     const result = await dbQuery(
       `INSERT INTO audit_sessions (user_email, user_nombre, user_rol, ip_address, user_agent)
        VALUES (?,?,?,?,?)`,
-      [email, nombre, rol, ip, userAgent]
+      [email, nombre, rol, normalizeClientIp(ip), userAgent]
     );
     return result.insertId;
   }
@@ -213,7 +218,7 @@ function createAuditService(dbQuery) {
         targetId != null ? String(targetId) : null,
         targetLabel || null,
         payload,
-        meta.ip,
+        normalizeClientIp(meta.ip),
         meta.userAgent,
       ]
     );
@@ -245,7 +250,7 @@ function createAuditService(dbQuery) {
          LIMIT ? OFFSET ?`,
       [...params, lim, off]
     );
-    return rows;
+    return rows.map(mapRowIp);
   }
 
   async function listFailedLogins({ desde, hasta, identifier, limit = 100, offset = 0 }) {
@@ -275,7 +280,7 @@ function createAuditService(dbQuery) {
          LIMIT ? OFFSET ?`,
       [...params, lim, off]
     );
-    return rows;
+    return rows.map(mapRowIp);
   }
 
   async function listFailedSummary({ hours = 24 }) {
@@ -302,7 +307,13 @@ function createAuditService(dbQuery) {
         WHERE locked_until IS NOT NULL AND locked_until > NOW()
         ORDER BY locked_until DESC`
     );
-    return { grouped: rows, lockouts };
+    return {
+      grouped: rows.map((r) => ({
+        ...r,
+        ultima_ip: normalizeClientIp(r.ultima_ip) || r.ultima_ip || null,
+      })),
+      lockouts,
+    };
   }
 
   async function listEvents({ category, scope, desde, hasta, limit = 100, offset = 0 }) {
@@ -336,7 +347,7 @@ function createAuditService(dbQuery) {
          LIMIT ? OFFSET ?`,
       [...params, lim, off]
     );
-    return rows.map((row) => ({
+    return rows.map((row) => mapRowIp({
       ...row,
       mensaje: formatAuditMessage(row),
       tipo_cambio: isRestoreEvent(row) ? 'restauracion' : 'eliminacion',

@@ -4,6 +4,8 @@ import Swal from 'sweetalert2';
 import ModuleTitleBar from './ModuleTitleBar';
 import RecordatoriosContratosConfig from './RecordatoriosContratosConfig';
 import { usePermissions } from '../context/PermissionsContext';
+import { BTN_GUARDAR_MD, BTN_SECUNDARIO } from '../lib/actionButtonClasses';
+import { TIP } from '../lib/actionTooltips';
 
 function ConfigCorreoServicio({
   currentUser,
@@ -14,7 +16,9 @@ function ConfigCorreoServicio({
 }) {
   const { can } = usePermissions();
   const rol = String(currentUser?.rol || '').toLowerCase();
-  const esAdminConfig = can('configuracion', 'edit') || rol === 'admin';
+  const puedeVerCorreoSistema = can('usuarios', 'view');
+  const puedeEditarSmtp = can('usuarios', 'edit') || rol === 'admin';
+  const esAdminConfig = puedeEditarSmtp;
   const puedeEditarRecordatorios = can('contratos', 'edit') || esAdminConfig;
   const puedeEjecutarRecordatorios = can('contratos', 'approve') || esAdminConfig;
 
@@ -59,7 +63,7 @@ function ConfigCorreoServicio({
   }, [sesionEmail, testEmail]);
 
   const loadConfig = useCallback(() => {
-    if (!mostrarSmtp) return;
+    if (!mostrarSmtp || !puedeVerCorreoSistema) return;
     setLoading(true);
     setLoadError('');
     Axios.get(`${API_BASE}/config/correo`)
@@ -69,7 +73,7 @@ function ConfigCorreoServicio({
         setLoadError(msg);
       })
       .finally(() => setLoading(false));
-  }, [applyConfig, mostrarSmtp]);
+  }, [applyConfig, mostrarSmtp, puedeVerCorreoSistema]);
 
   useEffect(() => {
     loadConfig();
@@ -77,6 +81,10 @@ function ConfigCorreoServicio({
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!puedeEditarSmtp) {
+      await Swal.fire('Sin permiso', 'No tiene permiso para modificar la configuración SMTP.', 'warning');
+      return;
+    }
     if (useDbConfig && (!smtpHost.trim() || !smtpUser.trim())) {
       await Swal.fire('Datos incompletos', 'Host SMTP y usuario son obligatorios.', 'warning');
       return;
@@ -107,6 +115,10 @@ function ConfigCorreoServicio({
   };
 
   const handleTest = async () => {
+    if (!puedeEditarSmtp) {
+      await Swal.fire('Sin permiso', 'No tiene permiso para enviar correos de prueba.', 'warning');
+      return;
+    }
     const destino = testEmail.trim();
     if (!destino) {
       await Swal.fire('Correo requerido', 'Indique un correo de prueba.', 'warning');
@@ -159,7 +171,7 @@ function ConfigCorreoServicio({
           {loadError ? (
             <div className="alert alert-danger d-flex justify-content-between align-items-center">
               <span>{loadError}</span>
-              <button type="button" className="btn btn-sm btn-outline-danger" onClick={loadConfig}>
+              <button type="button" className={BTN_SECUNDARIO} onClick={loadConfig} title="Volver a cargar la configuración SMTP">
                 Reintentar
               </button>
             </div>
@@ -173,6 +185,12 @@ function ConfigCorreoServicio({
             <form onSubmit={handleSave} className="card shadow-sm border-0">
               <div className="card-body">
                 <h5 className="card-title mb-3">Servidor SMTP</h5>
+                {!puedeEditarSmtp ? (
+                  <div className="alert alert-warning small mb-3">
+                    Solo lectura: necesita permiso de <strong>editar usuarios</strong> para cambiar el correo del
+                    sistema o enviar pruebas.
+                  </div>
+                ) : null}
                 <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
                   <span className="badge bg-secondary">Origen activo: {sourceLabel}</span>
                   <span className={`badge ${mailerMode === 'smtp' ? 'bg-success' : 'bg-warning text-dark'}`}>
@@ -187,13 +205,14 @@ function ConfigCorreoServicio({
                     id="useDbConfig"
                     checked={useDbConfig}
                     onChange={(e) => setUseDbConfig(e.target.checked)}
+                    disabled={!puedeEditarSmtp}
                   />
                   <label className="form-check-label" htmlFor="useDbConfig">
                     Usar configuración guardada en la aplicación (en lugar de server/.env)
                   </label>
                 </div>
 
-                <fieldset disabled={!useDbConfig} className={!useDbConfig ? 'opacity-50' : ''}>
+                <fieldset disabled={!useDbConfig || !puedeEditarSmtp} className={!useDbConfig || !puedeEditarSmtp ? 'opacity-50' : ''}>
                   <div className="row g-3">
                     <div className="col-md-6">
                       <label className="form-label" htmlFor="smtpHost">
@@ -305,10 +324,21 @@ function ConfigCorreoServicio({
                     />
                   </div>
                   <div className="col-md-6 d-flex flex-wrap gap-2">
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
+                    <button
+                      type="submit"
+                      className={BTN_GUARDAR_MD}
+                      disabled={saving || !puedeEditarSmtp}
+                      title={TIP.guardarConfig}
+                    >
                       {saving ? 'Guardando…' : 'Guardar configuración'}
                     </button>
-                    <button type="button" className="btn btn-outline-secondary" onClick={handleTest} disabled={testing}>
+                    <button
+                      type="button"
+                      className={BTN_SECUNDARIO}
+                      onClick={handleTest}
+                      disabled={testing || !puedeEditarSmtp}
+                      title="Enviar un correo de prueba al destinatario indicado"
+                    >
                       {testing ? 'Enviando…' : 'Enviar correo de prueba'}
                     </button>
                   </div>

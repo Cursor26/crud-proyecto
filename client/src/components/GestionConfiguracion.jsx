@@ -1,8 +1,7 @@
-import ModuleTitleBar from './ModuleTitleBar';
 import AppConfiguracion from './AppConfiguracion';
 import { usePermissions } from '../context/PermissionsContext';
 
-function GestionConfiguracion() {
+function GestionConfiguracion({ currentUser, onProfileUpdated }) {
   const { can } = usePermissions();
   const mostrarAplicacion = can('configuracion', 'view');
 
@@ -15,9 +14,8 @@ function GestionConfiguracion() {
   }
 
   return (
-    <div className="container-fluid px-0 gestion-config-page">
-      <ModuleTitleBar title="Configuración" />
-      <AppConfiguracion embedded />
+    <div className="container-fluid px-0 gestion-config-page contratos-page">
+      <AppConfiguracion embedded currentUser={currentUser} onProfileUpdated={onProfileUpdated} />
     </div>
   );
 }

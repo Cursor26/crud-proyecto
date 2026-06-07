@@ -1,7 +1,6 @@
 /**
  * Portal del menú react-select (solo fuera de modales; en modales se usa <select> nativo).
- * - Filtros en .dashboard-main (zoom): mismo contenedor + absolute.
- * - Resto: body + fixed.
+ * Con zoom CSS en .dashboard-main, absolute dentro del contenedor desalinea el menú → body + fixed.
  */
 
 export function resolveAppSelectMenuPortal(wrapperEl, menuPortalTarget, menuPosition) {
@@ -19,10 +18,8 @@ export function resolveAppSelectMenuPortal(wrapperEl, menuPortalTarget, menuPosi
     return { portal: undefined, position: 'absolute', placement };
   }
 
-  const zoomHost =
-    wrapperEl.closest('.dashboard-main-scroll') || wrapperEl.closest('.dashboard-main');
-  if (zoomHost) {
-    return { portal: zoomHost, position: 'absolute', placement };
+  if (wrapperEl.closest('.dashboard-main')) {
+    return { portal: document.body, position: 'fixed', placement };
   }
 
   return { portal: document.body, position: 'fixed', placement };

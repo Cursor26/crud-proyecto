@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Axios, { API_BASE } from '../axiosConfig';
+import { BTN_ANADIR, BTN_ELIMINAR_ICON, BTN_GUARDAR, BTN_SECUNDARIO } from '../lib/actionButtonClasses';
+import { TIP } from '../lib/actionTooltips';
 import Swal from 'sweetalert2';
 import AppSelect from './AppSelect';
 
@@ -160,6 +162,7 @@ function ReglasPrioridadEditor({ reglas, onChange, puedeGuardar }) {
                     value={dia}
                     onChange={(e) => actualizarDia(p.id, idx, e.target.value)}
                     disabled={!puedeGuardar}
+                    title={TIP.diaPrioridad}
                     aria-label={`Días antes del vencimiento, ${p.label}, hito ${idx + 1}`}
                   />
                   {puedeGuardar && dias.length > MIN_SLOTS_PRIORIDAD[p.id] && (
@@ -326,6 +329,7 @@ function RecordatoriosContratosConfig({ puedeEditar, puedeEjecutar, esAdmin }) {
           checked={activo}
           onChange={(e) => setActivo(e.target.checked)}
           disabled={!puedeGuardar}
+          title={TIP.activarRecordatorios}
         />
         <label
           className={`form-check-label recordatorios-switch-label ${activo ? 'recordatorios-switch-label--on' : 'recordatorios-switch-label--off'}`}
@@ -355,8 +359,8 @@ function RecordatoriosContratosConfig({ puedeEditar, puedeEjecutar, esAdmin }) {
           <div className="col-md-4">
             <AppSelect
               variant="filter"
-              className="form-select form-select-sm"
               value={String(regla.id_tipo_contrato || '')}
+              title={TIP.tipoContratoRegla}
               onChange={(e) => {
                 const v = Number(e.target.value);
                 setReglasTipo((prev) => prev.map((r, i) => (i === idx ? { ...r, id_tipo_contrato: v } : r)));
@@ -377,6 +381,7 @@ function RecordatoriosContratosConfig({ puedeEditar, puedeEjecutar, esAdmin }) {
               className="form-control form-control-sm"
               placeholder="Días: 30, 15, 7"
               value={regla.dias}
+              title={TIP.diasReglaTipo}
               onChange={(e) => {
                 const v = e.target.value;
                 setReglasTipo((prev) => prev.map((r, i) => (i === idx ? { ...r, dias: v } : r)));
@@ -385,11 +390,13 @@ function RecordatoriosContratosConfig({ puedeEditar, puedeEjecutar, esAdmin }) {
             />
           </div>
           <div className="col-md-2">
-            <div className="form-check">
+            <div className="form-check form-switch mb-0">
               <input
                 className="form-check-input"
                 type="checkbox"
+                id={`regla-tipo-activa-${idx}`}
                 checked={regla.activo !== false}
+                title={TIP.reglaTipoActiva}
                 onChange={(e) => {
                   setReglasTipo((prev) =>
                     prev.map((r, i) => (i === idx ? { ...r, activo: e.target.checked } : r))
@@ -397,15 +404,19 @@ function RecordatoriosContratosConfig({ puedeEditar, puedeEjecutar, esAdmin }) {
                 }}
                 disabled={!puedeGuardar}
               />
-              <label className="form-check-label small">Activa</label>
+              <label className="form-check-label small" htmlFor={`regla-tipo-activa-${idx}`}>
+                Activa
+              </label>
             </div>
           </div>
           {puedeGuardar && (
             <div className="col-md-1">
               <button
                 type="button"
-                className="btn btn-sm btn-outline-danger"
+                className={BTN_ELIMINAR_ICON}
                 onClick={() => setReglasTipo((prev) => prev.filter((_, i) => i !== idx))}
+                title={TIP.eliminarReglaTipo}
+                aria-label={TIP.eliminarReglaTipo}
               >
                 ×
               </button>
@@ -414,19 +425,36 @@ function RecordatoriosContratosConfig({ puedeEditar, puedeEjecutar, esAdmin }) {
         </div>
       ))}
       {puedeGuardar && (
-        <button type="button" className="btn btn-sm btn-outline-primary mb-4" onClick={agregarReglaTipo}>
+        <button
+          type="button"
+          className={`${BTN_ANADIR} mb-4`}
+          onClick={agregarReglaTipo}
+          title={TIP.anadirReglaTipo}
+        >
           + Añadir regla por tipo
         </button>
       )}
 
       <div className="d-flex flex-wrap gap-2 mb-4">
         {puedeGuardar && (
-          <button type="button" className="btn btn-primary btn-sm" onClick={guardar} disabled={saving}>
+          <button
+            type="button"
+            className={BTN_GUARDAR}
+            onClick={guardar}
+            disabled={saving}
+            title={TIP.guardarConfig}
+          >
             {saving ? 'Guardando…' : 'Guardar configuración'}
           </button>
         )}
         {puedeEjecutar && (
-          <button type="button" className="btn btn-outline-secondary btn-sm" onClick={ejecutarAhora} disabled={running}>
+          <button
+            type="button"
+            className={BTN_SECUNDARIO}
+            onClick={ejecutarAhora}
+            disabled={running}
+            title={TIP.ejecutarRecordatorios}
+          >
             {running ? 'Ejecutando…' : 'Ejecutar ahora (prueba)'}
           </button>
         )}

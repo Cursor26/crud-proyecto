@@ -21,7 +21,5 @@ export {
   exportarAepgDesdeJsonXLS,
   exportarAepgDesdeJsonCSV,
   filasAoaDesdeJson,
-  AEPG_TITULO_RRHH,
-  AEPG_TITULO_PRODUCCION,
   AEPG_TITULO_CONTRATOS,
 } from './exportAepgPlantilla';

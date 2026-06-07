@@ -248,6 +248,8 @@ function createContratosRecordatoriosService(dbQuery, deps) {
     sendMailWithFallback,
     mailer,
     shouldUseGracefulMailFallback,
+    onRecordatorioAudit,
+    correoPlantillas,
   } = deps;
 
   const schedulerState = {
@@ -389,7 +391,24 @@ function createContratosRecordatoriosService(dbQuery, deps) {
       }
     }
 
-    const mail = buildReminderMail(contrato, diasKey >= 0 ? diasKey : null);
+    const mail = await (async () => {
+      if (correoPlantillas) {
+        const plantillas = await correoPlantillas.loadPlantillas();
+        const tipo = diasKey >= 0 ? 'por_vencer' : 'vencido';
+        const rendered = correoPlantillas.renderMail(
+          tipo,
+          contrato,
+          { diasAntes: diasKey >= 0 ? diasKey : null, diasRestantes: calcDiasRestantes(contrato.fecha_fin) },
+          plantillas
+        );
+        return {
+          ...rendered,
+          estadoTiempo: rendered.vars?.estado_tiempo,
+          diasRestantes: calcDiasRestantes(contrato.fecha_fin),
+        };
+      }
+      return buildReminderMail(contrato, diasKey >= 0 ? diasKey : null);
+    })();
     let enviados = 0;
     let advertencias = 0;
     let errores = 0;
@@ -438,6 +457,24 @@ function createContratosRecordatoriosService(dbQuery, deps) {
 
     const destinoResumen = destinos.join(', ');
     if (enviados > 0 || advertencias > 0) {
+      if (typeof onRecordatorioAudit === 'function') {
+        try {
+          await onRecordatorioAudit({
+            contrato,
+            origen,
+            diasAntes: diasKey,
+            destinos,
+            destinoResumen,
+            actor: options.auditActor || null,
+            disparador:
+              options.auditDisparador || (origen === 'manual' ? 'manual_ui' : 'programador'),
+            eventoVencimiento: eventoRecordatorio,
+            req: options.auditReq || null,
+          });
+        } catch (auditErr) {
+          console.warn('[RECORDATORIOS] audit:', auditErr?.message || auditErr);
+        }
+      }
       return {
         ok: true,
         destino: destinoResumen,
@@ -474,6 +511,9 @@ function createContratosRecordatoriosService(dbQuery, deps) {
           origen: 'automatico',
           diasAntes: dias,
           skipDuplicateCheck: Boolean(options.forzar),
+          auditActor: options.auditActor || null,
+          auditDisparador: options.auditDisparador || 'programador',
+          auditReq: options.auditReq || null,
         });
         if (r.ok) {
           if (r.warning) resumen.advertencias += 1;
@@ -504,6 +544,9 @@ function createContratosRecordatoriosService(dbQuery, deps) {
         origen: 'automatico',
         diasAntes: -1,
         skipDuplicateCheck: Boolean(options.forzar),
+        auditActor: options.auditActor || null,
+        auditDisparador: options.auditDisparador || 'programador',
+        auditReq: options.auditReq || null,
       });
       if (r.ok) {
         if (r.warning) resumen.advertencias += 1;

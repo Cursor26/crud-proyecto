@@ -1,6 +1,5 @@
 import {
   CONTRATOS_LIST_COLUMNS,
-  EMPLEADOS_LIST_COLUMNS,
   defaultVisibleColumnIds,
   normalizeVisibleColumns,
 } from './columnDefinitions';
@@ -43,7 +42,6 @@ export const DEFAULT_PREFERENCES = {
   timeFormat: '24',
   visibleColumns: {
     contratos: defaultVisibleColumnIds(CONTRATOS_LIST_COLUMNS),
-    empleados: defaultVisibleColumnIds(EMPLEADOS_LIST_COLUMNS),
   },
   language: 'es',
   confirmBeforeDelete: true,
@@ -56,8 +54,8 @@ export const THEME_PRESETS = {
   institutional: {
     id: 'institutional',
     label: 'Institucional AEPG',
-    description: 'Gris corporativo con acentos rojos (predeterminado)',
-    swatch: ['#b8b8b8', '#1c1c1c', '#b91c1c'],
+    description: 'Gris corporativo con acento verde (predeterminado)',
+    swatch: ['#b8b8b8', '#1c1c1c', '#14532d'],
     vars: {
       '--dashboard-bg': '#b8b8b8',
       '--dashboard-surface': '#d6d6d6',
@@ -67,9 +65,9 @@ export const THEME_PRESETS = {
       '--brand-red': '#b91c1c',
       '--brand-red-deep': '#7f1d1d',
       '--brand-red-rgb': '185, 28, 28',
-      '--ui-primary': '#007bff',
-      '--ui-primary-deep': '#0069d9',
-      '--ui-primary-rgb': '0, 123, 255',
+      '--ui-primary': '#14532d',
+      '--ui-primary-deep': '#0f3d24',
+      '--ui-primary-rgb': '20, 83, 45',
     },
   },
   light: {
@@ -155,22 +153,34 @@ export const FONT_FAMILIES = {
   system: {
     id: 'system',
     label: 'Sistema',
+    description: 'Tipografía estándar del equipo (ligera y legible).',
     stack: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    weight: 400,
+    letterSpacing: 'normal',
   },
-  humanist: {
-    id: 'humanist',
-    label: 'Humanista',
-    stack: "'Segoe UI', 'Trebuchet MS', 'Lucida Sans Unicode', sans-serif",
+  mold: {
+    id: 'mold',
+    label: 'Molde',
+    description: 'Estilo corporativo en negrita, tipo rotulación o molde.',
+    stack: "'Arial Black', Impact, 'Franklin Gothic Heavy', 'Segoe UI Black', sans-serif",
+    weight: 700,
+    letterSpacing: '0.04em',
   },
   classic: {
     id: 'classic',
     label: 'Clásica',
+    description: 'Serif tradicional para lectura prolongada.',
     stack: "Georgia, 'Times New Roman', Times, serif",
+    weight: 400,
+    letterSpacing: 'normal',
   },
   mono: {
     id: 'mono',
     label: 'Monoespaciada',
+    description: 'Ancho fijo; útil para códigos y tablas alineadas.',
     stack: "Consolas, 'Courier New', Courier, monospace",
+    weight: 400,
+    letterSpacing: 'normal',
   },
 };
 
@@ -283,7 +293,7 @@ function applySidebarContrastColors(root, resolved) {
 }
 
 function applyContrastTokens(root) {
-  const accent = readCssVar(root, '--ui-primary', '#007bff');
+  const accent = readCssVar(root, '--ui-primary', '#14532d');
   const navy = readCssVar(root, '--contratos-navy', readCssVar(root, '--theme-accent', accent));
   const onAccent = contrastTextForBackground(accent);
   const onNavy = contrastTextForBackground(navy);
@@ -335,6 +345,19 @@ function applyDerivedPreferenceColors(root) {
   const rgbParts = hexToRgbParts(accent);
   if (rgbParts) {
     root.style.setProperty('--contratos-navy-rgb', `${rgbParts.r}, ${rgbParts.g}, ${rgbParts.b}`);
+    root.style.setProperty('--bs-primary-rgb', `${rgbParts.r}, ${rgbParts.g}, ${rgbParts.b}`);
+  }
+  root.style.setProperty('--bs-primary', accent);
+  root.style.setProperty('--bs-link-color', accent);
+  root.style.setProperty('--bs-link-hover-color', accentDeep);
+  root.style.setProperty('--bs-form-check-input-checked-bg-color', accent);
+  root.style.setProperty('--bs-form-check-input-checked-border-color', accentDeep);
+  root.style.setProperty('--bs-form-check-input-focus-border', accent);
+  if (rgbParts) {
+    root.style.setProperty(
+      '--bs-form-check-input-focus-box-shadow',
+      `0 0 0 0.25rem rgba(${rgbParts.r}, ${rgbParts.g}, ${rgbParts.b}, 0.25)`
+    );
   }
 }
 
@@ -399,9 +422,9 @@ function clearInlineThemeVars(root) {
 
 function mergePreferences(raw) {
   const merged = { ...DEFAULT_PREFERENCES, ...(raw || {}) };
+  if (merged.fontFamily === 'humanist') merged.fontFamily = 'mold';
   merged.visibleColumns = {
     contratos: normalizeVisibleColumns(raw?.visibleColumns?.contratos, CONTRATOS_LIST_COLUMNS),
-    empleados: normalizeVisibleColumns(raw?.visibleColumns?.empleados, EMPLEADOS_LIST_COLUMNS),
   };
   return merged;
 }
@@ -562,10 +585,16 @@ export function applyPreferencesToDocument(prefs) {
   applyContrastTokens(root);
 
   root.style.setProperty('--app-font-family', resolved.font.stack);
+  root.style.setProperty('--app-font-weight', String(resolved.font.weight ?? 400));
+  root.style.setProperty('--app-letter-spacing', resolved.font.letterSpacing || 'normal');
+  root.style.setProperty('--app-btn-font-weight', String(resolved.font.id === 'mold' ? 700 : 600));
   root.style.setProperty('--app-font-scale', String(resolved.fontSize.scale));
   root.style.setProperty('--app-line-height', String(resolved.lineHeight.value));
-  root.style.setProperty('--btn-win11-radius', resolved.radius.value);
-  root.style.setProperty('--app-card-radius', resolved.radius.value);
+  root.dataset.appFont = resolved.fontFamily || resolved.font?.id || 'system';
+  const radiusValue = resolved.radius?.value ?? '0';
+  root.style.setProperty('--app-ui-radius', radiusValue);
+  root.style.setProperty('--btn-win11-radius', radiusValue);
+  root.style.setProperty('--app-card-radius', radiusValue);
   root.style.setProperty('--dashboard-sidebar-width', resolved.sidebarWidth.width);
   root.style.setProperty('--dashboard-ui-zoom', String(resolved.uiScale.zoom));
 
@@ -625,4 +654,4 @@ export function toggleColumnVisibility(preferences, tableId, columnId, definitio
   return normalizeVisibleColumns(next, definitions);
 }
 
-export { CONTRATOS_LIST_COLUMNS, EMPLEADOS_LIST_COLUMNS };
+export { CONTRATOS_LIST_COLUMNS };

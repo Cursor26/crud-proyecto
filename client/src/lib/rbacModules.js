@@ -1,11 +1,8 @@
 export const RBAC_MODULES = [
   { codigo: 'usuarios', nombre: 'Usuarios' },
-  { codigo: 'empleados', nombre: 'Empleados' },
   { codigo: 'contratos', nombre: 'Contratos' },
   { codigo: 'auditoria', nombre: 'Auditoría' },
   { codigo: 'configuracion', nombre: 'Configuración' },
-  { codigo: 'reportes', nombre: 'Reportes' },
-  { codigo: 'produccion', nombre: 'Producción' },
 ];
 
 export const RBAC_ACTIONS = [
@@ -25,6 +22,34 @@ export function emptyPermissions() {
   return p;
 }
 
+/** Sin permiso Ver, ninguna otra acción del módulo aplica. */
+export function normalizeModulePermissions(row = {}) {
+  const normalized = {
+    view: Boolean(row.view),
+    create: Boolean(row.create),
+    edit: Boolean(row.edit),
+    delete: Boolean(row.delete),
+    export: Boolean(row.export),
+    approve: Boolean(row.approve),
+  };
+  if (!normalized.view) {
+    normalized.create = false;
+    normalized.edit = false;
+    normalized.delete = false;
+    normalized.export = false;
+    normalized.approve = false;
+  }
+  return normalized;
+}
+
+export function normalizePermissions(permisos) {
+  const base = emptyPermissions();
+  for (const m of RBAC_MODULES) {
+    base[m.codigo] = normalizeModulePermissions(permisos?.[m.codigo]);
+  }
+  return base;
+}
+
 export function hasAnyPermission(permisos) {
   if (!permisos || typeof permisos !== 'object') return false;
   return Object.values(permisos).some(
@@ -34,5 +59,8 @@ export function hasAnyPermission(permisos) {
 
 export function canPermission(permisos, module, action) {
   if (permisos == null) return true;
-  return Boolean(permisos?.[module]?.[action]);
+  const mod = permisos?.[module];
+  if (!mod) return false;
+  if (action !== 'view' && !mod.view) return false;
+  return Boolean(mod[action]);
 }

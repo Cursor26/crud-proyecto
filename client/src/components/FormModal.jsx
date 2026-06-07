@@ -1,5 +1,6 @@
 import { Modal } from 'react-bootstrap';
 import ModalCloseButton from './ModalCloseButton';
+import { BTN_CANCELAR_MD, BTN_GUARDAR_MD } from '../lib/actionButtonClasses';
 
 /**
  * Ventana emergente estándar para altas/edición de formularios (patrón unificado).
@@ -14,8 +15,11 @@ export function FormModal({
   onPrimary,
   primaryLabel = 'Guardar',
   primaryDisabled = false,
+  primaryTitle,
+  cancelTitle = 'Cerrar sin guardar los cambios',
   size,
   scrollable = false,
+  autoCompleteOff = false,
 }) {
   return (
     <Modal
@@ -33,19 +37,30 @@ export function FormModal({
           <span className="modal-premium-badge modal-minimal-badge">{title}</span>
           {subtitle ? <p className="modal-premium-subtitle mb-0">{subtitle}</p> : null}
         </div>
-        <ModalCloseButton onClick={onHide} />
+        <ModalCloseButton onClick={onHide} title="Cerrar esta ventana sin guardar" />
       </Modal.Header>
-      <Modal.Body className="modal-premium-body modal-minimal-body modal-form-body-scroll">{children}</Modal.Body>
+      <Modal.Body
+        className="modal-premium-body modal-minimal-body modal-form-body-scroll"
+        {...(autoCompleteOff ? { autoComplete: 'off' } : {})}
+      >
+        {children}
+      </Modal.Body>
       <Modal.Footer className="modal-premium-footer modal-minimal-footer border-0">
         <button
           type="button"
-          className="btn btn-success modal-premium-btn-save modal-minimal-btn"
+          className={`${BTN_GUARDAR_MD} modal-premium-btn-save`}
           onClick={onPrimary}
           disabled={primaryDisabled}
+          title={primaryTitle || `${primaryLabel}: confirmar y aplicar los datos del formulario`}
         >
           {primaryLabel}
         </button>
-        <button type="button" className="btn btn-outline-secondary modal-premium-btn-cancel modal-minimal-btn" onClick={onHide}>
+        <button
+          type="button"
+          className={`${BTN_CANCELAR_MD} modal-premium-btn-cancel`}
+          onClick={onHide}
+          title={cancelTitle}
+        >
           Cancelar
         </button>
       </Modal.Footer>

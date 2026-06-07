@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import Axios from 'axios';
 import Swal from 'sweetalert2';
 import AppSelect from './AppSelect';
+import { BTN_CANCELAR, BTN_CONSULTAR, BTN_ELIMINAR, BTN_GUARDAR } from '../lib/actionButtonClasses';
 
 const Usuarios = () => {
   const [usuarios, setUsuarios] = useState([]);
   const [email, setEmail] = useState('');
   const [nombre, setNombre] = useState('');
   const [password, setPassword] = useState('');
-  const [rol, setRol] = useState('rrhh'); // valor por defecto
+  const [rol, setRol] = useState('contratacion');
   const [editando, setEditando] = useState(false);
   const [emailOriginal, setEmailOriginal] = useState('');
 
@@ -84,7 +85,7 @@ const Usuarios = () => {
     setEmail('');
     setNombre('');
     setPassword('');
-    setRol('rrhh');
+    setRol('contratacion');
     setEmailOriginal('');
   };
 
@@ -104,14 +105,13 @@ const Usuarios = () => {
           </div>
           <div className="col-md-2">
             <AppSelect className="form-control" value={rol} onChange={e => setRol(e.target.value)}>
-              <option value="rrhh">RRHH</option>
               <option value="contratacion">Contratación</option>
               <option value="admin">Administrador</option>
             </AppSelect>
           </div>
           <div className="col-md-2 d-flex flex-wrap align-items-center gap-2">
-            <button type="submit" className="btn btn-success btn-form-nowrap">{editando ? 'Actualizar' : 'Crear'}</button>
-            {editando && <button type="button" className="btn btn-secondary btn-form-nowrap" onClick={limpiar}>Cancelar</button>}
+            <button type="submit" className={`${BTN_GUARDAR} btn-form-nowrap`}>{editando ? 'Actualizar' : 'Crear'}</button>
+            {editando && <button type="button" className={`${BTN_CANCELAR} btn-form-nowrap`} onClick={limpiar}>Cancelar</button>}
           </div>
         </div>
       </form>
@@ -127,8 +127,8 @@ const Usuarios = () => {
               <td>{u.nombre}</td>
               <td>{u.rol}</td>
               <td>
-                <button className="btn btn-warning btn-sm me-2" onClick={() => editarUsuario(u)}>Editar</button>
-                <button className="btn btn-danger btn-sm" onClick={() => eliminarUsuario(u.email)}>Eliminar</button>
+                <button className={`${BTN_CONSULTAR} me-2`} onClick={() => editarUsuario(u)}>Editar</button>
+                <button className={BTN_ELIMINAR} onClick={() => eliminarUsuario(u.email)}>Eliminar</button>
               </td>
             </tr>
           ))}

@@ -5,6 +5,7 @@ import {
   getWordPreviewViewport,
   renderWordPreviewInContainer,
 } from '../lib/contratosWordPreview';
+import { BTN_CONSULTAR } from '../lib/actionButtonClasses';
 
 export default function ContratoWordPreviewPane({
   dataUrl,
@@ -103,7 +104,7 @@ export default function ContratoWordPreviewPane({
       <div className="contrato-word-preview-fallback">
         <p className="mb-3">{mensaje}</p>
         {typeof onDescargar === 'function' && (
-          <button type="button" className="btn btn-sm btn-outline-primary" onClick={onDescargar}>
+          <button type="button" className={BTN_CONSULTAR} onClick={onDescargar}>
             <i className="bi bi-download me-1" aria-hidden="true" />
             Descargar archivo
           </button>

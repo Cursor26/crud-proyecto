@@ -6,6 +6,7 @@ import { contactosFromContrato } from '../lib/contratosContactosNotificacion';
 import { parseSuplementosFromContrato, etiquetaTipoSuplemento } from '../lib/contratosSuplementos';
 import { parseAnexosFromContrato } from '../lib/contratosAnexos';
 import { combinarDocumentosServidorYCache } from '../lib/contratosPdfs';
+import { BTN_CANCELAR_MD } from '../lib/actionButtonClasses';
 import {
   parsePropuestaAprobacion,
   clavesCamposModificadosEdicion,
@@ -435,7 +436,7 @@ function ContratosCambiosPendientesModal({
               <span aria-hidden="true" />
               <button
                 type="button"
-                className="btn btn-outline-secondary modal-minimal-btn"
+                className={BTN_CANCELAR_MD}
                 onClick={handleHide}
               >
                 Cerrar

@@ -4,6 +4,7 @@ import Axios, { API_BASE } from '../axiosConfig';
 import { combinarDocumentosServidorYCache } from '../lib/contratosPdfs';
 import ContratosInfoFormStack from './ContratosInfoFormStack';
 import ModalCloseButton from './ModalCloseButton';
+import { BTN_CANCELAR_MD } from '../lib/actionButtonClasses';
 
 function ContratosInfoModal({
   show,
@@ -92,7 +93,7 @@ function ContratosInfoModal({
 
       <Modal.Footer className="modal-premium-footer modal-minimal-footer border-0">
         <span aria-hidden="true" />
-        <button type="button" className="btn btn-outline-secondary modal-minimal-btn" onClick={onHide}>
+        <button type="button" className={BTN_CANCELAR_MD} onClick={onHide}>
           Cerrar
         </button>
       </Modal.Footer>

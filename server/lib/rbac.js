@@ -2,12 +2,9 @@ const { resolveRouteAction } = require('./rbacPathRules');
 
 const RBAC_MODULES = [
   { codigo: 'usuarios', nombre: 'Usuarios', orden: 1 },
-  { codigo: 'empleados', nombre: 'Empleados', orden: 2 },
-  { codigo: 'contratos', nombre: 'Contratos', orden: 3 },
-  { codigo: 'auditoria', nombre: 'Auditoría', orden: 4 },
-  { codigo: 'configuracion', nombre: 'Configuración', orden: 5 },
-  { codigo: 'reportes', nombre: 'Reportes', orden: 6 },
-  { codigo: 'produccion', nombre: 'Producción', orden: 7 },
+  { codigo: 'contratos', nombre: 'Contratos', orden: 2 },
+  { codigo: 'auditoria', nombre: 'Auditoría', orden: 3 },
+  { codigo: 'configuracion', nombre: 'Configuración', orden: 4 },
 ];
 
 const RBAC_ACTIONS = [
@@ -32,6 +29,23 @@ function permFlags(p = {}) {
   };
 }
 
+/** Sin permiso Ver, ninguna otra acción del módulo aplica. */
+function normalizePermFlags(p = {}) {
+  const flags = permFlags(p);
+  if (!flags.view) {
+    return permFlags({});
+  }
+  return flags;
+}
+
+function normalizePermissionsMap(map = {}) {
+  const out = {};
+  for (const mod of RBAC_MODULES) {
+    out[mod.codigo] = normalizePermFlags(map[mod.codigo]);
+  }
+  return out;
+}
+
 function allFlags(on) {
   return permFlags({ view: on, create: on, edit: on, delete: on, export: on, approve: on });
 }
@@ -52,57 +66,21 @@ function fullCrud() {
 const SYSTEM_ROLE_TEMPLATES = {
   admin: {
     usuarios: allFlags(true),
-    empleados: allFlags(true),
-    contratos: allFlags(true),
+    contratos: permFlags({}),
     auditoria: allFlags(true),
     configuracion: allFlags(true),
-    reportes: allFlags(true),
-    produccion: allFlags(true),
-  },
-  rrhh: {
-    usuarios: permFlags({}),
-    empleados: fullCrud(),
-    contratos: permFlags({}),
-    auditoria: permFlags({}),
-    configuracion: permFlags({ view: true }),
-    reportes: viewExportOnly(),
-    produccion: permFlags({}),
   },
   contratacion: {
     usuarios: permFlags({}),
-    empleados: viewOnly(),
     contratos: fullCrud(),
     auditoria: permFlags({}),
     configuracion: permFlags({ view: true }),
-    reportes: permFlags({}),
-    produccion: permFlags({}),
-  },
-  produccion: {
-    usuarios: permFlags({}),
-    empleados: permFlags({ view: true, create: true, edit: true }),
-    contratos: permFlags({}),
-    auditoria: permFlags({}),
-    configuracion: permFlags({ view: true }),
-    reportes: permFlags({}),
-    produccion: fullCrud(),
-  },
-  estadistica: {
-    usuarios: permFlags({}),
-    empleados: permFlags({ view: true, create: true, edit: true }),
-    contratos: permFlags({}),
-    auditoria: permFlags({}),
-    configuracion: permFlags({ view: true }),
-    reportes: permFlags({}),
-    produccion: fullCrud(),
   },
   director: {
     usuarios: permFlags({}),
-    empleados: viewOnly(),
-    contratos: permFlags({ view: true, approve: true }),
+    contratos: permFlags({ view: true, export: true, approve: true }),
     auditoria: permFlags({}),
     configuracion: permFlags({ view: true }),
-    reportes: viewOnly(),
-    produccion: viewOnly(),
   },
 };
 
@@ -123,7 +101,7 @@ function rowToModulePerms(rows) {
     map[mod.codigo] = permFlags({});
   }
   for (const r of rows || []) {
-    map[r.module_codigo] = permFlags({
+    map[r.module_codigo] = normalizePermFlags({
       view: r.can_view,
       create: r.can_create,
       edit: r.can_edit,
@@ -157,7 +135,32 @@ function createRbacService(dbQuery) {
         }
       }
     }
+    await removeObsoleteSystemRoles();
     await seedSystemRolePermissions();
+  }
+
+  const OBSOLETE_SYSTEM_ROLES = ['rrhh', 'produccion', 'estadistica'];
+  const FALLBACK_ROLE_CODIGO = 'contratacion';
+
+  async function removeObsoleteSystemRoles() {
+    const fallbackRows = await dbQuery(
+      'SELECT id_rol FROM roles WHERE codigo = ? LIMIT 1',
+      [FALLBACK_ROLE_CODIGO]
+    );
+    const fallbackId = fallbackRows[0]?.id_rol || null;
+
+    for (const codigo of OBSOLETE_SYSTEM_ROLES) {
+      const rows = await dbQuery('SELECT id_rol FROM roles WHERE codigo = ? LIMIT 1', [codigo]);
+      const idRol = rows[0]?.id_rol;
+      if (!idRol) continue;
+
+      if (fallbackId) {
+        await dbQuery('UPDATE usuarios SET id_rol = ? WHERE id_rol = ?', [fallbackId, idRol]);
+      }
+      await dbQuery('DELETE FROM rbac_role_permissions WHERE id_rol = ?', [idRol]);
+      await dbQuery('DELETE FROM roles WHERE id_rol = ?', [idRol]);
+    }
+    cache.clear();
   }
 
   function hasAnyPermission(permissions) {
@@ -169,7 +172,7 @@ function createRbacService(dbQuery) {
 
   async function seedSystemRolePermissions() {
     const roles = await dbQuery(
-      `SELECT id_rol, codigo FROM roles WHERE codigo IN ('admin','rrhh','contratacion','produccion','estadistica','director')`
+      `SELECT id_rol, codigo FROM roles WHERE codigo IN ('admin','contratacion','director')`
     );
     for (const role of roles) {
       const template = SYSTEM_ROLE_TEMPLATES[role.codigo];
@@ -191,11 +194,26 @@ function createRbacService(dbQuery) {
       );
       if (!anyOn) await savePermissionsForRole(role.id_rol, template);
     }
+    await enforceSystemRoleTemplates();
+  }
+
+  /** Aplica la plantilla exacta a roles de sistema (fuente de verdad; no editable en UI). */
+  async function enforceSystemRoleTemplates() {
+    const roles = await dbQuery(
+      `SELECT id_rol, codigo FROM roles WHERE codigo IN ('admin','contratacion','director') AND COALESCE(is_system, 0) = 1`
+    );
+    for (const role of roles) {
+      const template = SYSTEM_ROLE_TEMPLATES[role.codigo];
+      if (!template) continue;
+      await savePermissionsForRole(role.id_rol, template);
+    }
+    cache.clear();
   }
 
   async function savePermissionsForRole(idRol, permissionsMap) {
+    const normalized = normalizePermissionsMap(permissionsMap);
     for (const mod of RBAC_MODULES) {
-      const p = permissionsMap[mod.codigo] || permFlags({});
+      const p = normalized[mod.codigo] || permFlags({});
       await dbQuery(
         `INSERT INTO rbac_role_permissions
           (id_rol, module_codigo, can_view, can_create, can_edit, can_delete, can_export, can_approve)
@@ -248,6 +266,7 @@ function createRbacService(dbQuery) {
   function hasPermission(permissions, module, action) {
     const mod = permissions?.[module];
     if (!mod) return false;
+    if (action !== 'view' && !mod.view) return false;
     const col = ACTION_TO_COL[action];
     if (!col) return false;
     const key = col.replace('can_', '');
@@ -256,10 +275,7 @@ function createRbacService(dbQuery) {
 
   function legacyRoleAllowed(codigo, rolesPermitidos) {
     const r0 = String(codigo || '');
-    const r1 = r0 === 'produccion' ? 'estadistica' : r0;
-    if (rolesPermitidos.includes(r0) || rolesPermitidos.includes(r1)) return true;
-    if (r0 === 'produccion' && rolesPermitidos.includes('estadistica')) return true;
-    return false;
+    return rolesPermitidos.includes(r0);
   }
 
   async function listRoles() {
@@ -310,6 +326,9 @@ function createRbacService(dbQuery) {
   async function updateRole(idRol, { nombre, descripcion, activo, permisos }) {
     const role = await getRoleWithPermissions(idRol);
     if (!role) throw new Error('Rol no encontrado');
+    if (Number(role.is_system) === 1 && permisos) {
+      throw new Error('Los permisos de los roles del sistema no se pueden modificar');
+    }
     const nom = nombre != null ? String(nombre).trim() : role.nombre;
     const desc = descripcion !== undefined ? descripcion : role.descripcion;
     const act = activo !== undefined ? (activo ? 1 : 0) : role.activo;
@@ -319,7 +338,7 @@ function createRbacService(dbQuery) {
       act,
       idRol,
     ]);
-    if (permisos)     if (permisos) await savePermissionsForRole(idRol, permisos);
+    if (permisos) await savePermissionsForRole(idRol, permisos);
     cache.clear();
     return getRoleWithPermissions(idRol);
   }

@@ -69,3 +69,14 @@ export function resumenAnexos(contrato) {
   if (!activo || !items.length) return '';
   return items.map((it) => `Anexo ${it.numero}: ${it.nombre || 'documento'}`).join('; ');
 }
+
+/** Cantidad de anexos documentales del contrato (opcional: estado en caché local). */
+export function cantidadAnexosContrato(contrato, estadoCache) {
+  const { activo, items } = parseAnexosFromContrato(contrato);
+  const serverCount = activo && items.length ? items.length : 0;
+  const cacheCount =
+    estadoCache?.activo && Array.isArray(estadoCache.items) && estadoCache.items.length
+      ? estadoCache.items.length
+      : 0;
+  return Math.max(serverCount, cacheCount);
+}

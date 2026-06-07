@@ -19,4 +19,4 @@ CREATE TABLE IF NOT EXISTS rbac_role_permissions (
   CONSTRAINT fk_rbac_perm_rol FOREIGN KEY (id_rol) REFERENCES roles (id_rol) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-UPDATE roles SET is_system = 1 WHERE codigo IN ('admin','rrhh','contratacion','produccion','estadistica','director');
+UPDATE roles SET is_system = 1 WHERE codigo IN ('admin','contratacion','director');

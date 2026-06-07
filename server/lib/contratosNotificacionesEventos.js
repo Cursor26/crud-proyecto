@@ -85,7 +85,33 @@ function buildMail(contrato, evento, extra = {}) {
 }
 
 function createContratosNotificacionesEventosService(dbQuery, deps) {
-  const { SQL_CONTRATO_SELECT, normalizeEmail, isValidEmail, sendMailWithFallback, mailer } = deps;
+  const { SQL_CONTRATO_SELECT, normalizeEmail, isValidEmail, sendMailWithFallback, mailer, correoPlantillas } =
+    deps;
+
+  async function resolveMail(contrato, evento, extra = {}) {
+    const eventoKey = String(evento || '').trim();
+    if (
+      correoPlantillas &&
+      (eventoKey === 'por_vencer' || eventoKey === 'vencido' || eventoKey === 'cancelado')
+    ) {
+      const plantillas = await correoPlantillas.loadPlantillas();
+      const diasRestantes =
+        extra.diasRestantes != null
+          ? Number(extra.diasRestantes)
+          : correoPlantillas.calcDiasRestantes(contrato?.fecha_fin);
+      return correoPlantillas.renderMail(
+        eventoKey,
+        contrato,
+        {
+          ...extra,
+          diasRestantes,
+          diasAntes: extra.diasRestantes != null ? Number(extra.diasRestantes) : diasRestantes,
+        },
+        plantillas
+      );
+    }
+    return buildMail(contrato, evento, extra);
+  }
 
   async function fetchContrato(numero) {
     const num = String(numero || '').trim();
@@ -106,7 +132,7 @@ function createContratosNotificacionesEventosService(dbQuery, deps) {
     ];
     if (!destinos.length) return { ok: false, skipped: true, reason: 'sin_destinos', evento };
 
-    const mail = buildMail(contrato, evento, extra);
+    const mail = await resolveMail(contrato, evento, extra);
     let enviados = 0;
     for (const destino of destinos) {
       try {

@@ -1,13 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import Axios, { API_BASE } from '../axiosConfig';
+import Swal from 'sweetalert2';
 import ModuleTitleBar from './ModuleTitleBar';
+import { BTN_CONSULTAR } from '../lib/actionButtonClasses';
 import { formatAppDate, formatAppTime } from '../lib/formatAppDate';
+import { usePermissions } from '../context/PermissionsContext';
+import { descargarPdfTablaVerde } from '../utils/exportContratosPdfTabla';
 
 const TABS = [
   { id: 'sessions', label: 'Sesiones', icon: 'bi-box-arrow-in-right' },
   { id: 'failed', label: 'Intentos fallidos', icon: 'bi-shield-exclamation' },
   { id: 'roles', label: 'Roles y permisos', icon: 'bi-person-gear' },
-  { id: 'changes', label: 'Eliminaciones y restauraciones', icon: 'bi-trash' },
+  { id: 'changes', label: 'Eliminación', icon: 'bi-trash' },
 ];
 
 function actorLabel(row) {
@@ -29,6 +33,8 @@ function formatDateTime(value) {
 }
 
 function Auditoria() {
+  const { can } = usePermissions();
+  const puedeExportar = can('auditoria', 'export');
   const [tab, setTab] = useState('sessions');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -77,29 +83,105 @@ function Auditoria() {
     loadData();
   }, [loadData]);
 
+  const tabLabel = TABS.find((t) => t.id === tab)?.label || tab;
+
+  const exportarAuditoriaPdf = () => {
+    let headers = [];
+    let dataRows = [];
+
+    if (tab === 'sessions') {
+      headers = ['Usuario', 'Email', 'Rol', 'Inicio de sesión', 'Cierre de sesión', 'IP', 'Navegador'];
+      dataRows = sessions.map((row) => [
+        row.user_nombre || row.user_email || '—',
+        row.user_email || '—',
+        row.user_rol || '—',
+        formatDateTime(row.login_at),
+        row.logout_at ? formatDateTime(row.logout_at) : 'Activa',
+        row.ip_address || '—',
+        row.user_agent || '—',
+      ]);
+    } else if (tab === 'failed') {
+      headers = ['Fecha', 'Identificador', 'Usuario', 'Motivo', 'IP'];
+      dataRows = failedLogins.map((row) => [
+        formatDateTime(row.created_at),
+        row.identifier_attempted || '—',
+        row.user_email || '—',
+        REASON_LABELS[row.reason] || row.reason || '—',
+        row.ip_address || '—',
+      ]);
+    } else if (tab === 'roles') {
+      headers = ['Cuándo', 'Realizado por', 'Usuario', 'Evento', 'IP'];
+      dataRows = roleEvents.map((row) => [
+        formatDateTime(row.created_at),
+        actorLabel(row),
+        row.target_label || row.target_id || '—',
+        row.mensaje || '—',
+        row.ip_address || '—',
+      ]);
+    } else if (tab === 'changes') {
+      headers = ['Cuándo', 'Tipo', 'Realizado por', 'Contrato', 'Detalle', 'IP'];
+      dataRows = changeEvents.map((row) => [
+        formatDateTime(row.created_at),
+        'Eliminación',
+        actorLabel(row),
+        row.target_label || row.target_id || '—',
+        row.mensaje || '—',
+        row.ip_address || '—',
+      ]);
+    }
+
+    if (dataRows.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin datos',
+        text: 'No hay registros para exportar en esta vista.',
+      });
+      return;
+    }
+
+    try {
+      const fechaTxt = new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+      descargarPdfTablaVerde({
+        titulo: 'Auditoría de seguridad',
+        metaLinea: `Generado: ${fechaTxt}  |  Vista: ${tabLabel}  |  Registros: ${dataRows.length}`,
+        headers,
+        dataRows,
+        nombreArchivo: `auditoria_seguridad_${tab}_${new Date().toISOString().slice(0, 10)}.pdf`,
+        fontSize: 5.5,
+      });
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al generar PDF',
+        text: String(err?.message || err),
+      });
+    }
+  };
+
   return (
     <div className="contratos-module">
       <ModuleTitleBar
         title="Auditoría de seguridad"
-        subtitle="Accesos, intentos fallidos, gestión de usuarios (roles) y archivado de contratos (solo administrador)."
+        subtitle="Accesos, intentos fallidos, gestión de usuarios (roles) y eliminación de contratos (solo administrador)."
       />
 
-      <div className="contratos-card p-3 mb-3">
-        <ul className="nav nav-tabs contratos-tabs mb-3">
+      <div className="contratos-tabs-card mb-3">
+        <div className="contratos-tabs-row">
           {TABS.map((t) => (
-            <li className="nav-item" key={t.id}>
-              <button
-                type="button"
-                className={`nav-link contratos-tab ${tab === t.id ? 'contratos-tab--active' : ''}`}
-                onClick={() => setTab(t.id)}
-              >
-                <i className={`bi ${t.icon} me-1`} aria-hidden="true" />
-                {t.label}
-              </button>
-            </li>
+            <button
+              key={t.id}
+              type="button"
+              className={`btn btn-sm contratos-tab ${tab === t.id ? 'contratos-tab--active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
           ))}
-        </ul>
+        </div>
+      </div>
 
+      <div className="contratos-card p-3 mb-3">
         <div className="row g-2 align-items-end mb-3">
           {(tab === 'sessions' || tab === 'failed') && (
             <div className="col-md-4">
@@ -128,10 +210,22 @@ function Auditoria() {
               </select>
             </div>
           )}
-          <div className="col-auto">
-            <button type="button" className="btn btn-sm btn-contratos-primary" onClick={loadData} disabled={loading}>
+          <div className="col-auto d-flex gap-2">
+            <button type="button" className={BTN_CONSULTAR} onClick={loadData} disabled={loading}>
               {loading ? 'Cargando…' : 'Actualizar'}
             </button>
+            {puedeExportar ? (
+              <button
+                type="button"
+                className="btn btn-sm reportes-export-btn-pdf d-inline-flex align-items-center"
+                onClick={exportarAuditoriaPdf}
+                disabled={loading}
+                title="Exportar vista actual a PDF"
+              >
+                <i className="bi bi-file-earmark-pdf me-1" aria-hidden="true" />
+                PDF
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -295,7 +389,7 @@ function Auditoria() {
         {tab === 'changes' && (
           <div className="table-responsive">
             <p className="small text-muted mb-2">
-              Archivado de contratos: quién eliminó, qué contrato y cuándo (restauraciones de contrato, si existen en el sistema).
+              Contratos eliminados (archivados): quién los eliminó, qué contrato y cuándo. Para el historial completo de movimientos use Auditoría dentro de Contratación.
             </p>
             <table className="table table-sm table-hover align-middle mb-0">
               <thead>
@@ -320,11 +414,7 @@ function Auditoria() {
                   <tr key={row.id}>
                     <td className="small text-nowrap">{formatDateTime(row.created_at)}</td>
                     <td>
-                      <span
-                        className={`badge ${row.tipo_cambio === 'restauracion' ? 'bg-success' : 'bg-danger'}`}
-                      >
-                        {row.tipo_cambio === 'restauracion' ? 'Restauración' : 'Archivado'}
-                      </span>
+                      <span className="badge bg-danger">Eliminación</span>
                     </td>
                     <td className="small">{actorLabel(row)}</td>
                     <td className="small">{row.target_label || row.target_id || '—'}</td>

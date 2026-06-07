@@ -21,6 +21,7 @@ function Login({ onLogin }) {
   const avatarLookupSeqRef = useRef(0);
   const profileHideTimerRef = useRef(null);
   const loginInputRef = useRef(null);
+  const loginPasswordRef = useRef(null);
 
   const PROFILE_ANIM_MS = 560;
 
@@ -125,7 +126,7 @@ function Login({ onLogin }) {
     if (timerRef.current) clearInterval(timerRef.current);
   }, [isResetMode]);
 
-  // El autocompletado del navegador no dispara onChange; leemos el valor del DOM.
+  // El autocompletado del navegador no dispara onChange; sincronizamos estado (avatar) desde el DOM.
   useEffect(() => {
     if (isResetMode) return undefined;
 
@@ -136,18 +137,25 @@ function Login({ onLogin }) {
       setLoginIdentifier((prev) => (prev === domValue ? prev : domValue));
     };
 
-    syncIdentifierFromDom();
-    const timers = [120, 350, 750, 1200].map((ms) => setTimeout(syncIdentifierFromDom, ms));
-
     const el = loginInputRef.current;
     const onAutoFill = (e) => {
       if (e.animationName === 'loginInputAutofillStart') syncIdentifierFromDom();
     };
+    const onInput = () => syncIdentifierFromDom();
+    const onChange = () => syncIdentifierFromDom();
+
     el?.addEventListener('animationstart', onAutoFill);
+    el?.addEventListener('input', onInput);
+    el?.addEventListener('change', onChange);
+
+    // El gestor de contraseñas puede rellenar con retardo tras la selección del usuario.
+    const timers = [50, 150, 400, 800, 1500].map((ms) => setTimeout(syncIdentifierFromDom, ms));
 
     return () => {
       timers.forEach(clearTimeout);
       el?.removeEventListener('animationstart', onAutoFill);
+      el?.removeEventListener('input', onInput);
+      el?.removeEventListener('change', onChange);
     };
   }, [isResetMode]);
 
@@ -383,7 +391,7 @@ function Login({ onLogin }) {
             </p>
           </form>
         ) : (
-          <form className="login-form" onSubmit={handleSubmit} noValidate>
+          <form className="login-form" onSubmit={handleSubmit} noValidate autoComplete="on">
             <div className="login-field-row">
               <i className="bi bi-person login-field-icon" aria-hidden />
               <input
@@ -393,10 +401,9 @@ function Login({ onLogin }) {
                 className="login-input"
                 placeholder="Usuario o correo"
                 autoComplete="username"
-                value={loginIdentifier}
+                defaultValue=""
                 onChange={(e) => setLoginIdentifier(e.target.value)}
                 onInput={(e) => setLoginIdentifier(e.target.value)}
-                onBlur={(e) => setLoginIdentifier(e.target.value)}
                 required
               />
             </div>
@@ -404,6 +411,7 @@ function Login({ onLogin }) {
             <div className="login-field-row">
               <i className="bi bi-lock login-field-icon" aria-hidden />
               <input
+                ref={loginPasswordRef}
                 type={showPassword ? 'text' : 'password'}
                 name="password"
                 className="login-input login-input--has-trailing"
