@@ -4,8 +4,9 @@
 const express = require ("express");
 const app = express();
 app.set('trust proxy', true);
-const mysql = require("mysql");
+const mysql = require('mysql2');
 const cors = require("cors");
+const helmet = require('helmet');
 
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -35,8 +36,25 @@ const {
   publicCorreoConfig,
   decryptPass,
 } = require('./lib/sistemaCorreo');
+const {
+  resolveJwtSecret,
+  buildCorsOptions,
+  createAuthRateLimiters,
+} = require('./lib/securityConfig');
 
-app.use(cors());
+const JWT_SECRET = resolveJwtSecret();
+const authRateLimiters = createAuthRateLimiters();
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
+app.use(cors(buildCorsOptions(process.env.APP_BASE_URL || 'http://localhost:3000')));
+if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+  app.use(authRateLimiters.api);
+}
 app.use(express.json({ limit: '50mb' }));
 /* Express 5: sin cuerpo, express.json puede dejar req.body en undefined; normalizamos para rutas que desestructuran el body. */
 app.use((req, res, next) => {
@@ -57,7 +75,7 @@ const {
   prioridadDesdeBody,
 } = require('./db/queryHelpers');
 
-const db = mysql.createConnection({
+const db = mysql.createPool({
   /* 127.0.0.1 evita ::1 con XAMPP en Windows (ECONNREFUSED en localhost) */
   host: process.env.DB_HOST || '127.0.0.1',
   user: process.env.DB_USER || 'root',
@@ -67,6 +85,10 @@ const db = mysql.createConnection({
       : '',
   database: process.env.DB_NAME || 'bd_crud',
   charset: 'utf8mb4',
+  connectTimeout: 10000,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
 const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
@@ -106,6 +128,7 @@ const {
   rechazarContratoPendiente,
 } = require('./lib/contratosAprobacion');
 const { ejecutarArchivoContrato } = require('./lib/contratosArchivo');
+const { validarNumeroContratoUnico } = require('./lib/contratosNumeroUnico');
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const hashResetToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -622,9 +645,6 @@ async function migrateUserPrimaryEmail(oldEmail, newEmail) {
 
 
 
-// Clave secreta para JWT (en producción, ponla en .env)
-const JWT_SECRET = process.env.JWT_SECRET || 'hgnfdignrejvmklehvmlSDJVHFDVDJMOdsjvmvjmnjsbmgiSDHUNVJDFVDNVBMJF84135165132164HDND8448340I/*/*/-*/**+';
-
 // ==================== MIDDLEWARES ====================
 
 // Middleware para verificar token JWT
@@ -675,7 +695,7 @@ const autorizarPermiso = (module, action) => async (req, res, next) => {
 // ==================== RUTAS DE AUTENTICACIÓN ====================
 
 // LOGIN (público): correo o nombre de usuario
-app.post('/login', async (req, res) => {
+app.post('/login', authRateLimiters.login, async (req, res) => {
   const identifier = String(req.body?.identifier || req.body?.email || req.body?.usuario || '').trim();
   const password = req.body?.password;
   const sqlLogin = `${SQL_USUARIO_AUTH} WHERE (LOWER(TRIM(u.email)) = LOWER(TRIM(?)) OR LOWER(TRIM(u.nombre)) = LOWER(TRIM(?)))`;
@@ -830,7 +850,7 @@ app.get('/auth/login-avatar', async (req, res) => {
   }
 });
 
-app.post('/auth/forgot-password', async (req, res) => {
+app.post('/auth/forgot-password', authRateLimiters.passwordReset, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const genericMessage = 'Si el correo existe en el sistema, te enviamos instrucciones para restablecer tu contraseña.';
   let resetUrl = null;
@@ -909,7 +929,7 @@ app.post('/auth/forgot-password', async (req, res) => {
   }
 });
 
-app.post('/auth/reset-password', async (req, res) => {
+app.post('/auth/reset-password', authRateLimiters.passwordReset, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const token = String(req.body?.token || '').trim();
   const newPassword = String(req.body?.newPassword || '');
@@ -918,8 +938,10 @@ app.post('/auth/reset-password', async (req, res) => {
     return res.status(400).json({ message: 'Datos incompletos para restablecer contraseña.' });
   }
 
-  if (newPassword.length < 8) {
-    return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres.' });
+  if (!passwordFuerte(newPassword)) {
+    return res.status(400).json({
+      message: 'La nueva contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número.',
+    });
   }
 
   try {
@@ -1706,6 +1728,11 @@ app.put('/user/change-password', verificarToken, async (req, res) => {
     const passwordValida = await bcrypt.compare(currentPassword, rows[0].password);
     if (!passwordValida) return res.status(401).json({ message: 'Contraseña actual incorrecta.' });
 
+    const mismaQueActual = await bcrypt.compare(newPassword, rows[0].password);
+    if (mismaQueActual) {
+      return res.status(400).json({ message: 'La nueva contraseña debe ser distinta de la actual.' });
+    }
+
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await dbQuery(
       'UPDATE usuarios SET password = ?, updated_by = ?, updated_at = NOW() WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
@@ -1988,6 +2015,8 @@ app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), asy
   } = req.body;
   const solicitadoPor = usuarioDesdeReq(req);
   try {
+    const numeroFinal = await validarNumeroContratoUnico(dbQuery, numero_contrato);
+
     const errNiveles = validarContactosNivelesParaGuardar(req.body, {
       esProveedor: req.body?.proveedor_cliente,
     });
@@ -2003,7 +2032,7 @@ app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), asy
          aprobacion_estado, aprobacion_accion, aprobacion_solicitado_por, aprobacion_solicitado_en)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'pendiente','alta',?,NOW())`,
       [
-        numero_contrato,
+        numeroFinal,
         idContraparte,
         empresa,
         correoPrincipal,
@@ -2019,11 +2048,11 @@ app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), asy
         solicitadoPor,
       ]
     );
-    dispararNotificacionPendiente(numero_contrato, 'alta', solicitadoPor, { empresa });
+    dispararNotificacionPendiente(numeroFinal, 'alta', solicitadoPor, { empresa });
     try {
       await contratosAuditoria.logContrato(req, {
         action: 'contrato_alta_solicitada',
-        numero: numero_contrato,
+        numero: numeroFinal,
         empresa,
         details: { accion: 'alta', solicitado_por: solicitadoPor },
       });
@@ -2037,6 +2066,14 @@ app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), asy
     });
   } catch (err) {
     console.log(err);
+    if (err.status) {
+      return res.status(err.status).json({ message: err.message });
+    }
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({
+        message: `El número de contrato «${String(numero_contrato || '').trim()}» ya está registrado. Cada contrato debe tener un número único.`,
+      });
+    }
     res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
   }
 });
@@ -2067,6 +2104,10 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), asyn
   const solicitadoPor = usuarioDesdeReq(req);
 
   try {
+    if (numeroNuevo !== numeroContratoWhere) {
+      await validarNumeroContratoUnico(dbQuery, numeroNuevo);
+    }
+
     const errNiveles = validarContactosNivelesParaGuardar(body, {
       esProveedor: body.proveedor_cliente,
     });
@@ -2167,6 +2208,9 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), asyn
     return res.status(409).json({ message: 'Estado de aprobación no válido para editar este contrato.' });
   } catch (err) {
     console.log(err);
+    if (err.status) {
+      return res.status(err.status).json({ message: err.message });
+    }
     return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
   }
 });
@@ -2975,27 +3019,60 @@ app.post("/send-contrato-reminder", verificarToken, autorizarRol(['contratacion'
   }
 });
 
-Promise.all([
-  ensurePasswordResetTable(),
-  ensureContratoCorreoColumn(),
-  ensureContratoContactosNotificacionColumn(),
-  ensureContratoContactosNivelesColumn(),
-  ensureContratoAnexosColumn(),
-  ensureContratoVigenciaVarchar(),
-  ensureContratoCanceladoColumns(),
-  ensureUsuariosSecurityAuditColumns(),
-  ensureContratosArchivoTables(),
-  ensureContratosDocumentosColumns(),
-  ensureCatalogoTipoContratoActivo(),
-  ensureContratoPrioridadColumn(),
-  ensureContratoAprobacionColumns(),
-  ensureContratosRecordatoriosTable(),
-  ensureConfigSistemaTable(),
-  ensureUserPreferencesTable(),
-  audit.ensureAuditTables(),
-  rbac.ensureRbacSchema(),
-])
-  .then(async () => {
+const DB_STARTUP_TIMEOUT_MS = Number(process.env.DB_STARTUP_TIMEOUT_MS || 12000);
+
+async function waitForDatabase() {
+  const host = process.env.DB_HOST || '127.0.0.1';
+  const dbName = process.env.DB_NAME || 'bd_crud';
+  console.log(`[server] Conectando a MySQL (${host} → ${dbName})…`);
+
+  await Promise.race([
+    new Promise((resolve, reject) => {
+      db.query('SELECT 1 AS ok', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    }),
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(
+            'MySQL no respondió a tiempo. En XAMPP pulse Stop y Start en MySQL, espere a que quede en verde y vuelva a ejecutar node index.js.'
+          )
+        );
+      }, DB_STARTUP_TIMEOUT_MS);
+    }),
+  ]);
+
+  console.log('[server] MySQL conectado.');
+}
+
+async function bootstrapServer() {
+  try {
+    await waitForDatabase();
+    console.log('[server] Preparando tablas y permisos…');
+
+    await Promise.all([
+      ensurePasswordResetTable(),
+      ensureContratoCorreoColumn(),
+      ensureContratoContactosNotificacionColumn(),
+      ensureContratoContactosNivelesColumn(),
+      ensureContratoAnexosColumn(),
+      ensureContratoVigenciaVarchar(),
+      ensureContratoCanceladoColumns(),
+      ensureUsuariosSecurityAuditColumns(),
+      ensureContratosArchivoTables(),
+      ensureContratosDocumentosColumns(),
+      ensureCatalogoTipoContratoActivo(),
+      ensureContratoPrioridadColumn(),
+      ensureContratoAprobacionColumns(),
+      ensureContratosRecordatoriosTable(),
+      ensureConfigSistemaTable(),
+      ensureUserPreferencesTable(),
+      audit.ensureAuditTables(),
+      rbac.ensureRbacSchema(),
+    ]);
+
     try {
       await ensureDirectorContratosApprove();
     } catch (err) {
@@ -3006,6 +3083,7 @@ Promise.all([
     } catch (err) {
       console.warn('No se pudo cargar config correo desde BD:', err?.message || err);
     }
+
     let smtpReady = false;
     try {
       await verifyMailer();
@@ -3027,13 +3105,21 @@ Promise.all([
         console.log('Recuperación de contraseña: SMTP configurado pero no disponible (se reintentará en cada envío).');
       }
     });
-  })
-  .catch((err) => {
-    console.error('No se pudo preparar la base de datos inicial (tablas/columnas):', err);
+  } catch (err) {
+    console.error('[server] No se pudo iniciar:', err?.message || err);
     if (err?.code === 'ECONNREFUSED') {
       console.error(
-        'MySQL no responde. En XAMPP: inicia MySQL, importa bd_crud y usa DB_HOST=127.0.0.1 en server/.env'
+        'MySQL no responde. En XAMPP: inicie MySQL, importe bd_crud y use DB_HOST=127.0.0.1 en server/.env'
       );
     }
+    if (err?.code === 'ER_ACCESS_DENIED_ERROR') {
+      console.error('Usuario o contraseña MySQL incorrectos. Revise DB_USER y DB_PASSWORD en server/.env');
+    }
+    if (err?.code === 'ER_BAD_DB_ERROR') {
+      console.error('La base de datos no existe. Cree o importe bd_crud en phpMyAdmin.');
+    }
     process.exit(1);
-  });
+  }
+}
+
+bootstrapServer();

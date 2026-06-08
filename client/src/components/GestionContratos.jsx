@@ -719,6 +719,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   useEffect(() => {
     getContratos();
     cargarTiposCatalogo();
+    Axios.get(`${API_BASE}/contratos-archivo`)
+      .then((res) => setArchivoList(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- carga inicial
 
   useEffect(() => {
@@ -1574,6 +1577,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       vigenciaPartes: contratoVigenciaPartes,
       contactosNiveles: contratoContactosNiveles,
       esProveedor: contratoProveedorCliente,
+      contratos: contratosList,
+      contratosArchivo: archivoList,
+      numeroOriginal: contratoNumeroOriginal,
+      esEdicion: editarContrato,
     });
     const nextErrors = { ...errors };
     if (!editarContrato && getPdfsContrato(contratoNumero).length === 0) {

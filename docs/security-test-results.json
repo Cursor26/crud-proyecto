@@ -1,0 +1,128 @@
+{
+  "executedAt": "2026-06-08T00:53:01.205Z",
+  "apiBase": "http://localhost:3001",
+  "total": 9,
+  "passed": 9,
+  "failed": 0,
+  "results": [
+    {
+      "id": "SEC-01",
+      "name": "Ruta protegida sin token",
+      "ok": true,
+      "detail": "GET /user/profile sin Authorization",
+      "expected": "(r) => r.status === 401",
+      "actualStatus": 401,
+      "response": {
+        "message": "Acceso denegado. Token no proporcionado"
+      }
+    },
+    {
+      "id": "SEC-02",
+      "name": "Token JWT inválido",
+      "ok": true,
+      "detail": "Bearer basura",
+      "expected": "(r) => r.status === 403",
+      "actualStatus": 403,
+      "response": {
+        "message": "Token inválido o expirado"
+      }
+    },
+    {
+      "id": "SEC-03",
+      "name": "Login credenciales incorrectas",
+      "ok": true,
+      "detail": "POST /login",
+      "expected": "(r) => r.status === 401",
+      "actualStatus": 401,
+      "response": {
+        "message": "Credenciales inválidas"
+      }
+    },
+    {
+      "id": "SEC-04",
+      "name": "Inyección SQL en login",
+      "ok": true,
+      "detail": "identifier: ' OR 1=1--",
+      "expected": "(r) => r.status === 401",
+      "actualStatus": 401,
+      "response": {
+        "message": "Credenciales inválidas"
+      }
+    },
+    {
+      "id": "SEC-05",
+      "name": "Reset contraseña débil rechazada",
+      "ok": true,
+      "detail": "POST /auth/reset-password con 12345678",
+      "expected": "(r) => r.status === 400 && String(r.json?.message || '').includes('mayúscula')",
+      "actualStatus": 400,
+      "response": {
+        "message": "La nueva contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número."
+      }
+    },
+    {
+      "id": "SEC-06",
+      "name": "Crear usuario sin autenticación",
+      "ok": true,
+      "detail": "POST /create-usuario",
+      "expected": "(r) => r.status === 401",
+      "actualStatus": 401,
+      "response": {
+        "message": "Acceso denegado. Token no proporcionado"
+      }
+    },
+    {
+      "id": "SEC-07",
+      "name": "Listar contratos sin token",
+      "ok": true,
+      "detail": "GET /contratos",
+      "expected": "(r) => r.status === 401",
+      "actualStatus": 401,
+      "response": {
+        "message": "Acceso denegado. Token no proporcionado"
+      }
+    },
+    {
+      "id": "SEC-08",
+      "name": "Cabeceras de seguridad HTTP (Helmet)",
+      "ok": true,
+      "detail": "GET /auth/login-avatar",
+      "expected": "x-content-type-options u otra cabecera Helmet",
+      "actualStatus": 200,
+      "response": {
+        "headers": {
+          "access-control-allow-credentials": "true",
+          "connection": "keep-alive",
+          "content-length": "19",
+          "content-type": "application/json; charset=utf-8",
+          "cross-origin-opener-policy": "same-origin",
+          "cross-origin-resource-policy": "same-origin",
+          "date": "Mon, 08 Jun 2026 00:53:01 GMT",
+          "etag": "W/\"13-QvXDboJrr9O59G2mCyhuEgGwlEg\"",
+          "keep-alive": "timeout=5",
+          "origin-agent-cluster": "?1",
+          "referrer-policy": "no-referrer",
+          "strict-transport-security": "max-age=31536000; includeSubDomains",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-dns-prefetch-control": "off",
+          "x-download-options": "noopen",
+          "x-frame-options": "SAMEORIGIN",
+          "x-permitted-cross-domain-policies": "none",
+          "x-xss-protection": "0"
+        }
+      }
+    },
+    {
+      "id": "SEC-09",
+      "name": "CORS restringe origen no autorizado",
+      "ok": true,
+      "detail": "Origin: http://origen-malicioso.ejemplo",
+      "expected": "Sin Access-Control-Allow-Origin para origen malicioso",
+      "actualStatus": 403,
+      "response": {
+        "allowOrigin": null
+      }
+    }
+  ]
+}

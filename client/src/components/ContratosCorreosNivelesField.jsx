@@ -33,25 +33,37 @@ const CONFIG_NIVELES = {
   },
 };
 
+function filasVisibles(lista) {
+  return Array.isArray(lista) && lista.length > 0 ? lista : [{ nombre: '', correo: '' }];
+}
+
 function CorreoNivelLista({ nivelKey, lista, onChange, disabled, label, tooltip, error }) {
-  const actualizar = (index, campo, valor) => {
-    onChange(
-      lista.map((c, i) => (i === index ? { ...c, [campo]: valor } : c))
-    );
+  const filas = filasVisibles(lista);
+
+  const actualizarCorreo = (index, valor) => {
+    const base = lista.length > 0 ? lista.map((c) => ({ ...c })) : [{ nombre: '', correo: '' }];
+    base[index] = { ...normalizarContactoNotificacion(base[index]), correo: valor };
+    onChange(base);
   };
 
   const quitar = (index) => {
+    if (lista.length <= 1) {
+      onChange([]);
+      return;
+    }
     onChange(lista.filter((_, i) => i !== index));
   };
 
   const agregar = () => {
-    if (lista.length >= MAX_CONTACTOS_POR_NIVEL) return;
-    onChange([...lista, { nombre: '', correo: '' }]);
+    const base = lista.length > 0 ? lista : [{ nombre: '', correo: '' }];
+    if (base.length >= MAX_CONTACTOS_POR_NIVEL) return;
+    onChange([...base, { nombre: '', correo: '' }]);
   };
 
+  const totalGuardados = lista.filter((c) => String(c?.correo || '').trim()).length;
   const ayuda =
-    lista.length > 0
-      ? `${tooltip} (${lista.length} contacto${lista.length === 1 ? '' : 's'})`
+    totalGuardados > 0
+      ? `${tooltip} (${totalGuardados} correo${totalGuardados === 1 ? '' : 's'})`
       : tooltip;
 
   return (
@@ -59,63 +71,54 @@ function CorreoNivelLista({ nivelKey, lista, onChange, disabled, label, tooltip,
       className={`contrato-contactos-notif contrato-correo-nivel-block${error ? ' minimal-field--invalid' : ''}`}
       data-contrato-field={nivelKey}
     >
-      <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
-        <label className="minimal-label mb-0 contrato-anexos-label-tip" title={ayuda}>
-          {label}
-        </label>
-        {!disabled && (
-          <button
-            type="button"
-            className="contrato-contactos-notif-add"
-            onClick={agregar}
-            disabled={lista.length >= MAX_CONTACTOS_POR_NIVEL}
-            title={`Agregar correo — ${label}`}
-            aria-label={`Agregar correo — ${label}`}
-          >
-            +
-          </button>
-        )}
-      </div>
+      <label className="minimal-label contrato-correo-nivel-block__label contrato-anexos-label-tip" title={ayuda}>
+        {label}
+      </label>
 
-      {lista.length > 0 ? (
-        <div className="contrato-contactos-notif-list mb-2">
-          {lista.map((c, idx) => (
-            <div key={`${nivelKey}-${idx}`} className="contrato-contactos-notif-row">
-              <input
-                type="text"
-                className="minimal-input contrato-contactos-notif-nombre"
-                placeholder="Nombre o cargo"
-                value={c.nombre || ''}
-                onChange={(e) => actualizar(idx, 'nombre', e.target.value)}
-                disabled={disabled}
-                aria-label={`Nombre o cargo, ${label} ${idx + 1}`}
-              />
-              <input
-                type="email"
-                className={`minimal-input contrato-contactos-notif-correo ${
-                  c.correo && !isValidEmailNotificacion(c.correo) ? 'is-invalid' : ''
-                }`}
-                placeholder="correo@dominio.com"
-                value={c.correo || ''}
-                onChange={(e) => actualizar(idx, 'correo', e.target.value)}
-                disabled={disabled}
-                aria-label={`Correo, ${label} ${idx + 1}`}
-              />
-              {!disabled && (
+      <div className="contrato-correo-nivel-lines">
+        {filas.map((c, idx) => (
+          <div key={`${nivelKey}-${idx}`} className="contrato-correo-nivel-line">
+            <input
+              type="email"
+              className={`minimal-input contrato-correo-nivel-line__input contrato-contactos-notif-correo ${
+                c.correo && !isValidEmailNotificacion(c.correo) ? 'is-invalid' : ''
+              }`}
+              placeholder="correo@dominio.com"
+              value={c.correo || ''}
+              onChange={(e) => actualizarCorreo(idx, e.target.value)}
+              disabled={disabled}
+              aria-label={`${label.replace(':', '')} ${idx + 1}`}
+            />
+
+            {!disabled ? (
+              idx === 0 ? (
                 <button
                   type="button"
-                  className="contrato-contactos-notif-remove"
+                  className="contrato-contactos-notif-add contrato-correo-nivel-line__action"
+                  onClick={agregar}
+                  disabled={Math.max(lista.length, 1) >= MAX_CONTACTOS_POR_NIVEL}
+                  title={`Agregar otro correo — ${label}`}
+                  aria-label={`Agregar otro correo — ${label}`}
+                >
+                  +
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="contrato-contactos-notif-remove contrato-correo-nivel-line__action"
                   onClick={() => quitar(idx)}
                   title="Quitar correo"
-                  aria-label={`Quitar ${label} ${idx + 1}`}
+                  aria-label={`Quitar ${label.replace(':', '')} ${idx + 1}`}
                 >
                   ×
                 </button>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : null}
+              )
+            ) : (
+              <span className="contrato-correo-nivel-line__action-spacer" aria-hidden="true" />
+            )}
+          </div>
+        ))}
+      </div>
 
       {error ? <small className="minimal-field__error">{error}</small> : null}
     </div>

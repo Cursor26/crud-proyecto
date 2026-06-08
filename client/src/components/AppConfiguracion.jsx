@@ -90,7 +90,7 @@ const CONFIG_TABS = [
 ];
 
 function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdated = null }) {
-  const { preferences, resolved, syncState, updatePreference, resetPreferences, syncNow } =
+  const { preferences, resolved, syncState, updatePreference, resetPreferences } =
     useAppPreferences();
   const { can } = usePermissions();
   const [activeTab, setActiveTab] = useState('tema');
@@ -144,9 +144,6 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
   const actionBar = (
     <>
       <span className="badge text-bg-light border me-2 align-self-center">{syncLabel}</span>
-      <button type="button" className={`${BTN_CONSULTAR} me-2`} onClick={syncNow}>
-        Sincronizar ahora
-      </button>
       <button type="button" className={BTN_CANCELAR} onClick={handleReset}>
         Restablecer predeterminados
       </button>

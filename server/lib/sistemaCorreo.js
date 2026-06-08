@@ -11,8 +11,10 @@ const CONFIG_KEYS = [
   'use_db_config',
 ];
 
+const { resolveJwtSecret } = require('./securityConfig');
+
 const deriveKey = () => {
-  const secret = process.env.JWT_SECRET || 'config-fallback-key-change-me';
+  const secret = resolveJwtSecret();
   return crypto.createHash('sha256').update(String(secret)).digest();
 };
 

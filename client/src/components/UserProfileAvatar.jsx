@@ -10,13 +10,15 @@ import {
   readImageFileAsDataUrl,
   saveProfilePhoto,
 } from '../lib/profilePhoto';
+import { confirmDestructiveAction } from '../lib/confirmAction';
 
-function UserProfileAvatar({ user, className = 'dashboard-user-avatar', onPhotoUpdated }) {
+function UserProfileAvatar({ user, className = 'dashboard-user-avatar', onPhotoUpdated, menuAlign = 'end' }) {
   const hostRef = useRef(null);
   const fileRef = useRef(null);
   const croppedAreaPixelsRef = useRef(null);
   const [photo, setPhoto] = useState(user?.fotoPerfil || null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
   const [cropImage, setCropImage] = useState(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -77,6 +79,11 @@ function UserProfileAvatar({ user, className = 'dashboard-user-avatar', onPhotoU
 
   const displaySrc = photo || DEFAULT_PROFILE_PHOTO;
 
+  const openViewPhoto = () => {
+    setMenuOpen(false);
+    setViewOpen(true);
+  };
+
   const openFilePicker = () => {
     setMenuOpen(false);
     window.requestAnimationFrame(() => {
@@ -126,15 +133,12 @@ function UserProfileAvatar({ user, className = 'dashboard-user-avatar', onPhotoU
 
   const handleRemovePhoto = async () => {
     setMenuOpen(false);
-    const result = await Swal.fire({
-      icon: 'question',
+    const confirmed = await confirmDestructiveAction(true, {
       title: 'Eliminar foto de perfil',
       text: 'Volverás a usar la imagen predeterminada.',
-      showCancelButton: true,
-      confirmButtonText: 'Eliminar',
-      cancelButtonText: 'Cancelar',
+      confirmText: 'Eliminar',
     });
-    if (!result.isConfirmed) return;
+    if (!confirmed) return;
     setSaving(true);
     try {
       await saveProfilePhoto(null);
@@ -165,7 +169,14 @@ function UserProfileAvatar({ user, className = 'dashboard-user-avatar', onPhotoU
       </button>
 
       {menuOpen ? (
-        <div className="profile-photo-menu" role="menu">
+        <div
+          className={`profile-photo-menu${menuAlign === 'start' ? ' profile-photo-menu--align-start' : ''}`}
+          role="menu"
+        >
+          <button type="button" className="profile-photo-menu__item" role="menuitem" onClick={openViewPhoto}>
+            <i className="bi bi-eye me-2" aria-hidden="true" />
+            Ver foto
+          </button>
           <button type="button" className="profile-photo-menu__item" role="menuitem" onClick={openFilePicker}>
             <i className="bi bi-camera me-2" aria-hidden="true" />
             Cambiar foto de perfil
@@ -191,6 +202,15 @@ function UserProfileAvatar({ user, className = 'dashboard-user-avatar', onPhotoU
         className="profile-photo-file-input"
         onChange={handleFileChange}
       />
+
+      <Modal show={viewOpen} onHide={() => setViewOpen(false)} centered className="profile-photo-view-modal">
+        <Modal.Header closeButton>
+          <Modal.Title>Foto de perfil</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="profile-photo-view-modal__body">
+          <img src={displaySrc} alt="Foto de perfil ampliada" className="profile-photo-view-modal__img" />
+        </Modal.Body>
+      </Modal>
 
       <Modal show={cropOpen} onHide={closeCropModal} centered size="lg" className="profile-photo-modal">
         <Modal.Header closeButton={!saving}>

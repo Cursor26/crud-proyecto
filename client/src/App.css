@@ -147,6 +147,11 @@ margin-top: 15px;
   --accion-eliminar-hover: #c82333;
   --accion-eliminar-active: #bd2130;
   --accion-eliminar-disabled: #ea868f;
+  /* Eliminar en UI clara (tablas, modales): fondo rosa pálido → rojo sólido al hover */
+  --accion-eliminar-light-bg: #fee2e2;
+  --accion-eliminar-light-border: #fca5a5;
+  --accion-eliminar-light-text: #b91c1c;
+  --accion-eliminar-solid-hover: #dc2626;
   /* Modales: acento estructural (filo, titular, focus) — alineado con tablas Contratos */
   --modal-accent: var(--theme-accent, #14532d);
   --modal-accent-deep: var(--theme-accent-deep, #0f3d24);
@@ -984,6 +989,34 @@ body.app-pin-submenus .mi-dropdown-sidebar > .dropdown-toggle {
   border-radius: 0.65rem;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
   pointer-events: auto;
+}
+
+.profile-photo-menu--align-start {
+  left: 0;
+  right: auto;
+}
+
+.user-profile-settings .profile-photo-menu {
+  z-index: 1200;
+}
+
+.profile-photo-view-modal__body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: #f8fafc;
+}
+
+.profile-photo-view-modal__img {
+  display: block;
+  max-width: min(100%, 22rem);
+  max-height: min(70vh, 22rem);
+  width: auto;
+  height: auto;
+  border-radius: 0.75rem;
+  object-fit: contain;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 
 .profile-photo-menu__item {
@@ -3437,25 +3470,28 @@ body.app-pin-submenus .mi-dropdown-sidebar > .dropdown-toggle {
   cursor: not-allowed !important;
 }
 
-/* Destructivo: icono advertencia + cancelar (¿Eliminar…?, Sí eliminar, etc.) */
+/* Destructivo: icono advertencia + cancelar (¿Eliminar…?, Sí eliminar, etc.) — claro → oscuro al hover */
 .swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) .swal2-confirm {
-  background-color: var(--accion-eliminar) !important;
-  color: #ffffff !important;
-  border: 1px solid #a71d2a !important;
-  box-shadow: var(--btn-win11-shadow-neutral), 0 4px 12px rgba(220, 53, 69, 0.22) !important;
+  background-color: var(--accion-eliminar-light-bg, #fee2e2) !important;
+  color: var(--accion-eliminar-light-text, #b91c1c) !important;
+  border: 1px solid var(--accion-eliminar-light-border, #fca5a5) !important;
+  box-shadow: var(--btn-win11-shadow-neutral) !important;
 }
 
 .swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) .swal2-confirm:hover {
-  background-color: var(--accion-eliminar-hover) !important;
-  border-color: #8b1520 !important;
-  box-shadow: var(--btn-win11-shadow-hover), 0 6px 18px rgba(220, 53, 69, 0.28) !important;
-  filter: brightness(1.02);
+  background-color: var(--accion-eliminar-solid-hover, #dc2626) !important;
+  border-color: var(--accion-eliminar-light-text, #b91c1c) !important;
+  color: #ffffff !important;
+  box-shadow: var(--btn-win11-shadow-hover), 0 2px 8px rgba(220, 38, 38, 0.45) !important;
+  filter: none;
 }
 
 .swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) .swal2-confirm:active {
-  background-color: var(--accion-eliminar-active) !important;
+  background-color: var(--accion-eliminar-hover, #c82333) !important;
+  border-color: var(--accion-eliminar-active, #bd2130) !important;
+  color: #ffffff !important;
   box-shadow: var(--btn-win11-shadow-pressed) !important;
-  filter: brightness(0.97);
+  filter: none;
 }
 
 .swal2-popup:has(.swal2-icon.swal2-warning):has(.swal2-cancel) .swal2-confirm:focus-visible {
@@ -4129,9 +4165,9 @@ body .btn:not(.btn-link) {
 /* Quitar / eliminar (rojo claro) — rectangular, oscurece al hover */
 .contratos-btn-remove.btn,
 .dashboard-main .btn.contratos-btn-remove {
-  background: #fee2e2 !important;
-  border: 1px solid #fca5a5 !important;
-  color: #b91c1c !important;
+  background: var(--accion-eliminar-light-bg, #fee2e2) !important;
+  border: 1px solid var(--accion-eliminar-light-border, #fca5a5) !important;
+  color: var(--accion-eliminar-light-text, #b91c1c) !important;
   border-radius: 0 !important;
   font-weight: 600;
   transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
@@ -4139,8 +4175,8 @@ body .btn:not(.btn-link) {
 
 .contratos-btn-remove.btn:hover:not(:disabled),
 .dashboard-main .btn.contratos-btn-remove:hover:not(:disabled) {
-  background: #dc2626 !important;
-  border-color: #b91c1c !important;
+  background: var(--accion-eliminar-solid-hover, #dc2626) !important;
+  border-color: var(--accion-eliminar-light-text, #b91c1c) !important;
   color: #ffffff !important;
   box-shadow: 0 2px 8px rgba(220, 38, 38, 0.45);
 }
@@ -7226,9 +7262,19 @@ body.app-high-contrast .dashboard-sidebar .nav-link.dashboard-nav-link {
   gap: 1rem;
 }
 
+.app-config-section.card .card-body {
+  overflow: visible;
+}
+
 .user-profile-settings__avatar-wrap {
   display: inline-flex;
   align-items: flex-start;
+  overflow: visible;
+}
+
+.user-profile-settings__photo,
+.user-profile-settings .dashboard-user-avatar-host {
+  overflow: visible;
 }
 
 .user-profile-settings__avatar-wrap .dashboard-user-avatar-host {
@@ -7238,6 +7284,122 @@ body.app-high-contrast .dashboard-sidebar .nav-link.dashboard-nav-link {
 .user-profile-settings__avatar-wrap .dashboard-user-avatar {
   width: 5.5rem !important;
   height: 5.5rem !important;
+}
+
+.user-profile-settings .form-control {
+  max-width: 16rem;
+  width: 100%;
+}
+
+.user-profile-settings .row:not(.user-profile-settings__password-row) > [class*='col-'] {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+}
+
+.user-profile-settings {
+  position: relative;
+}
+
+.user-profile-settings__password-row {
+  --bs-gutter-x: 0.55rem;
+  --bs-gutter-y: 0.65rem;
+}
+
+.user-profile-settings__autofill-trap {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.user-profile-settings__pw-no-autofill {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
+
+.user-profile-settings__password-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 16rem;
+}
+
+.user-profile-settings__password-row .user-profile-settings__password-wrap {
+  max-width: 14rem;
+}
+
+.user-profile-settings__password-wrap .form-control.user-profile-settings__pw-with-eye {
+  padding-right: 2.1rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.user-profile-settings__eye-btn {
+  position: absolute;
+  right: 0.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  padding: 0;
+  line-height: 1;
+}
+
+.user-profile-settings__eye-btn:hover {
+  color: #1e3a5f;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.user-profile-settings__eye-btn:focus-visible {
+  outline: 2px solid #1e3a5f;
+  outline-offset: 1px;
+}
+
+.user-profile-settings__password-row .form-control {
+  width: 14rem;
+  max-width: 14rem;
+}
+
+@media (min-width: 768px) {
+  .user-profile-settings__password-row > .col-md-4 {
+    flex: 0 0 auto;
+    width: auto;
+  }
+}
+
+.user-profile-settings__password-hint {
+  display: block;
+  max-width: 14rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 767.98px) {
+  .user-profile-settings .form-control {
+    max-width: 100%;
+  }
+
+  .user-profile-settings .row:not(.user-profile-settings__password-row) > [class*='col-'] {
+    width: 100%;
+  }
+
+  .user-profile-settings__password-row .form-control {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .user-profile-settings__password-hint {
+    max-width: 100%;
+  }
 }
 
 .app-config-page {
@@ -7808,6 +7970,36 @@ html {
 .contrato-contactos-notif-add:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.contrato-correo-nivel-block__label {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.contrato-correo-nivel-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.contrato-correo-nivel-line {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.contrato-correo-nivel-line__input {
+  flex: 0 1 22rem;
+  min-width: 10rem;
+  max-width: 22rem;
+  width: 100%;
+}
+
+.contrato-correo-nivel-line__action,
+.contrato-correo-nivel-line__action-spacer {
+  flex: 0 0 2rem;
+  width: 2rem;
 }
 
 .contrato-contactos-notif-row {

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { validarNumeroContratoUnico } = require('./contratosNumeroUnico');
 
 function usuarioDesdeReq(req) {
   return String(req.user?.email || req.user?.nombre || '').trim() || null;
@@ -26,6 +27,10 @@ async function aplicarDatosContratoDesdeBody(dbQuery, deps, numeroWhere, body) {
   const { contactosJson, correoPrincipal, nivelesJson } = prepareContactosNivelesForSave(body);
   const anexosJson = prepareAnexosForSave(body);
   const numeroNuevo = String(body.numero_contrato || numeroWhere || '').trim();
+
+  if (numeroNuevo !== String(numeroWhere || '').trim()) {
+    await validarNumeroContratoUnico(dbQuery, numeroNuevo);
+  }
 
   const result = await dbQuery(
     `UPDATE contratos_generales

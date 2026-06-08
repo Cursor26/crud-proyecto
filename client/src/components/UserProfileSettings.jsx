@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 import UserProfileAvatar from './UserProfileAvatar';
 import { BTN_CONSULTAR, BTN_CANCELAR } from '../lib/actionButtonClasses';
+import { getApiErrorMessage } from '../axiosConfig';
 import {
   changeUserPassword,
   fetchUserProfile,
@@ -10,6 +11,48 @@ import {
   telefonoValidoOpcional,
 } from '../lib/userProfile';
 import { isValidEmail, passwordValidationForSubmit } from '../utils/userCredentialsValidation';
+
+/** Campo contraseña con ojito; antiAutofill evita sugerencias del navegador en campos nuevos. */
+function PasswordInputWithEye({ id, value, onChange, className, autoComplete, antiAutofill = false }) {
+  const [visible, setVisible] = useState(false);
+
+  const type = antiAutofill || visible ? 'text' : 'password';
+  const inputClass = [
+    className,
+    'user-profile-settings__pw-with-eye',
+    antiAutofill && !visible ? 'user-profile-settings__pw-no-autofill' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <div className="user-profile-settings__password-wrap">
+      <input
+        id={id}
+        name={antiAutofill ? id : undefined}
+        type={type}
+        inputMode="text"
+        spellCheck={false}
+        className={inputClass}
+        value={value}
+        onChange={onChange}
+        autoComplete={autoComplete ?? (antiAutofill ? 'off' : undefined)}
+        {...(antiAutofill
+          ? { 'data-1p-ignore': true, 'data-lpignore': 'true', 'data-form-type': 'other' }
+          : {})}
+      />
+      <button
+        type="button"
+        className="user-profile-settings__eye-btn"
+        onClick={() => setVisible((v) => !v)}
+        title={visible ? 'Ocultar contraseña' : 'Ver contraseña'}
+        aria-label={visible ? 'Ocultar contraseña' : 'Ver contraseña'}
+      >
+        <i className={visible ? 'bi bi-eye-slash' : 'bi bi-eye'} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
 
 export default function UserProfileSettings({ user, onProfileUpdated }) {
   const [loading, setLoading] = useState(true);
@@ -40,7 +83,7 @@ export default function UserProfileSettings({ user, onProfileUpdated }) {
       setEmailOriginal(String(data?.email || ''));
       setTelefono(data?.telefono ? String(data.telefono) : '');
     } catch (err) {
-      Swal.fire('Error', err.response?.data?.message || err.message || 'No se pudo cargar el perfil', 'error');
+      Swal.fire('Error', getApiErrorMessage(err, 'No se pudo cargar el perfil'), 'error');
     } finally {
       setLoading(false);
     }
@@ -100,7 +143,7 @@ export default function UserProfileSettings({ user, onProfileUpdated }) {
       }
       await Swal.fire('Guardado', 'Datos de cuenta actualizados.', 'success');
     } catch (err) {
-      Swal.fire('Error', err.response?.data?.message || err.message || 'No se pudo guardar', 'error');
+      Swal.fire('Error', getApiErrorMessage(err, 'No se pudo guardar'), 'error');
     } finally {
       setSavingProfile(false);
     }
@@ -108,9 +151,15 @@ export default function UserProfileSettings({ user, onProfileUpdated }) {
 
   const validarPassword = () => {
     const errs = {};
-    if (!currentPassword.trim()) errs.currentPassword = 'Indique su contraseña actual.';
-    const fb = passwordValidationForSubmit(newPassword, { required: true, allowOmit: false });
+    const actual = currentPassword.trim();
+    const nueva = newPassword.trim();
+
+    if (!actual) errs.currentPassword = 'Indique su contraseña actual.';
+    const fb = passwordValidationForSubmit(nueva, { required: true, allowOmit: false });
     if (!fb.ok) errs.newPassword = fb.message;
+    if (nueva && actual && nueva === actual) {
+      errs.newPassword = 'La nueva contraseña debe ser distinta de la actual.';
+    }
     if (newPassword !== newPasswordConfirm) errs.newPasswordConfirm = 'Las contraseñas no coinciden.';
     setPasswordErrors(errs);
     return Object.keys(errs).length === 0;
@@ -119,6 +168,7 @@ export default function UserProfileSettings({ user, onProfileUpdated }) {
   const guardarPassword = async () => {
     if (!validarPassword()) return;
     setSavingPassword(true);
+    setPasswordErrors({});
     try {
       await changeUserPassword({
         currentPassword: currentPassword.trim(),
@@ -129,7 +179,13 @@ export default function UserProfileSettings({ user, onProfileUpdated }) {
       setNewPasswordConfirm('');
       await Swal.fire('Listo', 'Contraseña actualizada correctamente.', 'success');
     } catch (err) {
-      Swal.fire('Error', err.response?.data?.message || err.message || 'No se pudo cambiar la contraseña', 'error');
+      const msg = getApiErrorMessage(err, 'No se pudo cambiar la contraseña');
+      if (err.response?.status === 401 || /contraseña actual incorrecta/i.test(msg)) {
+        setPasswordErrors({ currentPassword: 'Contraseña actual incorrecta.' });
+        Swal.fire('Error', 'La contraseña actual no es correcta. No se realizó ningún cambio.', 'error');
+      } else {
+        Swal.fire('Error', msg, 'error');
+      }
     } finally {
       setSavingPassword(false);
     }
@@ -144,7 +200,12 @@ export default function UserProfileSettings({ user, onProfileUpdated }) {
       <div className="user-profile-settings__photo mb-3">
         <label className="form-label small fw-semibold d-block">Foto de perfil</label>
         <div className="user-profile-settings__avatar-wrap">
-          <UserProfileAvatar user={user} onPhotoUpdated={handlePhotoUpdated} className="dashboard-user-avatar" />
+          <UserProfileAvatar
+            user={user}
+            onPhotoUpdated={handlePhotoUpdated}
+            className="dashboard-user-avatar"
+            menuAlign="start"
+          />
         </div>
         <p className="text-muted small mb-0 mt-2">Use el botón sobre la foto para cambiar o quitar la imagen.</p>
       </div>
@@ -200,9 +261,8 @@ export default function UserProfileSettings({ user, onProfileUpdated }) {
             <label className="form-label small fw-semibold" htmlFor="profile-current-pw-email">
               Contraseña actual (para cambiar correo)
             </label>
-            <input
+            <PasswordInputWithEye
               id="profile-current-pw-email"
-              type="password"
               className={`form-control form-control-sm${profileErrors.currentPasswordProfile ? ' is-invalid' : ''}`}
               value={currentPasswordProfile}
               onChange={(e) => setCurrentPasswordProfile(e.target.value)}
@@ -224,14 +284,17 @@ export default function UserProfileSettings({ user, onProfileUpdated }) {
       <hr className="my-3" />
 
       <h6 className="fw-semibold mb-2">Cambiar contraseña</h6>
-      <div className="row g-3 mb-3">
+      <div className="user-profile-settings__autofill-trap" aria-hidden="true">
+        <input tabIndex={-1} type="text" name="fake-user" autoComplete="username" readOnly />
+        <input tabIndex={-1} type="password" name="fake-pass" autoComplete="current-password" readOnly />
+      </div>
+      <div className="row g-2 mb-3 user-profile-settings__password-row">
         <div className="col-md-4">
           <label className="form-label small fw-semibold" htmlFor="profile-current-pw">
             Contraseña actual
           </label>
-          <input
+          <PasswordInputWithEye
             id="profile-current-pw"
-            type="password"
             className={`form-control form-control-sm${passwordErrors.currentPassword ? ' is-invalid' : ''}`}
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
@@ -245,31 +308,31 @@ export default function UserProfileSettings({ user, onProfileUpdated }) {
           <label className="form-label small fw-semibold" htmlFor="profile-new-pw">
             Nueva contraseña
           </label>
-          <input
+          <PasswordInputWithEye
             id="profile-new-pw"
-            type="password"
             className={`form-control form-control-sm${passwordErrors.newPassword ? ' is-invalid' : ''}`}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            autoComplete="new-password"
+            antiAutofill
           />
           {passwordErrors.newPassword ? (
             <div className="invalid-feedback d-block">{passwordErrors.newPassword}</div>
           ) : (
-            <small className="text-muted">Mínimo 8 caracteres, mayúscula, minúscula y número.</small>
+            <small className="text-muted user-profile-settings__password-hint">
+              Mínimo 8 caracteres, mayúscula, minúscula y número.
+            </small>
           )}
         </div>
         <div className="col-md-4">
           <label className="form-label small fw-semibold" htmlFor="profile-new-pw2">
             Confirmar nueva contraseña
           </label>
-          <input
+          <PasswordInputWithEye
             id="profile-new-pw2"
-            type="password"
             className={`form-control form-control-sm${passwordErrors.newPasswordConfirm ? ' is-invalid' : ''}`}
             value={newPasswordConfirm}
             onChange={(e) => setNewPasswordConfirm(e.target.value)}
-            autoComplete="new-password"
+            antiAutofill
           />
           {passwordErrors.newPasswordConfirm ? (
             <div className="invalid-feedback d-block">{passwordErrors.newPasswordConfirm}</div>
