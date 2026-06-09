@@ -50,6 +50,12 @@ export function esDevueltoPorAbogado(con) {
   return ['observado', 'rechazado', 'correcciones_requeridas'].includes(rev);
 }
 
+/** Alta/edición: tipo de devolución y adjuntos. Cancelar/eliminar: solo motivo. */
+export function esRechazoJuridicoConOpciones(accion) {
+  const a = String(accion || '').trim().toLowerCase();
+  return a === 'alta' || a === 'edicion';
+}
+
 export const TIPOS_RECHAZO_JURIDICO_OPCIONES = [
   { value: 'observado', label: 'Observado (devolver con observaciones)' },
   { value: 'correcciones_requeridas', label: 'Correcciones requeridas' },

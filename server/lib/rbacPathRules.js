@@ -85,7 +85,9 @@ function resolveRouteAction(method, rawPath) {
       return { module: 'contratos', action: 'verify' };
     }
     if (path.includes('/juridico-comentarios')) {
-      return { module: 'contratos', action: m === 'GET' ? 'view' : 'verify' };
+      if (m === 'GET') return { module: 'contratos', action: 'view' };
+      if (path.includes('/realizado')) return { module: 'contratos', action: 'verify' };
+      return { module: 'contratos', action: 'verify' };
     }
     if (path.includes('/juridico-adjuntos')) {
       return { module: 'contratos', action: 'view' };
@@ -97,6 +99,9 @@ function resolveRouteAction(method, rawPath) {
       return { module: 'contratos', action: 'approve' };
     }
     if (path === '/send-contrato-reminder') return { module: 'contratos', action: 'approve' };
+    if (path === '/contratos/exportar-expediente' && m === 'POST') {
+      return { module: 'contratos', action: 'export' };
+    }
     return { module: 'contratos', action: actionFromMethod(m) };
   }
 

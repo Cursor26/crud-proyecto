@@ -13,6 +13,7 @@ export default function ContratosRechazoDetalleModal({
   accionLabel,
   adjuntos = [],
   onDescargarAdjunto,
+  onPrevisualizarAdjunto,
   fmtFecha,
 }) {
   useEffect(() => {
@@ -84,17 +85,36 @@ export default function ContratosRechazoDetalleModal({
             {adjuntos.length === 0 ? (
               <p className="small text-muted mb-0">Sin documentos adjuntos.</p>
             ) : (
-              <ul className="list-unstyled mb-0">
+              <ul className="list-unstyled mb-0 contratos-pdf-modal-list">
                 {adjuntos.map((adj) => (
-                  <li key={adj.id} className="mb-1">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary"
-                      onClick={() => onDescargarAdjunto?.(numero, adj.id, adj.nombre_archivo)}
-                    >
+                  <li key={adj.id} className="contratos-pdf-modal-list__item mb-1">
+                    <small className="text-muted text-truncate flex-grow-1" title={adj.nombre_archivo}>
                       <i className="bi bi-paperclip me-1" aria-hidden="true" />
                       {adj.nombre_archivo}
-                    </button>
+                    </small>
+                    <div className="d-inline-flex align-items-center gap-1 flex-shrink-0">
+                      {typeof onPrevisualizarAdjunto === 'function' ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm contratos-btn-view"
+                          onClick={() =>
+                            onPrevisualizarAdjunto(numero, adj.id, adj.nombre_archivo)
+                          }
+                        >
+                          <i className="bi bi-eye me-1" aria-hidden="true" />
+                          Ver
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={() => onDescargarAdjunto?.(numero, adj.id, adj.nombre_archivo)}
+                        title="Descargar"
+                        aria-label={`Descargar ${adj.nombre_archivo}`}
+                      >
+                        <i className="bi bi-download" aria-hidden="true" />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

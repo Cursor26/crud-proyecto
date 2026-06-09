@@ -140,6 +140,7 @@ const {
   retirarSolicitudDevuelta,
   listarComentarios,
   agregarComentario,
+  marcarComentarioRealizado,
 } = require('./lib/contratosRevisionJuridica');
 const {
   listarAdjuntos: listarAdjuntosJuridico,
@@ -147,7 +148,10 @@ const {
 } = require('./lib/contratosJuridicoAdjuntos');
 const { ejecutarArchivoContrato } = require('./lib/contratosArchivo');
 const { validarNumeroContratoUnico } = require('./lib/contratosNumeroUnico');
+const { createContratosExportExpedienteService } = require('./lib/contratosExportExpediente');
 const mailHealth = require('./lib/mailHealth');
+const contratosExportExpediente = createContratosExportExpedienteService(dbQuery);
+console.log('[export-expediente] Formato índice: PDF (indice_contratos.pdf)');
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const hashResetToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -694,10 +698,8 @@ const ensureContratoAprobacionColumns = async () => {
   }
 };
 
-const ensureContratoRevisionJuridicaSchema = async () => {
-  const fs = require('fs');
-  const path = require('path');
-  const sqlPath = path.join(__dirname, 'sql', 'contratos_revision_juridica.sql');
+const runSqlMigrationFile = async (filename) => {
+  const sqlPath = path.join(__dirname, 'sql', filename);
   const raw = fs.readFileSync(sqlPath, 'utf8');
   const statements = raw
     .split(';')
@@ -712,6 +714,11 @@ const ensureContratoRevisionJuridicaSchema = async () => {
       }
     }
   }
+};
+
+const ensureContratoRevisionJuridicaSchema = async () => {
+  await runSqlMigrationFile('contratos_revision_juridica.sql');
+  await runSqlMigrationFile('contratos_juridico_comentarios_realizado.sql');
 };
 
 const ensureDirectorContratosApprove = async () => {
@@ -2349,8 +2356,12 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), asyn
     });
     if (errNiveles) return res.status(400).json({ message: errNiveles });
 
+    const operacion = String(body.operacion || '').trim().toLowerCase();
+    const renovacionConEdicion = Boolean(body.renovacion_con_edicion);
+
     const existentes = await dbQuery(
-      `SELECT numero_contrato, aprobacion_estado, aprobacion_accion
+      `SELECT numero_contrato, aprobacion_estado, aprobacion_accion, COALESCE(cancelado, 0) AS cancelado,
+              CASE WHEN fecha_fin IS NOT NULL AND fecha_fin < CURDATE() THEN 1 ELSE 0 END AS vencido
          FROM contratos_generales
         WHERE numero_contrato = ?
         LIMIT 1`,
@@ -2365,6 +2376,48 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), asyn
     const actual = existentes[0];
     const estadoAprob = normalizarAprobacionEstado(actual.aprobacion_estado);
     const accionAprob = String(actual.aprobacion_accion || '').toLowerCase();
+
+    if (operacion !== 'renovacion') {
+      if (Number(actual.cancelado) === 1) {
+        return res.status(400).json({
+          message: 'No se puede editar un contrato cancelado. Use Renovar para reactivarlo.',
+        });
+      }
+      if (Number(actual.vencido) === 1) {
+        return res.status(400).json({
+          message: 'No se puede editar un contrato vencido. Use Renovar para reactivarlo.',
+        });
+      }
+    }
+
+    if (operacion === 'renovacion' && !renovacionConEdicion) {
+      const { result, numeroNuevo: numFinal } = await aplicarDatosContratoDesdeBody(
+        dbQuery,
+        contratoAprobacionDeps(),
+        numeroContratoWhere,
+        body
+      );
+      try {
+        await contratosAuditoria.logContrato(req, {
+          action: 'contrato_renovado',
+          numero: numFinal,
+          empresa,
+          details: {
+            fecha_inicio,
+            fecha_fin,
+            solicitado_por: solicitadoPor,
+          },
+        });
+      } catch (auditErr) {
+        console.warn('audit contrato renovado:', auditErr?.message || auditErr);
+      }
+      return res.json({
+        ok: true,
+        affectedRows: Number(result.affectedRows) || 0,
+        numero_contrato: numFinal,
+        message: 'Contrato renovado correctamente.',
+      });
+    }
 
     if (estadoAprob === 'pendiente' && accionAprob === 'cancelacion') {
       return res.status(409).json({
@@ -2845,7 +2898,16 @@ app.post(
   async (req, res) => {
     const numero = String(req.params.numero_contrato || '').trim();
     if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+    const accion = String(req.body?.accion || 'crear').trim().toLowerCase();
     try {
+      if (accion === 'marcar_realizado') {
+        const result = await marcarComentarioRealizado(dbQuery, numero, req.body?.id_comentario, {
+          realizado: req.body?.realizado,
+          usuario: usuarioDesdeReq(req),
+        });
+        return res.json(result);
+      }
+
       const result = await agregarComentario(dbQuery, numero, {
         email: req.user?.email,
         nombre: req.user?.nombre,
@@ -3403,6 +3465,27 @@ app.delete(
     } catch (err) {
       console.log(err);
       return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  '/contratos/exportar-expediente',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    const numeros = Array.isArray(req.body?.numeros) ? req.body.numeros : [];
+    const exportadoPor = String(req.user?.email || req.user?.nombre || '').trim() || 'usuario';
+    try {
+      await contratosExportExpediente.streamExpedienteZip(res, { numeros, exportadoPor });
+    } catch (err) {
+      console.error('POST /contratos/exportar-expediente:', err);
+      if (!res.headersSent) {
+        return res
+          .status(err.status || 500)
+          .json({ message: err.message || 'No se pudo exportar el expediente.' });
+      }
+      res.end();
     }
   }
 );

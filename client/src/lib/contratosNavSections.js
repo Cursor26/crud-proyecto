@@ -26,20 +26,6 @@ export const CONTRATOS_MENU_SECTIONS = [
 
   {
 
-    id: 'tipos',
-
-    key: 'contratos-tipos',
-
-    icon: 'bi-tags',
-
-    label: 'Tipos de contrato',
-
-    requiresContratosEdit: true,
-
-  },
-
-  {
-
     id: 'correo',
 
     key: 'contratos-correo',
@@ -203,5 +189,10 @@ export function contratosNavKeyAllowed(navKey, canFn) {
   return canAccessContratosSection(sectionId, canFn);
 
 }
+
+/** Etiquetas estáticas para pestañas superiores (sin contadores). */
+export const CONTRATOS_SECTION_LABELS = Object.fromEntries(
+  CONTRATOS_MENU_SECTIONS.map((section) => [section.id, section.label])
+);
 
 

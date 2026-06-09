@@ -21,6 +21,11 @@ import GestionConfiguracion from './components/GestionConfiguracion';
 import ConfigCorreoServicio from './components/ConfigCorreoServicio';
 import { PuedeEscribirProvider } from './context/PuedeEscribirContext';
 import { AppPreferencesProvider, useAppPreferences } from './context/AppPreferencesContext';
+import {
+  ContratosNavCountsProvider,
+  contratosSidebarBadgeCount,
+  useContratosNavCounts,
+} from './context/ContratosNavCountsContext';
 import { NavPrefsInitializer, PinSubmenusSync, useDashboardNavHandlers } from './hooks/useDashboardNav';
 import useNativeTooltips from './hooks/useNativeTooltips';
 import { formatAppDate, formatAppTime } from './lib/formatAppDate';
@@ -84,14 +89,29 @@ function isContratosNavKey(navKey) {
   return navKey === 'contratos' || SIDEBAR_CONTRATOS_KEYS.has(navKey);
 }
 
+function ContratosSidebarNavContent({ item }) {
+  const counts = useContratosNavCounts();
+  const badge = contratosSidebarBadgeCount(item.sectionId, counts);
+  return (
+    <>
+      <i className={`bi ${item.icon} me-2 dashboard-sidebar-icon`} aria-hidden="true" />
+      <span className="dashboard-sidebar-label dashboard-sidebar-label--with-badge">{item.label}</span>
+      {badge > 0 ? (
+        <span className="dashboard-sidebar-badge" aria-label={`${badge} pendiente(s)`}>
+          {badge}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 function ContratosSidebarLinks({ itemClassName = 'mb-2', linkClassName = 'dashboard-nav-link p-1' }) {
   const { can } = usePermissions();
   const items = getContratosSidebarNavItems(can);
   return items.map((item) => (
     <Nav.Item key={item.eventKey} className={itemClassName}>
       <Nav.Link eventKey={item.eventKey} className={linkClassName} title={item.label}>
-        <i className={`bi ${item.icon} me-2 dashboard-sidebar-icon`} aria-hidden="true" />
-        <span className="dashboard-sidebar-label">{item.label}</span>
+        <ContratosSidebarNavContent item={item} />
       </Nav.Link>
     </Nav.Item>
   ));
@@ -438,6 +458,7 @@ function AppWithPermissions(props) {
   return (
     <AppPreferencesProvider userEmail={user.email}>
     <PuedeEscribirProvider puedeEscribir={puedeEscribir}>
+    <ContratosNavCountsProvider>
     <NavPrefsInitializer
       user={user}
       allowedKeys={allowedModuleKeys}
@@ -472,6 +493,7 @@ function AppWithPermissions(props) {
       mailStatus={mailStatus}
       necesitaCorreo={necesitaCorreo}
     />
+    </ContratosNavCountsProvider>
     </PuedeEscribirProvider>
     </AppPreferencesProvider>
   );
@@ -576,9 +598,9 @@ function DashboardShell(props) {
                   key={item.eventKey}
                   eventKey={item.eventKey}
                   active={key === item.eventKey}
+                  className="dashboard-sidebar-dropdown-item"
                 >
-                  <i className={`bi ${item.icon} me-2 dashboard-sidebar-icon`} aria-hidden="true" />
-                  <span className="dashboard-sidebar-label">{item.label}</span>
+                  <ContratosSidebarNavContent item={item} />
                 </NavDropdown.Item>
               ))}
             </NavDropdown>

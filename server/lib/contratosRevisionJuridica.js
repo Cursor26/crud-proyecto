@@ -86,13 +86,12 @@ function esDevueltoPorAbogadoEstado(revisionEstado) {
   return ESTADOS_DEVUELTOS.has(normalizarRevisionJuridicaEstado(revisionEstado));
 }
 
+function esRechazoJuridicoConOpciones(accion) {
+  const a = String(accion || '').trim().toLowerCase();
+  return a === 'alta' || a === 'edicion';
+}
+
 async function verificarRechazar(dbQuery, numero, resueltoPor, tipo, motivo, documentos = []) {
-  const tipoNorm = String(tipo || '').trim().toLowerCase();
-  if (!TIPOS_RECHAZO_JURIDICO.has(tipoNorm)) {
-    const err = new Error('Tipo de devolución jurídica no válido.');
-    err.status = 400;
-    throw err;
-  }
   const nota = String(motivo || '').trim().slice(0, 500);
   if (!nota) {
     const err = new Error('Debe indicar el motivo u observación jurídica.');
@@ -108,6 +107,19 @@ async function verificarRechazar(dbQuery, numero, resueltoPor, tipo, motivo, doc
   }
   assertRevisionPendiente(c);
 
+  const opcionesCompletas = esRechazoJuridicoConOpciones(c.aprobacion_accion);
+  let tipoNorm = String(tipo || '').trim().toLowerCase();
+  let docs = documentos;
+
+  if (!opcionesCompletas) {
+    tipoNorm = 'rechazado';
+    docs = [];
+  } else if (!TIPOS_RECHAZO_JURIDICO.has(tipoNorm)) {
+    const err = new Error('Tipo de devolución jurídica no válido.');
+    err.status = 400;
+    throw err;
+  }
+
   await dbQuery(
     `UPDATE contratos_generales
         SET revision_juridica_estado = ?,
@@ -118,7 +130,7 @@ async function verificarRechazar(dbQuery, numero, resueltoPor, tipo, motivo, doc
     [tipoNorm, resueltoPor, nota, numero]
   );
 
-  const adjuntos = await guardarAdjuntosRechazo(dbQuery, numero, tipoNorm, resueltoPor, documentos);
+  const adjuntos = await guardarAdjuntosRechazo(dbQuery, numero, tipoNorm, resueltoPor, docs);
 
   return {
     ok: true,
@@ -189,7 +201,9 @@ async function retirarSolicitudDevuelta(dbQuery, numero, solicitadoPor) {
 
 async function listarComentarios(dbQuery, numero) {
   return dbQuery(
-    `SELECT id, numero_contrato, autor_email, autor_nombre, tipo, texto, creado_en
+    `SELECT id, numero_contrato, autor_email, autor_nombre, tipo, texto,
+            COALESCE(realizado, 0) AS realizado,
+            realizado_por, realizado_en, creado_en
        FROM contratos_juridico_comentarios
       WHERE numero_contrato = ?
       ORDER BY creado_en ASC`,
@@ -234,7 +248,54 @@ async function agregarComentario(dbQuery, numero, { email, nombre, texto, tipo }
     numero_contrato: numero,
     tipo: t,
     texto: body,
+    realizado: 0,
   };
+}
+
+async function marcarComentarioRealizado(dbQuery, numero, idComentario, { realizado, usuario }) {
+  const id = Number(idComentario);
+  if (!id) {
+    const err = new Error('Comentario no válido.');
+    err.status = 400;
+    throw err;
+  }
+
+  const rows = await dbQuery(
+    `SELECT id, numero_contrato
+       FROM contratos_juridico_comentarios
+      WHERE id = ? AND numero_contrato = ?
+      LIMIT 1`,
+    [id, numero]
+  );
+  if (!rows.length) {
+    const err = new Error('Comentario no encontrado.');
+    err.status = 404;
+    throw err;
+  }
+
+  const marcar = Number(realizado) === 1 || realizado === true;
+  const quien = String(usuario || '').trim() || null;
+
+  await dbQuery(
+    `UPDATE contratos_juridico_comentarios
+        SET realizado = ?,
+            realizado_por = ?,
+            realizado_en = CASE WHEN ? = 1 THEN NOW() ELSE NULL END
+      WHERE id = ? AND numero_contrato = ?`,
+    [marcar ? 1 : 0, marcar ? quien : null, marcar ? 1 : 0, id, numero]
+  );
+
+  const actualizados = await dbQuery(
+    `SELECT id, numero_contrato, autor_email, autor_nombre, tipo, texto,
+            COALESCE(realizado, 0) AS realizado,
+            realizado_por, realizado_en, creado_en
+       FROM contratos_juridico_comentarios
+      WHERE id = ?
+      LIMIT 1`,
+    [id]
+  );
+
+  return actualizados[0] || { ok: true, id, realizado: marcar ? 1 : 0 };
 }
 
 function filtrarContratosParaAbogado(rows) {
@@ -263,5 +324,6 @@ module.exports = {
   retirarSolicitudDevuelta,
   listarComentarios,
   agregarComentario,
+  marcarComentarioRealizado,
   filtrarContratosParaAbogado,
 };

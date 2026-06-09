@@ -44,12 +44,14 @@ import {
   esColaJuridica,
   esColaAprobacionOperativa,
   esDevueltoPorAbogado,
+  esRechazoJuridicoConOpciones,
   etiquetaRevisionJuridica,
   claseBadgeRevisionJuridica,
   TIPOS_RECHAZO_JURIDICO_OPCIONES,
 } from '../lib/contratosRevisionJuridica';
 import ContratosCambiosPendientesModal from './ContratosCambiosPendientesModal';
 import ContratosRechazoDetalleModal from './ContratosRechazoDetalleModal';
+import ContratosJuridicoComentariosModal from './ContratosJuridicoComentariosModal';
 import ContratosAuditoria from './ContratosAuditoria';
 import {
   BTN_ANADIR_MD,
@@ -79,7 +81,18 @@ import {
   renumerarAnexosLista,
   cantidadAnexosContrato,
 } from '../lib/contratosAnexos';
-import { CONTRATOS_MENU_SECTIONS, canAccessContratosSection, getContratosTabSectionIds, firstAllowedContratosSection } from '../lib/contratosNavSections';
+import {
+  CONTRATOS_SECTION_LABELS,
+  canAccessContratosSection,
+  getContratosTabSectionIds,
+  firstAllowedContratosSection,
+} from '../lib/contratosNavSections';
+import { useContratosNavCounts } from '../context/ContratosNavCountsContext';
+import {
+  resolverNumerosExportacion,
+  buildResumenExportacionExpediente,
+  descargarExpedienteContratos,
+} from '../lib/contratosExportExpediente';
 
 /** Valores legacy numéricos en BD → etiquetas del formulario (Alimento, Servicio, Compra, Otro). */
 const MAP_TIPO_CONTRATO_NUM = {
@@ -273,6 +286,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const puedeCrearContratos = can('contratos', 'create');
   const puedeEditarContratos = can('contratos', 'edit');
   const puedeExportarContratos = can('contratos', 'export');
+  const { setNavCounts } = useContratosNavCounts();
   const puedeAprobarContratos = can('contratos', 'approve');
   const puedeVerificarContratos = can('contratos', 'verify');
   const tabSectionIds = useMemo(() => getContratosTabSectionIds(can), [can]);
@@ -282,6 +296,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   );
   const showCol = (id) => isColumnVisible(preferences, 'contratos', id);
   const visibleContratoColCount = CONTRATOS_LIST_COLUMNS.filter((c) => showCol(c.id)).length;
+  const tablaContratosColSpan = visibleContratoColCount + (puedeExportarContratos ? 1 : 0);
   const EMPRESA_ICONOS_STORAGE_KEY = 'contratos_empresa_iconos_v1';
   const CONTRATOS_PDF_STORAGE_KEY = 'contratos_pdf_archivos_v1';
   const CONTRATOS_SUPLEMENTOS_STORAGE_KEY = 'contratos_suplementos_v1';
@@ -304,13 +319,15 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const [editarContrato, setEditarContrato] = useState(false);
   const [contratosList, setContratos] = useState([]);
   const [showContratoModal, setShowContratoModal] = useState(false);
+  const [renovacionConEdicion, setRenovacionConEdicion] = useState(null);
   const [contratoFormErrors, setContratoFormErrors] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [filtroParte, setFiltroParte] = useState('todos');
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroVencimiento, setFiltroVencimiento] = useState('todos');
-  const [contratoSeleccionado, setContratoSeleccionado] = useState(null);
+  const [exportSeleccionados, setExportSeleccionados] = useState([]);
+  const [exportandoExpediente, setExportandoExpediente] = useState(false);
   const [activeSection, setActiveSection] = useState(vistaInicial);
   const [bandejaVencimientosModo, setBandejaVencimientosModo] = useState('todos');
   const [renovFechaDesde, setRenovFechaDesde] = useState('');
@@ -331,6 +348,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const [contratoInfo, setContratoInfo] = useState(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [rechazoDetalleContrato, setRechazoDetalleContrato] = useState(null);
+  const [juridicoComentariosContrato, setJuridicoComentariosContrato] = useState(null);
   const [adjuntosJuridicoMap, setAdjuntosJuridicoMap] = useState({});
   const [contratoCambios, setContratoCambios] = useState(null);
   const [showCambiosModal, setShowCambiosModal] = useState(false);
@@ -1366,8 +1384,14 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     return `${numero}__${empresa}__${fechaInicio}__${index}`;
   };
 
-  const toggleContratoSeleccionado = (rowId) => {
-    setContratoSeleccionado((prev) => (prev === rowId ? null : rowId));
+  const numeroContratoNorm = (con) => String(con?.numero_contrato || '').trim();
+
+  const toggleExportSeleccion = (numero) => {
+    const n = String(numero || '').trim();
+    if (!n) return;
+    setExportSeleccionados((prev) =>
+      prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]
+    );
   };
 
   const renderCeldaDocumentoPdf = (numeroContrato, contratoRow = null) => {
@@ -1632,6 +1656,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const cerrarModalContrato = () => {
     limpiarContrato();
+    setRenovacionConEdicion(null);
     setShowContratoModal(false);
   };
 
@@ -1696,7 +1721,13 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   };
 
   const updateContrato = () => {
-    const nuevaFechaFin = sumarTiempo(contratoFechaInicio);
+    const enRenovacionEdicion = renovacionConEdicion != null;
+    const fechaInicioGuardar = enRenovacionEdicion
+      ? contratoFechaInicio || renovacionConEdicion.fechaInicio
+      : contratoFechaInicio;
+    const nuevaFechaFin = enRenovacionEdicion
+      ? sumarTiempo(fechaInicioGuardar) || renovacionConEdicion.fechaFin
+      : sumarTiempo(contratoFechaInicio);
     const vencidoCalc = diasParaVencer(nuevaFechaFin) != null && diasParaVencer(nuevaFechaFin) < 0 ? 1 : 0;
     const numeroNuevo = String(contratoNumero || '').trim();
     const numeroOriginalRaw = contratoNumeroOriginal ?? '';
@@ -1716,9 +1747,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       vigencia: vigenciaParaGuardar(),
       tipo_contrato: contratoTipo,
       prioridad: contratoPrioridad,
-      fecha_inicio: contratoFechaInicio,
+      fecha_inicio: fechaInicioGuardar,
       fecha_fin: nuevaFechaFin,
       vencido: vencidoCalc,
+      ...(enRenovacionEdicion
+        ? { operacion: 'renovacion', renovacion_con_edicion: true }
+        : {}),
     };
     Axios.put(`${API_BASE}/update-contrato`, bodyUpdate)
       .then(async () => {
@@ -1766,8 +1800,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         }
         cerrarModalContrato();
         Swal.fire(
-          'Enviado a revisión',
-          'Los cambios quedaron pendientes. El contrato activo no se modifica hasta que se verifique la solicitud y posteriormente se autorice.',
+          enRenovacionEdicion ? 'Renovación enviada' : 'Enviado a revisión',
+          enRenovacionEdicion
+            ? 'La renovación con cambios quedó pendiente. El contrato activo no se modifica hasta que se verifique la solicitud y posteriormente se autorice.'
+            : 'Los cambios quedaron pendientes. El contrato activo no se modifica hasta que se verifique la solicitud y posteriormente se autorice.',
           'success'
         );
       })
@@ -1780,9 +1816,14 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       });
   };
 
-  const esContratoVencido = (con) => con?.estado === 'Vencido';
+  const esContratoVencido = (con) => {
+    if (con?.estado === 'Vencido' || Number(con?.vencido) === 1) return true;
+    const dias = diasParaVencer(con?.fecha_fin);
+    return dias != null && dias < 0;
+  };
   const esContratoCancelado = (con) => con?.estado === 'Cancelado' || Number(con?.cancelado) === 1;
-  const muestraBotonEliminar = (con) => esContratoVencido(con) || esContratoCancelado(con);
+  const esContratoNoEditableEnTabla = (con) => esContratoVencido(con) || esContratoCancelado(con);
+  const muestraBotonEliminar = (con) => esContratoNoEditableEnTabla(con);
 
   const mensajeErrorApi = (error, fallback = 'Error de comunicación con el servidor.') => {
     const status = error.response?.status;
@@ -1863,53 +1904,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     }
   };
 
-  const abrirComentariosJuridicos = async (con) => {
-    const numero = con?.numero_contrato;
-    if (!numero) return;
-    try {
-      const res = await Axios.get(
-        `${API_BASE}/contratos/${encodeURIComponent(numero)}/juridico-comentarios`
-      );
-      const comentarios = Array.isArray(res.data) ? res.data : [];
-      const historial =
-        comentarios.length === 0
-          ? '<p class="text-muted small mb-0">Sin comentarios jurídicos aún.</p>'
-          : comentarios
-              .map(
-                (c) =>
-                  `<div class="text-start mb-2 p-2 border rounded small"><strong>${c.autor_nombre || c.autor_email || 'Abogado'}</strong> <span class="text-muted">(${c.tipo || 'comentario'})</span><br/>${String(c.texto || '').replace(/</g, '&lt;')}</div>`
-              )
-              .join('');
-
-      const result = await Swal.fire({
-        title: `Observaciones jurídicas — ${numero}`,
-        html: `<div style="max-height:220px;overflow:auto;">${historial}</div>`,
-        showCancelButton: puedeVerificarContratos,
-        showDenyButton: false,
-        confirmButtonText: puedeVerificarContratos ? 'Agregar comentario' : 'Cerrar',
-        cancelButtonText: 'Cerrar',
-      });
-
-      if (!puedeVerificarContratos || !result.isConfirmed) return;
-
-      const add = await Swal.fire({
-        title: 'Nuevo comentario jurídico',
-        input: 'textarea',
-        inputLabel: 'Texto',
-        inputPlaceholder: 'Observación o nota legal…',
-        showCancelButton: true,
-        confirmButtonText: 'Guardar',
-        inputValidator: (v) => (!String(v || '').trim() ? 'Escriba un comentario.' : undefined),
-      });
-      if (!add.isConfirmed) return;
-      await Axios.post(`${API_BASE}/contratos/${encodeURIComponent(numero)}/juridico-comentarios`, {
-        texto: String(add.value || '').trim(),
-        tipo: 'nota_legal',
-      });
-      Swal.fire('Guardado', 'Comentario jurídico registrado.', 'success');
-    } catch (error) {
-      Swal.fire('Error', mensajeErrorApi(error), 'error');
-    }
+  const abrirComentariosJuridicos = (con) => {
+    if (!con?.numero_contrato) return;
+    setJuridicoComentariosContrato(con);
   };
 
   const verificarAprobarContrato = async (con) => {
@@ -1978,6 +1975,34 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     }
   };
 
+  const previsualizarAdjuntoJuridico = async (numero, idAdjunto, nombreArchivo) => {
+    try {
+      Swal.fire({
+        title: 'Cargando documento…',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      const res = await Axios.get(
+        `${API_BASE}/contratos/${encodeURIComponent(numero)}/juridico-adjuntos/${idAdjunto}`,
+        { responseType: 'blob' }
+      );
+      const dataUrl = await blobToDataUrl(res.data);
+      Swal.close();
+      const nombre = nombreArchivo || 'documento';
+      const esWord = esDocumentoWord({ nombre, tipo: /\.docx?$/i.test(nombre) ? 'word' : 'pdf' });
+      abrirVistaPreviaDocumento({
+        numero,
+        nombre,
+        tituloTipo: 'Adjunto devolución',
+        dataUrl,
+        tipo: esWord ? 'word' : 'pdf',
+      });
+    } catch (error) {
+      Swal.close();
+      Swal.fire('Error', mensajeErrorApi(error), 'error');
+    }
+  };
+
   const abrirDetalleRechazo = async (con) => {
     setRechazoDetalleContrato(con);
     await cargarAdjuntosJuridico(con.numero_contrato);
@@ -2013,36 +2038,47 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const verificarRechazarContrato = async (con) => {
     const accion = etiquetaAccionPendiente(con.aprobacion_accion);
+    const opcionesCompletas = esRechazoJuridicoConOpciones(con.aprobacion_accion);
     const opcionesHtml = TIPOS_RECHAZO_JURIDICO_OPCIONES.map(
       (o, i) =>
         `<label class="d-block text-start mb-2"><input type="radio" name="tipo-juridico" value="${o.value}" ${i === 0 ? 'checked' : ''} class="me-2"/>${o.label}</label>`
     ).join('');
 
-    const result = await Swal.fire({
-      title: 'Verificación rechazada',
-      html: `<p class="mb-2">Contrato <strong>${con.numero_contrato}</strong> — ${accion}</p>
+    const htmlModal = opcionesCompletas
+      ? `<p class="mb-2">Contrato <strong>${con.numero_contrato}</strong> — ${accion}</p>
         <p class="small text-muted text-start mb-2">Seleccione el tipo de devolución:</p>
         <div class="text-start mb-2">${opcionesHtml}</div>
         <label class="form-label small text-start d-block mb-1">Adjuntar documento (opcional)</label>
         <input type="file" id="swal-juridico-adjuntos" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple class="form-control form-control-sm" />
-        <p class="small text-muted text-start mb-0 mt-1">PDF o Word, máximo 3 archivos (15 MB c/u).</p>`,
+        <p class="small text-muted text-start mb-0 mt-1">PDF o Word, máximo 3 archivos (15 MB c/u).</p>`
+      : `<p class="mb-2">Contrato <strong>${con.numero_contrato}</strong> — ${accion}</p>
+        <p class="small text-muted text-start mb-0">Indique el motivo por el cual rechaza esta solicitud.</p>`;
+
+    const result = await Swal.fire({
+      title: 'Verificación rechazada',
+      html: htmlModal,
       input: 'textarea',
-      inputLabel: 'Motivo u observación (obligatorio)',
-      inputPlaceholder: 'Detalle jurídico para el contratador…',
+      inputLabel: opcionesCompletas ? 'Motivo u observación (obligatorio)' : 'Motivo del rechazo (obligatorio)',
+      inputPlaceholder: opcionesCompletas
+        ? 'Detalle jurídico para el contratador…'
+        : 'Explique por qué rechaza esta solicitud…',
       inputAttributes: SWAL_ATTRS_MOTIVO_RECHAZO,
       didOpen: didOpenSwalInputSinAutofill,
       showCancelButton: true,
-      confirmButtonText: 'Confirmar devolución',
+      confirmButtonText: opcionesCompletas ? 'Confirmar devolución' : 'Confirmar rechazo',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#b91c1c',
       preConfirm: async (motivo) => {
+        if (!String(motivo || '').trim()) {
+          Swal.showValidationMessage('Debe indicar el motivo.');
+          return false;
+        }
+        if (!opcionesCompletas) {
+          return { tipo: 'rechazado', motivo: String(motivo).trim().slice(0, 500), documentos: [] };
+        }
         const tipo = document.querySelector('input[name="tipo-juridico"]:checked')?.value;
         if (!tipo) {
           Swal.showValidationMessage('Seleccione un tipo de devolución.');
-          return false;
-        }
-        if (!String(motivo || '').trim()) {
-          Swal.showValidationMessage('Debe indicar el motivo.');
           return false;
         }
         const inputFiles = document.getElementById('swal-juridico-adjuntos');
@@ -2401,7 +2437,17 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     return Array.from(set).sort((a, b) => Number(b) - Number(a));
   }, [archivoList]);
 
-  const editarContratoTabla = (val) => {
+  const editarContratoTabla = (val, { permitirDesdeRenovacion = false, fechaInicioOverride = null } = {}) => {
+    if (!permitirDesdeRenovacion && exportSeleccionados.length > 1) return;
+    if (!permitirDesdeRenovacion && esContratoNoEditableEnTabla(val)) {
+      const titulo = esContratoCancelado(val) ? 'Contrato cancelado' : 'Contrato vencido';
+      Swal.fire(
+        titulo,
+        'No se puede editar un contrato cancelado o vencido. Use Renovar si necesita reactivarlo o ajustar sus términos.',
+        'info'
+      );
+      return;
+    }
     let source = val;
     if (
       esDevueltoPorAbogado(val) &&
@@ -2452,14 +2498,46 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     setContratoTipo(source.tipo_contrato);
     const pri = String(source.prioridad || 'media').toLowerCase();
     setContratoPrioridad(['alta', 'media', 'baja'].includes(pri) ? pri : 'media');
-    const fechaInicio = source.fecha_inicio ? source.fecha_inicio.substring(0, 10) : '';
+    const fechaInicio = fechaInicioOverride
+      || (source.fecha_inicio ? source.fecha_inicio.substring(0, 10) : '');
     setContratoFechaInicio(fechaInicio);
     setShowContratoModal(true);
     aplicarDocumentosServidorAlContrato(source.numero_contrato);
   };
 
+  const ejecutarRenovacionDirecta = (contrato, fechaInicio, fechaFin) => {
+    Axios.put(`${API_BASE}/update-contrato`, {
+      numero_contrato: contrato.numero_contrato,
+      operacion: 'renovacion',
+      proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
+      empresa: contrato.empresa,
+      ...prepararPayloadContactosNiveles(contactosNivelesStateFromContrato(contrato)),
+      ...prepararSuplementosPayload(getSuplementosContrato(contrato.numero_contrato)),
+      ...prepararAnexosPayload(parseAnexosFromContrato(contrato)),
+      vigencia: contrato.vigencia,
+      tipo_contrato: contrato.tipo_contrato,
+      prioridad: contrato.prioridad || 'media',
+      fecha_inicio: fechaInicio,
+      fecha_fin: fechaFin,
+      vencido: 0,
+    })
+      .then(() => {
+        getContratos();
+        Swal.fire('Renovado', 'El contrato se renovó correctamente.', 'success');
+      })
+      .catch((error) => {
+        Swal.fire('Error', error.response?.data?.message || error.message, 'error');
+      });
+  };
+
+  const abrirRenovacionConEdicion = (contrato, fechaInicio, fechaFin) => {
+    setRenovacionConEdicion({ fechaInicio, fechaFin });
+    editarContratoTabla(contrato, { permitirDesdeRenovacion: true, fechaInicioOverride: fechaInicio });
+  };
+
   const abrirInfoContrato = (contrato) => {
     if (!contrato) return;
+    if (exportSeleccionados.length > 1) return;
     setContratoInfo(contrato);
     setShowInfoModal(true);
   };
@@ -2475,6 +2553,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     hoy.setHours(0, 0, 0, 0);
     const inicioRenovacion = toISODate(hoy.toISOString());
     const sugeridaFin = sumarFechaConVigencia(inicioRenovacion, contrato.vigencia) || inicioRenovacion;
+    const bloquearEdicionRenovacion = exportSeleccionados.length > 1;
 
     Swal.fire({
       title: 'Renovar contrato',
@@ -2491,13 +2570,26 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           <small style="display:block;color:#6b7280;margin-top:0.4rem;">
             Elige la nueva fecha fin del contrato.
           </small>
+          ${
+            bloquearEdicionRenovacion
+              ? `<p style="margin-top:0.85rem;margin-bottom:0;color:#6b7280;font-size:0.9rem;">
+                  La opción de modificar términos está desactivada porque hay varios contratos marcados para exportar.
+                </p>`
+              : `<label style="display:flex;align-items:flex-start;gap:0.5rem;margin-top:0.85rem;cursor:pointer;">
+                  <input type="checkbox" id="swal-renov-editar-terminos" style="margin-top:0.2rem;" />
+                  <span>Modificar términos del contrato (empresa, vigencia, contactos, documentos, etc.)</span>
+                </label>`
+          }
         </div>
       `,
       showCancelButton: true,
-      confirmButtonText: 'Sí, renovar',
+      confirmButtonText: 'Continuar',
       focusConfirm: false,
       preConfirm: () => {
         const fechaFin = document.getElementById('swal-renov-fecha-fin')?.value;
+        const editarTerminos = bloquearEdicionRenovacion
+          ? false
+          : Boolean(document.getElementById('swal-renov-editar-terminos')?.checked);
         if (!fechaFin) {
           Swal.showValidationMessage('Debes seleccionar una fecha fin.');
           return false;
@@ -2506,35 +2598,17 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           Swal.showValidationMessage('La fecha fin no puede ser menor a la fecha de inicio.');
           return false;
         }
-        return { fechaFin };
+        return { fechaFin, editarTerminos };
       },
     }).then((result) => {
       if (!result.isConfirmed) return;
       const nuevaFechaFin = result.value?.fechaFin;
       if (!nuevaFechaFin) return;
-
-      Axios.put(`${API_BASE}/update-contrato`, {
-        numero_contrato: contrato.numero_contrato,
-        operacion: 'renovacion',
-        proveedor_cliente: contrato.proveedor_cliente ? 1 : 0,
-        empresa: contrato.empresa,
-        ...prepararPayloadContactosNiveles(contactosNivelesStateFromContrato(contrato)),
-        ...prepararSuplementosPayload(getSuplementosContrato(contrato.numero_contrato)),
-        ...prepararAnexosPayload(parseAnexosFromContrato(contrato)),
-        vigencia: contrato.vigencia,
-        tipo_contrato: contrato.tipo_contrato,
-        prioridad: contrato.prioridad || 'media',
-        fecha_inicio: inicioRenovacion,
-        fecha_fin: nuevaFechaFin,
-        vencido: 0,
-      })
-        .then(() => {
-          getContratos();
-          Swal.fire('Renovado', 'El contrato se renovó correctamente.', 'success');
-        })
-        .catch((error) => {
-          Swal.fire('Error', error.response?.data?.message || error.message, 'error');
-        });
+      if (result.value?.editarTerminos) {
+        abrirRenovacionConEdicion(contrato, inicioRenovacion, nuevaFechaFin);
+        return;
+      }
+      ejecutarRenovacionDirecta(contrato, inicioRenovacion, nuevaFechaFin);
     });
   };
 
@@ -2656,6 +2730,94 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       return matchTerm && matchTipo && matchParte && matchEstado && matchVencimiento;
     });
   }, [contratosOperativos, searchTerm, filtroTipo, filtroParte, filtroEstado, filtroVencimiento]);
+
+  const modoSeleccionExportMultiple = exportSeleccionados.length > 1;
+
+  const todosVisiblesMarcadosExport = useMemo(() => {
+    if (!contratosFiltrados.length) return false;
+    return contratosFiltrados.every((c) => exportSeleccionados.includes(numeroContratoNorm(c)));
+  }, [contratosFiltrados, exportSeleccionados]);
+
+  const renderExportCheckPaloma = (marcado, onToggle, ariaLabel) => (
+    <button
+      type="button"
+      className={`contratos-row-check contratos-export-check${marcado ? ' is-selected' : ''}`}
+      onClick={onToggle}
+      aria-label={ariaLabel}
+      title={marcado ? 'Quitar de la exportación' : 'Marcar para exportar ZIP'}
+    >
+      <i className="bi bi-check-lg" aria-hidden="true" />
+    </button>
+  );
+
+  const toggleExportSeleccionTodosVisibles = () => {
+    const visibles = contratosFiltrados.map((c) => numeroContratoNorm(c)).filter(Boolean);
+    if (!visibles.length) return;
+    if (todosVisiblesMarcadosExport) {
+      const setVis = new Set(visibles);
+      setExportSeleccionados((prev) => prev.filter((n) => !setVis.has(n)));
+    } else {
+      setExportSeleccionados((prev) => [...new Set([...prev, ...visibles])]);
+    }
+  };
+
+  const exportarExpedienteContratos = async () => {
+    const numeros = resolverNumerosExportacion(exportSeleccionados, contratosFiltrados);
+    if (!numeros.length) {
+      Swal.fire('Sin contratos', 'No hay contratos visibles para exportar con los filtros actuales.', 'info');
+      return;
+    }
+    const contratosResumen = numeros
+      .map((n) => contratosEnriquecidos.find((c) => numeroContratoNorm(c) === n))
+      .filter(Boolean);
+    const resumen = buildResumenExportacionExpediente(contratosResumen, getCategoriasDocumentos);
+    const modo =
+      exportSeleccionados.length > 0
+        ? `${exportSeleccionados.length} contrato(s) seleccionado(s) manualmente`
+        : `${contratosFiltrados.length} contrato(s) según filtros actuales`;
+
+    const confirm = await Swal.fire({
+      title: 'Exportar expediente ZIP',
+      icon: 'question',
+      html: `
+        <div style="text-align:left;font-size:0.95rem;">
+          <p class="mb-2"><strong>Ámbito:</strong> ${modo}</p>
+          <p class="mb-2"><strong>Contratos a incluir:</strong> ${resumen.total}</p>
+          <ul class="mb-2 ps-3">
+            <li>Con documento principal: ${resumen.conPrincipal}</li>
+            <li>Archivos de suplementos: ${resumen.totalSuplementos}</li>
+            <li>Archivos de anexos: ${resumen.totalAnexos}</li>
+            <li>Sin ningún documento: ${resumen.sinDocumentos}</li>
+          </ul>
+          <p class="mb-0 text-muted small">
+            Se descargará un ZIP con índice PDF, ficha PDF por contrato y carpetas
+            <em>contrato</em>, <em>suplementos</em> y <em>anexos</em>.
+          </p>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Descargar ZIP',
+      cancelButtonText: 'Cancelar',
+      focusCancel: false,
+    });
+    if (!confirm.isConfirmed) return;
+
+    setExportandoExpediente(true);
+    Swal.fire({
+      title: 'Generando expediente…',
+      html: 'Empaquetando datos y documentos. Esto puede tardar unos segundos.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+    try {
+      await descargarExpedienteContratos(Axios, API_BASE, numeros);
+      Swal.fire('Listo', `Expediente exportado (${resumen.total} contrato(s)).`, 'success');
+    } catch (error) {
+      Swal.fire('Error', error.message || 'No se pudo exportar el expediente.', 'error');
+    } finally {
+      setExportandoExpediente(false);
+    }
+  };
 
   const resumen = useMemo(() => {
     const totalOperativos = contratosOperativos.length;
@@ -3357,19 +3519,18 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     }
   };
 
-  const seccionLabels = useMemo(() => {
-    const labels = Object.fromEntries(CONTRATOS_MENU_SECTIONS.map((section) => [section.id, section.label]));
-    labels.verificar = contratosColaJuridica.length
-      ? `Verificar contrato (${contratosColaJuridica.length})`
-      : 'Verificar contrato';
-    labels.pendientes = contratosColaAprobacion.length
-      ? `Aprobar contrato (${contratosColaAprobacion.length})`
-      : 'Aprobar contrato';
-    labels.rechazados = contratosRechazados.length
-      ? `Contratos rechazados (${contratosRechazados.length})`
-      : 'Contratos rechazados';
-    return labels;
-  }, [contratosColaJuridica.length, contratosColaAprobacion.length, contratosRechazados.length]);
+  useEffect(() => {
+    setNavCounts({
+      rechazados: contratosRechazados.length,
+      verificar: contratosColaJuridica.length,
+      pendientes: contratosColaAprobacion.length,
+    });
+  }, [
+    contratosRechazados.length,
+    contratosColaJuridica.length,
+    contratosColaAprobacion.length,
+    setNavCounts,
+  ]);
 
   const AvatarEmpresaClic = ({ empresa }) => {
     const src = getIconoEmpresa(empresa);
@@ -3396,16 +3557,30 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         <div className="contratos-topbar__left">
           <h2 className="contratos-page__title mb-0">Contratos</h2>
         </div>
-        {activeSection === 'contratos' && puedeCrearContratos && (
-          <div className="contratos-topbar__actions">
-            <button
-              type="button"
-              className={BTN_ANADIR_MD}
-              onClick={abrirModalNuevoContrato}
-            >
-              <i className="bi bi-plus-lg me-2" aria-hidden="true" />
-              Agregar contrato
-            </button>
+        {activeSection === 'contratos' && (puedeCrearContratos || puedeExportarContratos) && (
+          <div className="contratos-topbar__actions d-flex flex-wrap gap-2">
+            {puedeExportarContratos ? (
+              <button
+                type="button"
+                className={BTN_EXPORTAR}
+                onClick={exportarExpedienteContratos}
+                disabled={exportandoExpediente || !contratosFiltrados.length}
+                title="Descargar ZIP con datos y documentos de los contratos filtrados o seleccionados"
+              >
+                <i className="bi bi-file-earmark-zip me-2" aria-hidden="true" />
+                Exportar expediente
+              </button>
+            ) : null}
+            {puedeCrearContratos ? (
+              <button
+                type="button"
+                className={BTN_ANADIR_MD}
+                onClick={abrirModalNuevoContrato}
+              >
+                <i className="bi bi-plus-lg me-2" aria-hidden="true" />
+                Agregar contrato
+              </button>
+            ) : null}
           </div>
         )}
         {activeSection === 'reportes' && puedeExportarContratos && (
@@ -3452,7 +3627,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 className={`btn btn-sm contratos-tab ${activeSection === id ? 'contratos-tab--active' : ''}`}
                 onClick={() => irASeccion(id)}
               >
-                {seccionLabels[id]}
+                {CONTRATOS_SECTION_LABELS[id] || id}
               </button>
             ))}
         </div>
@@ -3461,10 +3636,16 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         <FormModal
           show={showContratoModal}
           onHide={cerrarModalContrato}
-          title={editarContrato ? 'Editar contrato' : '+ Contrato'}
+          title={
+            renovacionConEdicion
+              ? 'Renovar y editar contrato'
+              : editarContrato
+                ? 'Editar contrato'
+                : '+ Contrato'
+          }
           subtitle=""
           onPrimary={guardarContratoModal}
-          primaryLabel={editarContrato ? 'Actualizar' : 'Guardar'}
+          primaryLabel={renovacionConEdicion ? 'Enviar renovación' : editarContrato ? 'Actualizar' : 'Guardar'}
         >
           <div className="minimal-form-stack">
             <div
@@ -3999,12 +4180,52 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                   <button
                     type="button"
                     className="btn btn-contratos-limpiar-filtros"
-                    onClick={() => { setSearchTerm(''); setFiltroTipo('todos'); setFiltroParte('todos'); setFiltroEstado('todos'); setFiltroVencimiento('todos'); }}
+                    onClick={() => {
+                      setSearchTerm('');
+                      setFiltroTipo('todos');
+                      setFiltroParte('todos');
+                      setFiltroEstado('todos');
+                      setFiltroVencimiento('todos');
+                    }}
                   >
                     Limpiar
                   </button>
                 </div>
+                {puedeExportarContratos ? (
+                  <div className="col-12 col-md-auto d-grid">
+                    <button
+                      type="button"
+                      className={BTN_EXPORTAR}
+                      onClick={exportarExpedienteContratos}
+                      disabled={exportandoExpediente || !contratosFiltrados.length}
+                      title={
+                        exportSeleccionados.length
+                          ? `Exportar ${exportSeleccionados.length} contrato(s) seleccionado(s)`
+                          : `Exportar ${contratosFiltrados.length} contrato(s) visibles`
+                      }
+                    >
+                      <i className="bi bi-file-earmark-zip me-1" aria-hidden="true" />
+                      ZIP
+                    </button>
+                  </div>
+                ) : null}
               </div>
+              {puedeExportarContratos && exportSeleccionados.length > 0 ? (
+                <p className="text-muted small mb-0 mt-2">
+                  {exportSeleccionados.length} contrato(s) marcado(s) para exportación.
+                  {modoSeleccionExportMultiple
+                    ? ' Con varios marcados, edición e información de fila quedan desactivadas.'
+                    : ' Sin marcas, se exportan todos los visibles con los filtros actuales.'}
+                  {' '}
+                  <button
+                    type="button"
+                    className="btn btn-link btn-sm p-0 align-baseline"
+                    onClick={() => setExportSeleccionados([])}
+                  >
+                    Quitar selección
+                  </button>
+                </p>
+              ) : null}
             </div>
 
             <div className="card p-3 contratos-table-card">
@@ -4012,6 +4233,17 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 <table className="table table-data-compact table-bordered table-striped">
                   <thead>
                     <tr>
+                      {puedeExportarContratos ? (
+                        <th className="text-center contratos-th-export" title="Marcar visibles para exportar ZIP">
+                          {renderExportCheckPaloma(
+                            todosVisiblesMarcadosExport,
+                            () => {
+                              if (contratosFiltrados.length) toggleExportSeleccionTodosVisibles();
+                            },
+                            'Seleccionar todos los contratos visibles para exportar'
+                          )}
+                        </th>
+                      ) : null}
                       {showCol('numero') ? <th>N° Contrato</th> : null}
                       {showCol('tipo') ? <th>Tipo</th> : null}
                       {showCol('empresa') ? <th>Empresa</th> : null}
@@ -4028,24 +4260,24 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                   <tbody>
                     {contratosFiltrados.map((con, index) => {
                       const rowId = buildContratoRowId(con, index);
-                      const isSelected = contratoSeleccionado === rowId;
+                      const numExport = numeroContratoNorm(con);
+                      const marcadoExport = exportSeleccionados.includes(numExport);
                       return (
-                      <tr key={rowId} className={isSelected ? 'contratos-row-selected' : ''}>
+                      <tr
+                        key={rowId}
+                        className={marcadoExport ? 'contratos-row-selected' : ''}
+                      >
+                        {puedeExportarContratos ? (
+                          <td className="text-center align-middle contratos-td-export">
+                            {renderExportCheckPaloma(
+                              marcadoExport,
+                              () => toggleExportSeleccion(numExport),
+                              `Exportar contrato ${con.numero_contrato}`
+                            )}
+                          </td>
+                        ) : null}
                         {showCol('numero') ? (
-                        <td>
-                          <span className="contratos-numero-wrap">
-                            <button
-                              type="button"
-                              className={`contratos-row-check${isSelected ? ' is-selected' : ''}`}
-                              onClick={() => toggleContratoSeleccionado(rowId)}
-                              aria-label={`Seleccionar contrato ${con.numero_contrato}`}
-                              title={`Seleccionar contrato ${con.numero_contrato}`}
-                            >
-                              <i className="bi bi-check-lg" aria-hidden="true" />
-                            </button>
-                            <span className="contratos-numero-wrap__num">{con.numero_contrato}</span>
-                          </span>
-                        </td>
+                        <td>{con.numero_contrato}</td>
                         ) : null}
                         {showCol('tipo') ? <td>{con.proveedor_cliente ? 'Proveedor' : 'Cliente'}</td> : null}
                         {showCol('empresa') ? (
@@ -4099,8 +4331,26 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                         {showCol('acciones') ? (
                         <td className="contratos-td-actions">
                           <div className="d-inline-flex align-items-center gap-1 flex-nowrap">
-                            <InfoTableActionButton onClick={() => abrirInfoContrato(con)} />
-                            <EditTableActionButton onClick={() => editarContratoTabla(con)} />
+                            <InfoTableActionButton
+                              onClick={() => abrirInfoContrato(con)}
+                              disabled={modoSeleccionExportMultiple}
+                              title={
+                                modoSeleccionExportMultiple
+                                  ? 'Información desactivada con varios contratos marcados para exportar'
+                                  : 'Ver información del contrato'
+                              }
+                            />
+                            {!esContratoNoEditableEnTabla(con) ? (
+                              <EditTableActionButton
+                                onClick={() => editarContratoTabla(con)}
+                                disabled={modoSeleccionExportMultiple}
+                                title={
+                                  modoSeleccionExportMultiple
+                                    ? 'Edición desactivada con varios contratos marcados para exportar'
+                                    : 'Editar'
+                                }
+                              />
+                            ) : null}
                             <RenewTableActionButton onClick={() => renovarContrato(con)} />
                             {muestraBotonEliminar(con) ? (
                               <DeleteTableActionButton onClick={() => eliminarContrato(con)} />
@@ -4113,7 +4363,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       </tr>
                     );})}
                     {contratosFiltrados.length === 0 && (
-                      <tr><td colSpan={visibleContratoColCount} className="text-center text-muted py-3">No se encontraron contratos con los filtros aplicados.</td></tr>
+                      <tr><td colSpan={tablaContratosColSpan} className="text-center text-muted py-3">No se encontraron contratos con los filtros aplicados.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -5310,6 +5560,15 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         document.body
       )}
 
+      <ContratosJuridicoComentariosModal
+        show={Boolean(juridicoComentariosContrato)}
+        onHide={() => setJuridicoComentariosContrato(null)}
+        numeroContrato={juridicoComentariosContrato?.numero_contrato}
+        puedeAgregar={puedeVerificarContratos}
+        puedeMarcarRealizado={puedeVerificarContratos}
+        fmtFecha={fmtDisplayDate}
+      />
+
       <ContratosRechazoDetalleModal
         show={Boolean(rechazoDetalleContrato)}
         onHide={() => setRechazoDetalleContrato(null)}
@@ -5325,6 +5584,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
             : []
         }
         onDescargarAdjunto={descargarAdjuntoJuridico}
+        onPrevisualizarAdjunto={previsualizarAdjuntoJuridico}
         fmtFecha={fmtDisplayDate}
       />
 
