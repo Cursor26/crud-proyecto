@@ -3,14 +3,17 @@ import { useAppPreferences } from '../context/AppPreferencesContext';
 import { getInitialModuleKey, saveLastSection } from '../lib/appPreferences';
 
 const SIDEBAR_CONTRATOS_KEYS = new Set([
-  'contratos-resumen', 'contratos-lista', 'contratos-pendientes', 'contratos-vencimientos', 'contratos-renovaciones',
-  'contratos-correo', 'contratos-reportes', 'contratos-archivo', 'contratos-tipos', 'contratos-auditoria',
+  'contratos-resumen', 'contratos-lista', 'contratos-rechazados', 'contratos-verificar', 'contratos-pendientes',
+  'contratos-vencimientos',
+  'contratos-renovaciones', 'contratos-correo', 'contratos-reportes', 'contratos-archivo', 'contratos-tipos',
+  'contratos-auditoria',
 ]);
 
 function getDefaultKeyForRol(rol) {
   if (rol === 'admin') return 'usuarios';
   if (rol === 'contratacion') return 'contratos-resumen';
   if (rol === 'director') return 'contratos-resumen';
+  if (rol === 'abogado') return 'contratos-resumen';
   return '';
 }
 

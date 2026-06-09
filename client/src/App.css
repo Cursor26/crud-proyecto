@@ -5409,6 +5409,58 @@ body .btn:not(.btn-link) {
   border-color: var(--theme-accent-deep, #0f3d24);
 }
 
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-pendientes-detalle-td {
+  min-width: 0;
+  max-width: none;
+  width: 1%;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-btn-ver-cambios,
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-btn-ver-motivo {
+  font-size: 0.68rem;
+  padding: 0.12rem 0.38rem;
+  line-height: 1.2;
+}
+
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-btn-ver-cambios .bi,
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-btn-ver-motivo .bi {
+  font-size: 0.72rem;
+}
+
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-pendientes-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-pendientes-actions__comentarios {
+  color: #475569;
+  border-color: rgba(100, 116, 139, 0.45);
+  background-color: rgba(148, 163, 184, 0.12);
+}
+
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-pendientes-actions__comentarios:hover {
+  color: #1e293b;
+  background-color: rgba(148, 163, 184, 0.22);
+  border-color: rgba(100, 116, 139, 0.55);
+}
+
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-pendientes-actions__ok,
+.dashboard-main--contratos .contratos-pendientes-verificar-table .contratos-pendientes-actions__rechazar {
+  width: 1.95rem;
+  height: 1.95rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.88rem;
+  line-height: 1;
+}
+
 .contratos-motivo-overlay {
   position: fixed;
   inset: 0;

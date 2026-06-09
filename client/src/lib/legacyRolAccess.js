@@ -18,6 +18,10 @@ export function createLegacyCan(rol) {
 
     const needsWrite = ['create', 'edit', 'delete', 'approve'].includes(action);
     if (r === 'director' && needsWrite) return false;
+    if (r === 'abogado') {
+      if (module === 'contratos') return action === 'view' || action === 'verify' || action === 'export';
+      return false;
+    }
 
     switch (module) {
       case 'usuarios':

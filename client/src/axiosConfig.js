@@ -39,7 +39,10 @@ function esRutaAutogestionUsuario(url) {
     path.includes('/user/change-password') ||
     path.includes('/user/profile-photo') ||
     path.includes('/user/preferences') ||
-    path.includes('/auth/logout')
+    path.includes('/auth/logout') ||
+    path.includes('/verificar-aprobar') ||
+    path.includes('/verificar-rechazar') ||
+    path.includes('/juridico-comentarios')
   );
 }
 
@@ -67,31 +70,57 @@ Axios.interceptors.request.use((config) => {
 });
 
 let sesionExpiradaDialogo = false;
+let cierreSesionVoluntario = false;
+
+/** Evita el modal «Sesión expirada» durante logout explícito (el token se invalida a propósito). */
+export function setVoluntaryLogoutInProgress(active) {
+  cierreSesionVoluntario = Boolean(active);
+}
+
+function limpiarSesionLocal() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('permisos');
+  delete Axios.defaults.headers.common.Authorization;
+}
+
+function esErrorTokenInvalido(error) {
+  const status = error?.response?.status;
+  const msg = String(error?.response?.data?.message || '');
+  return (
+    (status === 403 || status === 401) &&
+    /token|expirado|expired|denegado|inactivo/i.test(msg)
+  );
+}
+
+export function forceSessionExpired() {
+  if (sesionExpiradaDialogo || cierreSesionVoluntario) return Promise.resolve();
+  const hadToken = Boolean(localStorage.getItem('token'));
+  if (!hadToken) return Promise.resolve();
+
+  sesionExpiradaDialogo = true;
+  return Swal.fire({
+    icon: 'warning',
+    title: 'Sesión expirada',
+    text: 'Su token de acceso caducó o ya no es válido. Vuelva a iniciar sesión.',
+    confirmButtonText: 'Ir al login',
+    allowOutsideClick: false,
+  }).then(() => {
+    limpiarSesionLocal();
+    sesionExpiradaDialogo = false;
+    window.location.reload();
+  });
+}
 
 Axios.interceptors.response.use(
   (response) => response,
   (error) => {
-    const status = error?.response?.status;
-    const msg = String(error?.response?.data?.message || '');
-    const tokenInvalido =
-      (status === 403 || status === 401) &&
-      /token|expirado|expired|denegado/i.test(msg);
-
-    if (tokenInvalido && !sesionExpiradaDialogo) {
-      sesionExpiradaDialogo = true;
-      Swal.fire({
-        icon: 'warning',
-        title: 'Sesión expirada',
-        text: 'Su token de acceso caducó o ya no es válido. Vuelva a iniciar sesión.',
-        confirmButtonText: 'Ir al login',
-        allowOutsideClick: false,
-      }).then(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('permisos');
-        delete Axios.defaults.headers.common.Authorization;
-        window.location.reload();
-      });
+    const url = String(error?.config?.url || '');
+    if (cierreSesionVoluntario || url.includes('/auth/logout')) {
+      return Promise.reject(error);
+    }
+    if (esErrorTokenInvalido(error)) {
+      forceSessionExpired();
     }
 
     return Promise.reject(error);

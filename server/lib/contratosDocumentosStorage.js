@@ -82,6 +82,22 @@ const saveActivoDocumento = (numeroContrato, nombre, dataUrl, mimeHint) => {
   };
 };
 
+const saveJuridicoAdjunto = (numeroContrato, nombre, dataUrl, mimeHint) => {
+  const numKey = String(numeroContrato || '').trim();
+  if (!numKey) throw new Error('Número de contrato requerido');
+  const { buffer, mimeHint: parsedMime } = extractDocumentBuffer(dataUrl);
+  const hint = mimeHint || parsedMime;
+  const relDir = path.join(ACTIVOS_DIR, numKey, 'juridico');
+  const dirAbs = path.join(STORAGE_ROOT, relDir);
+  const saved = saveFileToDir(dirAbs, nombre, buffer, hint);
+  const rutaRelativa = path.join(relDir, saved.fileName).replace(/\\/g, '/');
+  return {
+    rutaRelativa,
+    tamanoBytes: saved.tamano,
+    nombreArchivo: sanitizeFilename(nombre, hint),
+  };
+};
+
 const saveActivoPdf = (numeroContrato, nombre, dataUrl) =>
   saveActivoDocumento(numeroContrato, nombre, dataUrl, 'application/pdf');
 
@@ -140,6 +156,7 @@ module.exports = {
   extractDocumentBuffer,
   saveActivoPdf,
   saveActivoDocumento,
+  saveJuridicoAdjunto,
   saveArchivoPdf,
   copyFileToArchivo,
   resolveAbsPath,

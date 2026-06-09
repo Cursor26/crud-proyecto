@@ -4,6 +4,7 @@
  */
 
 const { listCorreosPorEvento, tieneDestinosEvento } = require('./contratosCorreosNiveles');
+const mailHealth = require('./mailHealth');
 
 const CONFIG_KEY = 'contratos_recordatorios_auto';
 
@@ -248,6 +249,8 @@ function createContratosRecordatoriosService(dbQuery, deps) {
     sendMailWithFallback,
     mailer,
     shouldUseGracefulMailFallback,
+    isMailQueueableError,
+    mailOutbox,
     onRecordatorioAudit,
     correoPlantillas,
   } = deps;
@@ -315,6 +318,87 @@ function createContratosRecordatoriosService(dbQuery, deps) {
        VALUES (?,?,?,?,?,?)`,
       [numeroContrato, diasAntes, correo, origen, resultado, mensaje || null]
     );
+  }
+
+  async function completeQueuedReminder(payload, destino) {
+    const p = payload && typeof payload === 'object' ? payload : {};
+    const numero = String(p.numero_contrato || '').trim();
+    if (!numero) return;
+    await logEnvio({
+      numeroContrato: numero,
+      diasAntes: p.dias_antes,
+      correo: destino,
+      origen: p.origen || 'automatico',
+      resultado: 'ok',
+      mensaje: `Enviado desde cola a ${destino}`,
+    });
+    if (typeof onRecordatorioAudit === 'function' && p.contrato_snapshot) {
+      try {
+        await onRecordatorioAudit({
+          contrato: p.contrato_snapshot,
+          origen: p.origen || 'automatico',
+          diasAntes: p.dias_antes,
+          destinos: p.destinos || [destino],
+          destinoResumen: (p.destinos || [destino]).join(', '),
+          actor: p.audit_actor || null,
+          disparador: p.audit_disparador || 'cola_smtp',
+          eventoVencimiento: p.evento_recordatorio || 'por_vencer',
+          req: null,
+        });
+      } catch (auditErr) {
+        console.warn('[RECORDATORIOS] audit cola:', auditErr?.message || auditErr);
+      }
+    }
+  }
+
+  async function enqueueReminderMail({
+    numero,
+    diasKey,
+    origen,
+    destino,
+    mail,
+    contrato,
+    destinos,
+    options,
+    eventoRecordatorio,
+  }) {
+    if (!mailOutbox?.enqueue) return false;
+    const r = await mailOutbox.enqueue({
+      tipo: 'recordatorio',
+      refKey: `${numero}:${diasKey}:${origen}`,
+      destino,
+      asunto: mail.subject,
+      cuerpoTexto: mail.text,
+      cuerpoHtml: mail.html,
+      payload: {
+        kind: 'recordatorio',
+        numero_contrato: numero,
+        dias_antes: diasKey,
+        origen,
+        evento_recordatorio: eventoRecordatorio,
+        destinos,
+        audit_actor: options.auditActor || null,
+        audit_disparador: options.auditDisparador || null,
+        contrato_snapshot: {
+          numero_contrato: contrato.numero_contrato,
+          empresa: contrato.empresa,
+          tipo_contrato: contrato.tipo_contrato,
+          fecha_fin: contrato.fecha_fin,
+          prioridad: contrato.prioridad,
+        },
+      },
+    });
+    if (r?.ok) {
+      await logEnvio({
+        numeroContrato: numero,
+        diasAntes: diasKey,
+        correo: destino,
+        origen,
+        resultado: 'pendiente',
+        mensaje: 'En cola; se enviará cuando SMTP esté disponible.',
+      });
+    }
+    return Boolean(r?.ok);
   }
 
   async function listEnvios(limit = 50) {
@@ -410,11 +494,29 @@ function createContratosRecordatoriosService(dbQuery, deps) {
       return buildReminderMail(contrato, diasKey >= 0 ? diasKey : null);
     })();
     let enviados = 0;
+    let encolados = 0;
     let advertencias = 0;
     let errores = 0;
     let ultimoError = null;
+    const smtpDown = mailer.mode === 'smtp' && !mailHealth.isAvailable();
 
     for (const destino of destinos) {
+      if (smtpDown) {
+        const q = await enqueueReminderMail({
+          numero,
+          diasKey,
+          origen,
+          destino,
+          mail,
+          contrato,
+          destinos,
+          options,
+          eventoRecordatorio,
+        });
+        if (q) encolados += 1;
+        else errores += 1;
+        continue;
+      }
       try {
         await sendMailWithFallback({
           from: mailer.from,
@@ -433,6 +535,23 @@ function createContratosRecordatoriosService(dbQuery, deps) {
         });
         enviados += 1;
       } catch (error) {
+        const queueable = typeof isMailQueueableError === 'function' && isMailQueueableError(error);
+        if (queueable) {
+          const q = await enqueueReminderMail({
+            numero,
+            diasKey,
+            origen,
+            destino,
+            mail,
+            contrato,
+            destinos,
+            options,
+            eventoRecordatorio,
+          });
+          if (q) encolados += 1;
+          else errores += 1;
+          continue;
+        }
         const smtpCode = String(error?.code || '').toUpperCase();
         const graceful = shouldUseGracefulMailFallback(error);
         const resultado = graceful ? 'advertencia' : 'error';
@@ -456,7 +575,17 @@ function createContratosRecordatoriosService(dbQuery, deps) {
     }
 
     const destinoResumen = destinos.join(', ');
-    if (enviados > 0 || advertencias > 0) {
+    if (encolados > 0 && enviados === 0 && advertencias === 0) {
+      return {
+        ok: true,
+        queued: true,
+        destino: destinoResumen,
+        destinos,
+        numero_contrato: numero,
+        message: 'Recordatorio en cola; se enviará cuando SMTP esté disponible.',
+      };
+    }
+    if (enviados > 0 || advertencias > 0 || encolados > 0) {
       if (typeof onRecordatorioAudit === 'function') {
         try {
           await onRecordatorioAudit({
@@ -480,6 +609,7 @@ function createContratosRecordatoriosService(dbQuery, deps) {
         destino: destinoResumen,
         destinos,
         warning: advertencias > 0 && enviados === 0,
+        queued: encolados > 0,
         numero_contrato: numero,
       };
     }
@@ -492,7 +622,7 @@ function createContratosRecordatoriosService(dbQuery, deps) {
       return { skipped: true, reason: 'desactivado', config };
     }
 
-    const resumen = { enviados: 0, advertencias: 0, errores: 0, omitidos: 0, detalle: [] };
+    const resumen = { enviados: 0, encolados: 0, advertencias: 0, errores: 0, omitidos: 0, detalle: [] };
     const allDias = collectAllMilestoneDays(config);
 
     for (const dias of allDias) {
@@ -516,14 +646,15 @@ function createContratosRecordatoriosService(dbQuery, deps) {
           auditReq: options.auditReq || null,
         });
         if (r.ok) {
-          if (r.warning) resumen.advertencias += 1;
+          if (r.queued) resumen.encolados += 1;
+          else if (r.warning) resumen.advertencias += 1;
           else resumen.enviados += 1;
           resumen.detalle.push({
             numero_contrato: r.numero_contrato,
             dias,
             prioridad: contrato.prioridad,
             tipo: contrato.tipo_contrato,
-            estado: r.warning ? 'advertencia' : 'ok',
+            estado: r.queued ? 'encolado' : r.warning ? 'advertencia' : 'ok',
           });
         } else if (r.skipped) {
           resumen.omitidos += 1;
@@ -549,14 +680,15 @@ function createContratosRecordatoriosService(dbQuery, deps) {
         auditReq: options.auditReq || null,
       });
       if (r.ok) {
-        if (r.warning) resumen.advertencias += 1;
+        if (r.queued) resumen.encolados += 1;
+        else if (r.warning) resumen.advertencias += 1;
         else resumen.enviados += 1;
         resumen.detalle.push({
           numero_contrato: r.numero_contrato,
           dias: -1,
           prioridad: contrato.prioridad,
           tipo: contrato.tipo_contrato,
-          estado: r.warning ? 'advertencia' : 'ok',
+          estado: r.queued ? 'encolado' : r.warning ? 'advertencia' : 'ok',
           evento: 'vencido',
         });
       } else if (r.skipped) {
@@ -642,6 +774,7 @@ function createContratosRecordatoriosService(dbQuery, deps) {
     listEnviosByContrato,
     describeReglaRecordatorio,
     sendReminderForContract,
+    completeQueuedReminder,
     ejecutarAutomaticos,
     startScheduler,
     buildReminderMail,

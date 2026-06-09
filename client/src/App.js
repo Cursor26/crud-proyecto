@@ -1,5 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import Axios, { API_BASE } from './axiosConfig';
+import Axios, { API_BASE, forceSessionExpired, setVoluntaryLogoutInProgress } from './axiosConfig';
+import { isTokenExpired } from './lib/jwtSession';
+import { saveTrustedDeviceProfile } from './lib/trustedDeviceProfile';
+import { useMailServiceStatus } from './hooks/useMailServiceStatus';
+import MailServiceUnavailableBanner from './components/MailServiceUnavailableBanner';
+import { mailQueueBannerMessage } from './lib/mailServiceMessages';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import { Nav, Navbar, NavDropdown } from 'react-bootstrap';
@@ -111,14 +116,22 @@ const setAuthToken = (token) => {
 
 const tokenInicial = localStorage.getItem(TOKEN_KEY);
 if (tokenInicial) {
-  setAuthToken(tokenInicial);
+  if (isTokenExpired(tokenInicial)) {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('user');
+    localStorage.removeItem(PERMISOS_KEY);
+  } else {
+    setAuthToken(tokenInicial);
+  }
 }
 
 function App() {
   const [user, setUser] = useState(null);
   const [permisos, setPermisos] = useState(loadPermisosFromStorage);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(tokenInicial);
+  const [token, setToken] = useState(
+    tokenInicial && !isTokenExpired(tokenInicial) ? tokenInicial : null
+  );
 
   const [key, setKey] = useState('');
   /** A la vez solo un submenú lateral abierto: 'contratos' | null */
@@ -134,7 +147,9 @@ function App() {
     contratos: 'Contratación',
     'contratos-resumen': 'Contratación · Resumen',
     'contratos-lista': 'Contratación · Contratos',
-    'contratos-pendientes': 'Contratación · Pendientes',
+    'contratos-rechazados': 'Contratación · Contratos rechazados',
+    'contratos-verificar': 'Contratación · Verificar contrato',
+    'contratos-pendientes': 'Contratación · Aprobar contrato',
     'contratos-vencimientos': 'Contratación · Vencimientos',
     'contratos-renovaciones': 'Contratación · Renovaciones',
     'contratos-correo': 'Contratación · Correo',
@@ -169,6 +184,21 @@ function App() {
     if (!nextKey || nextKey === key) return;
     handleNavSelect(nextKey);
   };
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    const checkExpiry = () => {
+      const current = localStorage.getItem(TOKEN_KEY);
+      if (!current || isTokenExpired(current)) {
+        forceSessionExpired();
+      }
+    };
+
+    checkExpiry();
+    const interval = setInterval(checkExpiry, 30000);
+    return () => clearInterval(interval);
+  }, [token]);
 
   useEffect(() => {
     if (token) {
@@ -236,6 +266,11 @@ function App() {
       setToken(newToken);
       setUser(usuarioNormalizado);
       setPermisos(perms);
+      saveTrustedDeviceProfile({
+        email: usuarioNormalizado.email,
+        nombre: usuarioNormalizado.nombre,
+        fotoPerfil: usuarioNormalizado.fotoPerfil || null,
+      });
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message || 'Error al conectar' };
@@ -243,20 +278,23 @@ function App() {
   };
 
   const logout = async () => {
+    setVoluntaryLogoutInProgress(true);
     try {
       await Axios.post('/auth/logout');
     } catch {
       /* registrar logout es best-effort */
+    } finally {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem('user');
+      localStorage.removeItem(PERMISOS_KEY);
+      setAuthToken(null);
+      setToken(null);
+      setUser(null);
+      setPermisos(null);
+      setKey('');
+      setSidebarMenuOpen(null);
+      window.setTimeout(() => setVoluntaryLogoutInProgress(false), 800);
     }
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem('user');
-    localStorage.removeItem(PERMISOS_KEY);
-    setAuthToken(null);
-    setToken(null);
-    setUser(null);
-    setPermisos(null);
-    setKey('');
-    setSidebarMenuOpen(null);
   };
 
   const handleProfilePhotoUpdated = (fotoPerfil) => {
@@ -264,6 +302,11 @@ function App() {
       if (!prev) return prev;
       const next = { ...prev, fotoPerfil: fotoPerfil || null };
       localStorage.setItem('user', JSON.stringify(next));
+      saveTrustedDeviceProfile({
+        email: next.email,
+        nombre: next.nombre,
+        fotoPerfil: next.fotoPerfil,
+      });
       return next;
     });
   };
@@ -330,6 +373,12 @@ function AppWithPermissions(props) {
   } = props;
 
   const { can, puedeEscribir } = usePermissions();
+  const mailStatus = useMailServiceStatus(true);
+  const necesitaCorreo =
+    can('contratos', 'approve') ||
+    can('contratos', 'edit') ||
+    can('usuarios', 'view') ||
+    can('usuarios', 'edit');
 
   const mostrarUsuarios = can('usuarios', 'view');
   const mostrarGestionRoles = can('usuarios', 'edit') || can('usuarios', 'create');
@@ -370,6 +419,7 @@ function AppWithPermissions(props) {
     if (r === 'admin') return 'Administrador';
     if (r === 'director') return 'Director (consulta)';
     if (r === 'contratacion') return 'Contratación';
+    if (r === 'abogado') return 'Abogado Revisor Jurídico';
     return r || '';
   };
 
@@ -419,6 +469,8 @@ function AppWithPermissions(props) {
       mostrarCorreoSistema={mostrarCorreoSistema}
       mostrarContratos={mostrarContratos}
       menuContratacionPlano={menuContratacionPlano}
+      mailStatus={mailStatus}
+      necesitaCorreo={necesitaCorreo}
     />
     </PuedeEscribirProvider>
     </AppPreferencesProvider>
@@ -444,6 +496,7 @@ function DashboardShell(props) {
     mostrarConfigApp,
     mostrarUsuarios, mostrarGestionRoles, mostrarAuditoria, mostrarCorreoSistema,
     mostrarContratos, menuContratacionPlano, onProfilePhotoUpdated, onProfileUpdated,
+    mailStatus, necesitaCorreo,
   } = props;
 
   return (
@@ -572,6 +625,15 @@ function DashboardShell(props) {
             Modo solo consulta: podés revisar la información; no podés crear, editar ni eliminar registros.
           </div>
         ) : null}
+
+        <MailServiceUnavailableBanner
+          visible={
+            necesitaCorreo &&
+            !mailStatus.loading &&
+            (mailStatus.smtp_disponible === false || (mailStatus.correos_pendientes || 0) > 0)
+          }
+          message={mailQueueBannerMessage(mailStatus)}
+        />
 
         <div className="dashboard-main-scroll">
           <div className="dashboard-content-layout">

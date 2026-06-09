@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { validarNumeroContratoUnico } = require('./contratosNumeroUnico');
+const { assertPuedeAprobarOperativamente } = require('./contratosRevisionJuridica');
 
 function usuarioDesdeReq(req) {
   return String(req.user?.email || req.user?.nombre || '').trim() || null;
@@ -102,7 +103,11 @@ async function marcarAprobacionResuelta(dbQuery, numero, resueltoPor) {
             aprobacion_propuesta = NULL,
             aprobacion_resuelto_por = ?,
             aprobacion_resuelto_en = NOW(),
-            aprobacion_resolucion_nota = NULL
+            aprobacion_resolucion_nota = NULL,
+            revision_juridica_estado = 'na',
+            revision_juridica_resuelto_por = NULL,
+            revision_juridica_resuelto_en = NULL,
+            revision_juridica_nota = NULL
       WHERE numero_contrato = ?`,
     [resueltoPor, numero]
   );
@@ -111,7 +116,7 @@ async function marcarAprobacionResuelta(dbQuery, numero, resueltoPor) {
 async function aprobarContratoPendiente(dbQuery, deps, numero, resueltoPor) {
   const rows = await dbQuery(
     `SELECT numero_contrato, aprobacion_estado, aprobacion_accion, aprobacion_propuesta,
-            COALESCE(cancelado, 0) AS cancelado
+            revision_juridica_estado, COALESCE(cancelado, 0) AS cancelado
        FROM contratos_generales
       WHERE numero_contrato = ?
       LIMIT 1`,
@@ -132,6 +137,8 @@ async function aprobarContratoPendiente(dbQuery, deps, numero, resueltoPor) {
     err.status = 400;
     throw err;
   }
+
+  assertPuedeAprobarOperativamente(c.revision_juridica_estado);
 
   if (accion === 'alta') {
     await marcarAprobacionResuelta(dbQuery, numero, resueltoPor);
@@ -196,7 +203,11 @@ async function aprobarContratoPendiente(dbQuery, deps, numero, resueltoPor) {
               aprobacion_propuesta = NULL,
               aprobacion_resuelto_por = ?,
               aprobacion_resuelto_en = NOW(),
-              aprobacion_resolucion_nota = NULL
+              aprobacion_resolucion_nota = NULL,
+              revision_juridica_estado = 'na',
+              revision_juridica_resuelto_por = NULL,
+              revision_juridica_resuelto_en = NULL,
+              revision_juridica_nota = NULL
         WHERE numero_contrato = ?`,
       [resueltoPor, resueltoPor, numero]
     );
@@ -217,7 +228,7 @@ async function rechazarContratoPendiente(dbQuery, deps, numero, resueltoPor, mot
     throw err;
   }
   const rows = await dbQuery(
-    `SELECT numero_contrato, empresa, aprobacion_estado, aprobacion_accion
+    `SELECT numero_contrato, empresa, aprobacion_estado, aprobacion_accion, revision_juridica_estado
        FROM contratos_generales
       WHERE numero_contrato = ?
       LIMIT 1`,
@@ -239,6 +250,8 @@ async function rechazarContratoPendiente(dbQuery, deps, numero, resueltoPor, mot
     throw err;
   }
 
+  assertPuedeAprobarOperativamente(c.revision_juridica_estado);
+
   if (accion === 'alta') {
     await eliminarDocumentosContrato(dbQuery, resolveAbsPath, numero);
     await dbQuery('DELETE FROM contratos_generales WHERE numero_contrato = ?', [numero]);
@@ -253,7 +266,11 @@ async function rechazarContratoPendiente(dbQuery, deps, numero, resueltoPor, mot
               aprobacion_propuesta = NULL,
               aprobacion_resuelto_por = ?,
               aprobacion_resuelto_en = NOW(),
-              aprobacion_resolucion_nota = ?
+              aprobacion_resolucion_nota = ?,
+              revision_juridica_estado = 'na',
+              revision_juridica_resuelto_por = NULL,
+              revision_juridica_resuelto_en = NULL,
+              revision_juridica_nota = NULL
         WHERE numero_contrato = ?`,
       [resueltoPor, motivo, numero]
     );

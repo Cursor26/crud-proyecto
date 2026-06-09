@@ -7,6 +7,24 @@ export const CONTRATOS_MENU_SECTIONS = [
   { id: 'contratos', key: 'contratos-lista', icon: 'bi-table', label: 'Contratos' },
 
   {
+    id: 'rechazados',
+    key: 'contratos-rechazados',
+    icon: 'bi-shield-exclamation',
+    label: 'Contratos rechazados',
+  },
+
+  {
+    id: 'verificar',
+    key: 'contratos-verificar',
+    icon: 'bi-shield-check',
+    label: 'Verificar contrato',
+  },
+
+  { id: 'pendientes', key: 'contratos-pendientes', icon: 'bi-check2-circle', label: 'Aprobar contrato' },
+
+  { id: 'renovaciones', key: 'contratos-renovaciones', icon: 'bi-arrow-repeat', label: 'Renovaciones' },
+
+  {
 
     id: 'tipos',
 
@@ -19,10 +37,6 @@ export const CONTRATOS_MENU_SECTIONS = [
     requiresContratosEdit: true,
 
   },
-
-  { id: 'pendientes', key: 'contratos-pendientes', icon: 'bi-hourglass-split', label: 'Pendientes' },
-
-  { id: 'renovaciones', key: 'contratos-renovaciones', icon: 'bi-arrow-repeat', label: 'Renovaciones' },
 
   {
 
@@ -100,7 +114,9 @@ export function canAccessContratosSection(sectionId, canFn) {
 
   if (!section || !canFn('contratos', 'view')) return false;
 
-  if (section.requiresContratosEdit) return canFn('contratos', 'edit');
+  if (section.requiresContratosEdit) {
+    return canFn('contratos', 'edit') || canFn('contratos', 'view');
+  }
 
   return true;
 

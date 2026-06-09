@@ -40,7 +40,16 @@ import ContratosAnexosField from './ContratosAnexosField';
 import ContratosVigenciaField from './ContratosVigenciaField';
 import ContratoWordPreviewPane from './ContratoWordPreviewPane';
 import ContratosPendientesDetalle from './ContratosPendientesDetalle';
+import {
+  esColaJuridica,
+  esColaAprobacionOperativa,
+  esDevueltoPorAbogado,
+  etiquetaRevisionJuridica,
+  claseBadgeRevisionJuridica,
+  TIPOS_RECHAZO_JURIDICO_OPCIONES,
+} from '../lib/contratosRevisionJuridica';
 import ContratosCambiosPendientesModal from './ContratosCambiosPendientesModal';
+import ContratosRechazoDetalleModal from './ContratosRechazoDetalleModal';
 import ContratosAuditoria from './ContratosAuditoria';
 import {
   BTN_ANADIR_MD,
@@ -265,6 +274,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const puedeEditarContratos = can('contratos', 'edit');
   const puedeExportarContratos = can('contratos', 'export');
   const puedeAprobarContratos = can('contratos', 'approve');
+  const puedeVerificarContratos = can('contratos', 'verify');
   const tabSectionIds = useMemo(() => getContratosTabSectionIds(can), [can]);
   const themeAccent = useMemo(
     () => getThemeAccentFromDocument().primary,
@@ -320,6 +330,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const [pdfVistaMaximizada, setPdfVistaMaximizada] = useState(false);
   const [contratoInfo, setContratoInfo] = useState(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [rechazoDetalleContrato, setRechazoDetalleContrato] = useState(null);
+  const [adjuntosJuridicoMap, setAdjuntosJuridicoMap] = useState({});
   const [contratoCambios, setContratoCambios] = useState(null);
   const [showCambiosModal, setShowCambiosModal] = useState(false);
   const [pdfRenderNonce, setPdfRenderNonce] = useState(0);
@@ -1669,8 +1681,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         getContratos();
         cerrarModalContrato();
         Swal.fire(
-          'Enviado a aprobación',
-          'El contrato quedó pendiente. Aparecerá activo cuando un autorizador lo apruebe en la sección Pendientes.',
+          'Enviado a revisión',
+          'El contrato quedó pendiente. No se activará hasta que se verifique la solicitud y posteriormente se autorice.',
           'success'
         );
       })
@@ -1754,8 +1766,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         }
         cerrarModalContrato();
         Swal.fire(
-          'Enviado a aprobación',
-          'Los cambios quedaron pendientes. El contrato activo no se modifica hasta que un autorizador los apruebe.',
+          'Enviado a revisión',
+          'Los cambios quedaron pendientes. El contrato activo no se modifica hasta que se verifique la solicitud y posteriormente se autorice.',
           'success'
         );
       })
@@ -1793,8 +1805,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
             'Solicitud enviada',
             res.data.message ||
               (archivar
-                ? 'La cancelación y archivo quedaron pendientes de aprobación. El contrato sigue en la lista hasta que un autorizador apruebe.'
-                : 'La cancelación quedó pendiente de aprobación. El contrato sigue activo hasta que un autorizador la apruebe.'),
+                ? 'La cancelación y archivo quedaron pendientes. El contrato sigue en la lista hasta que se verifique la solicitud y posteriormente se autorice.'
+                : 'La cancelación quedó pendiente. El contrato sigue activo hasta que se verifique la solicitud y posteriormente se autorice.'),
             'success'
           );
           return;
@@ -1846,6 +1858,214 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               ? 'El contrato quedó activo.'
               : 'Los cambios fueron aplicados y el contrato quedó activo.';
       Swal.fire('Aprobado', msg, 'success');
+    } catch (error) {
+      Swal.fire('Error', mensajeErrorApi(error), 'error');
+    }
+  };
+
+  const abrirComentariosJuridicos = async (con) => {
+    const numero = con?.numero_contrato;
+    if (!numero) return;
+    try {
+      const res = await Axios.get(
+        `${API_BASE}/contratos/${encodeURIComponent(numero)}/juridico-comentarios`
+      );
+      const comentarios = Array.isArray(res.data) ? res.data : [];
+      const historial =
+        comentarios.length === 0
+          ? '<p class="text-muted small mb-0">Sin comentarios jurídicos aún.</p>'
+          : comentarios
+              .map(
+                (c) =>
+                  `<div class="text-start mb-2 p-2 border rounded small"><strong>${c.autor_nombre || c.autor_email || 'Abogado'}</strong> <span class="text-muted">(${c.tipo || 'comentario'})</span><br/>${String(c.texto || '').replace(/</g, '&lt;')}</div>`
+              )
+              .join('');
+
+      const result = await Swal.fire({
+        title: `Observaciones jurídicas — ${numero}`,
+        html: `<div style="max-height:220px;overflow:auto;">${historial}</div>`,
+        showCancelButton: puedeVerificarContratos,
+        showDenyButton: false,
+        confirmButtonText: puedeVerificarContratos ? 'Agregar comentario' : 'Cerrar',
+        cancelButtonText: 'Cerrar',
+      });
+
+      if (!puedeVerificarContratos || !result.isConfirmed) return;
+
+      const add = await Swal.fire({
+        title: 'Nuevo comentario jurídico',
+        input: 'textarea',
+        inputLabel: 'Texto',
+        inputPlaceholder: 'Observación o nota legal…',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        inputValidator: (v) => (!String(v || '').trim() ? 'Escriba un comentario.' : undefined),
+      });
+      if (!add.isConfirmed) return;
+      await Axios.post(`${API_BASE}/contratos/${encodeURIComponent(numero)}/juridico-comentarios`, {
+        texto: String(add.value || '').trim(),
+        tipo: 'nota_legal',
+      });
+      Swal.fire('Guardado', 'Comentario jurídico registrado.', 'success');
+    } catch (error) {
+      Swal.fire('Error', mensajeErrorApi(error), 'error');
+    }
+  };
+
+  const verificarAprobarContrato = async (con) => {
+    const accion = etiquetaAccionPendiente(con.aprobacion_accion);
+    const result = await Swal.fire({
+      title: '¿Verificación jurídica aprobada?',
+      html: `<p class="mb-2">Contrato <strong>${con.numero_contrato}</strong></p><p class="mb-0">Acción: <strong>${accion}</strong></p>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Verificación aprobada',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#15803d',
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const res = await Axios.post(
+        `${API_BASE}/contratos/${encodeURIComponent(con.numero_contrato)}/verificar-aprobar`
+      );
+      getContratos();
+      Swal.fire('Verificado', res.data?.message || 'Pasa a aprobación operativa.', 'success');
+    } catch (error) {
+      Swal.fire('Error', mensajeErrorApi(error), 'error');
+    }
+  };
+
+  const archivoAdjuntoJuridicoADataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () =>
+        resolve({
+          nombre: file.name,
+          dataUrl: String(reader.result || ''),
+          mimeType: file.type || '',
+        });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const cargarAdjuntosJuridico = async (numero) => {
+    const num = String(numero || '').trim();
+    if (!num) return [];
+    try {
+      const res = await Axios.get(`${API_BASE}/contratos/${encodeURIComponent(num)}/juridico-adjuntos`);
+      const list = Array.isArray(res.data) ? res.data : [];
+      setAdjuntosJuridicoMap((prev) => ({ ...prev, [num]: list }));
+      return list;
+    } catch {
+      return [];
+    }
+  };
+
+  const descargarAdjuntoJuridico = async (numero, idAdjunto, nombreArchivo) => {
+    try {
+      const res = await Axios.get(
+        `${API_BASE}/contratos/${encodeURIComponent(numero)}/juridico-adjuntos/${idAdjunto}`,
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(res.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nombreArchivo || 'documento';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      Swal.fire('Error', mensajeErrorApi(error), 'error');
+    }
+  };
+
+  const abrirDetalleRechazo = async (con) => {
+    setRechazoDetalleContrato(con);
+    await cargarAdjuntosJuridico(con.numero_contrato);
+  };
+
+  const retirarSolicitudRechazada = async (con) => {
+    const accion = etiquetaAccionPendiente(con.aprobacion_accion);
+    const result = await Swal.fire({
+      title: '¿Cancelar solicitud?',
+      html: `<p class="mb-0">Contrato <strong>${con.numero_contrato}</strong> — ${accion}</p>
+        <p class="small text-muted mt-2 mb-0">Se retirará la solicitud devuelta por verificación. ${
+          String(con.aprobacion_accion || '').toLowerCase() === 'alta'
+            ? 'El contrato pendiente se eliminará.'
+            : 'El contrato activo no cambiará.'
+        }</p>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, cancelar solicitud',
+      cancelButtonText: 'No',
+      confirmButtonColor: '#b91c1c',
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const res = await Axios.post(
+        `${API_BASE}/contratos/${encodeURIComponent(con.numero_contrato)}/retirar-solicitud`
+      );
+      getContratos();
+      Swal.fire('Cancelada', res.data?.message || 'Solicitud cancelada.', 'success');
+    } catch (error) {
+      Swal.fire('Error', mensajeErrorApi(error), 'error');
+    }
+  };
+
+  const verificarRechazarContrato = async (con) => {
+    const accion = etiquetaAccionPendiente(con.aprobacion_accion);
+    const opcionesHtml = TIPOS_RECHAZO_JURIDICO_OPCIONES.map(
+      (o, i) =>
+        `<label class="d-block text-start mb-2"><input type="radio" name="tipo-juridico" value="${o.value}" ${i === 0 ? 'checked' : ''} class="me-2"/>${o.label}</label>`
+    ).join('');
+
+    const result = await Swal.fire({
+      title: 'Verificación rechazada',
+      html: `<p class="mb-2">Contrato <strong>${con.numero_contrato}</strong> — ${accion}</p>
+        <p class="small text-muted text-start mb-2">Seleccione el tipo de devolución:</p>
+        <div class="text-start mb-2">${opcionesHtml}</div>
+        <label class="form-label small text-start d-block mb-1">Adjuntar documento (opcional)</label>
+        <input type="file" id="swal-juridico-adjuntos" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple class="form-control form-control-sm" />
+        <p class="small text-muted text-start mb-0 mt-1">PDF o Word, máximo 3 archivos (15 MB c/u).</p>`,
+      input: 'textarea',
+      inputLabel: 'Motivo u observación (obligatorio)',
+      inputPlaceholder: 'Detalle jurídico para el contratador…',
+      inputAttributes: SWAL_ATTRS_MOTIVO_RECHAZO,
+      didOpen: didOpenSwalInputSinAutofill,
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar devolución',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+      preConfirm: async (motivo) => {
+        const tipo = document.querySelector('input[name="tipo-juridico"]:checked')?.value;
+        if (!tipo) {
+          Swal.showValidationMessage('Seleccione un tipo de devolución.');
+          return false;
+        }
+        if (!String(motivo || '').trim()) {
+          Swal.showValidationMessage('Debe indicar el motivo.');
+          return false;
+        }
+        const inputFiles = document.getElementById('swal-juridico-adjuntos');
+        const files = Array.from(inputFiles?.files || []).slice(0, 3);
+        const documentos = [];
+        for (const file of files) {
+          if (file.size > 15 * 1024 * 1024) {
+            Swal.showValidationMessage(`El archivo «${file.name}» supera 15 MB.`);
+            return false;
+          }
+          documentos.push(await archivoAdjuntoJuridicoADataUrl(file));
+        }
+        return { tipo, motivo: String(motivo).trim().slice(0, 500), documentos };
+      },
+    });
+    if (!result.isConfirmed || !result.value) return;
+    try {
+      const res = await Axios.post(
+        `${API_BASE}/contratos/${encodeURIComponent(con.numero_contrato)}/verificar-rechazar`,
+        result.value
+      );
+      getContratos();
+      Swal.fire('Devuelto', res.data?.message || 'Contrato devuelto al contratador.', 'warning');
     } catch (error) {
       Swal.fire('Error', mensajeErrorApi(error), 'error');
     }
@@ -1905,7 +2125,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         Swal.fire(
           'Solicitud enviada',
           res.data?.message ||
-            'La solicitud de archivo quedó pendiente de aprobación. El contrato sigue visible hasta que un autorizador la apruebe.',
+            'La solicitud de archivo quedó pendiente. El contrato sigue visible hasta que se verifique la solicitud y posteriormente se autorice.',
           'success'
         );
       })
@@ -1919,7 +2139,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       title: esCancelado ? '¿Eliminar contrato cancelado?' : '¿Eliminar contrato vencido?',
       html: `
         <p class="mb-2">Contrato <strong>${val.numero_contrato}</strong> — ${String(val.empresa || '').trim() || 'Sin empresa'}</p>
-        <p class="mb-0">Se enviará una solicitud de <strong>archivo por 5 años</strong> a aprobación. El contrato seguirá visible hasta que un autorizador la apruebe.</p>
+        <p class="mb-0">Se enviará una solicitud de <strong>archivo por 5 años</strong>. El contrato seguirá visible hasta que se verifique la solicitud y posteriormente se autorice.</p>
       `,
       icon: 'warning',
       showCloseButton: true,
@@ -1953,8 +2173,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       html: `
         <p class="mb-2">Contrato <strong>${val.numero_contrato}</strong> — ${String(val.empresa || '').trim() || 'Sin empresa'}</p>
         <p class="mb-0 small text-muted">
-          <strong>Cancelar y eliminar contrato:</strong> envía solicitud de cancelación y archivo (5 años) a aprobación; el contrato sigue visible hasta que un autorizador la apruebe.<br />
-          <strong>Solo cancelar contrato:</strong> envía solicitud de cancelación a aprobación; el contrato sigue activo hasta que un autorizador la apruebe.
+          <strong>Cancelar y eliminar contrato:</strong> envía solicitud de cancelación y archivo (5 años); el contrato sigue visible hasta que se verifique la solicitud y posteriormente se autorice.<br />
+          <strong>Solo cancelar contrato:</strong> envía solicitud de cancelación; el contrato sigue activo hasta que se verifique la solicitud y posteriormente se autorice.
         </p>
       `,
       icon: 'warning',
@@ -2182,15 +2402,31 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   }, [archivoList]);
 
   const editarContratoTabla = (val) => {
+    let source = val;
+    if (
+      esDevueltoPorAbogado(val) &&
+      String(val.aprobacion_accion || '').toLowerCase() === 'edicion' &&
+      val.aprobacion_propuesta
+    ) {
+      try {
+        const propuesta =
+          typeof val.aprobacion_propuesta === 'string'
+            ? JSON.parse(val.aprobacion_propuesta)
+            : val.aprobacion_propuesta;
+        source = { ...val, ...propuesta };
+      } catch {
+        source = val;
+      }
+    }
     setEditarContrato(true);
     setContratoFormErrors({});
-    setContratoNumero(val.numero_contrato);
-    setContratoNumeroOriginal(val.numero_contrato);
-    setContratoProveedorCliente(val.proveedor_cliente === 1);
-    setContratoEmpresa(val.empresa);
-    setContratoContactosNiveles(contactosNivelesStateFromContrato(val));
-    const { items } = parseSuplementosFromContrato(val);
-    const cache = normalizarListaSuplementos(contratoSuplementosMap[String(val.numero_contrato || '').trim()]);
+    setContratoNumero(source.numero_contrato);
+    setContratoNumeroOriginal(source.numero_contrato);
+    setContratoProveedorCliente(source.proveedor_cliente === 1);
+    setContratoEmpresa(source.empresa);
+    setContratoContactosNiveles(contactosNivelesStateFromContrato(source));
+    const { items } = parseSuplementosFromContrato(source);
+    const cache = normalizarListaSuplementos(contratoSuplementosMap[String(source.numero_contrato || '').trim()]);
     const merged = renumerarSuplementosLista(
       items.length
         ? items.map((it) => {
@@ -2199,27 +2435,27 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           })
         : cache
     );
-    guardarSuplementosListaContrato(val.numero_contrato, merged);
-    const anexosParsed = parseAnexosFromContrato(val);
-    const cacheAnexos = contratoAnexosMap[String(val.numero_contrato || '').trim()];
+    guardarSuplementosListaContrato(source.numero_contrato, merged);
+    const anexosParsed = parseAnexosFromContrato(source);
+    const cacheAnexos = contratoAnexosMap[String(source.numero_contrato || '').trim()];
     const itemsAnexos = anexosParsed.items.length
       ? anexosParsed.items.map((it) => {
           const hit = cacheAnexos?.items?.find((c) => c.serverId === it.serverId || c.id === it.id);
           return { ...it, id: it.id || hit?.id || `anx_${it.numero}`, dataUrl: hit?.dataUrl || it.dataUrl || '' };
         })
       : cacheAnexos?.items || [];
-    guardarAnexosEstadoContrato(val.numero_contrato, {
+    guardarAnexosEstadoContrato(source.numero_contrato, {
       activo: anexosParsed.activo || (itemsAnexos.length > 0),
       items: renumerarAnexosLista(itemsAnexos),
     });
-    setContratoVigenciaPartes(vigenciaAPartes(val.vigencia));
-    setContratoTipo(val.tipo_contrato);
-    const pri = String(val.prioridad || 'media').toLowerCase();
+    setContratoVigenciaPartes(vigenciaAPartes(source.vigencia));
+    setContratoTipo(source.tipo_contrato);
+    const pri = String(source.prioridad || 'media').toLowerCase();
     setContratoPrioridad(['alta', 'media', 'baja'].includes(pri) ? pri : 'media');
-    const fechaInicio = val.fecha_inicio ? val.fecha_inicio.substring(0, 10) : '';
+    const fechaInicio = source.fecha_inicio ? source.fecha_inicio.substring(0, 10) : '';
     setContratoFechaInicio(fechaInicio);
     setShowContratoModal(true);
-    aplicarDocumentosServidorAlContrato(val.numero_contrato);
+    aplicarDocumentosServidorAlContrato(source.numero_contrato);
   };
 
   const abrirInfoContrato = (contrato) => {
@@ -2367,6 +2603,34 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     () => contratosEnriquecidos.filter(esContratoConSolicitudPendiente),
     [contratosEnriquecidos]
   );
+
+  const contratosColaJuridica = useMemo(
+    () => contratosPendientes.filter(esColaJuridica),
+    [contratosPendientes]
+  );
+
+  const contratosColaAprobacion = useMemo(
+    () => contratosPendientes.filter(esColaAprobacionOperativa),
+    [contratosPendientes]
+  );
+
+  const contratosDevueltosJuridico = useMemo(
+    () => contratosPendientes.filter(esDevueltoPorAbogado),
+    [contratosPendientes]
+  );
+
+  const contratosRechazados = useMemo(
+    () => contratosEnriquecidos.filter(esDevueltoPorAbogado),
+    [contratosEnriquecidos]
+  );
+
+  useEffect(() => {
+    if (activeSection !== 'rechazados' || !contratosRechazados.length) return;
+    contratosRechazados.forEach((c) => {
+      const num = String(c.numero_contrato || '').trim();
+      if (num) cargarAdjuntosJuridico(num);
+    });
+  }, [activeSection, contratosRechazados]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const contratosFiltrados = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -2603,9 +2867,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       items.push({
         key: 'pendientes-aprobacion',
         count: resumen.pendientesAprobacion,
-        label: puedeAprobarContratos
-          ? 'Solicitudes pendientes de su aprobación'
-          : 'Solicitudes en espera de aprobación',
+        label:
+          puedeVerificarContratos && !puedeAprobarContratos
+            ? `Revisión jurídica pendiente (${contratosColaJuridica.length})`
+            : puedeAprobarContratos
+              ? `Aprobación operativa pendiente (${contratosColaAprobacion.length})`
+              : 'Solicitudes en flujo de aprobación',
         severity: 'warning',
       });
     }
@@ -2677,7 +2944,16 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       });
     }
     return items;
-  }, [resumen, contratosVencidos, contratosCriticos, cockpitCalidadGlobal, puedeAprobarContratos]);
+  }, [
+    resumen,
+    contratosVencidos,
+    contratosCriticos,
+    cockpitCalidadGlobal,
+    puedeAprobarContratos,
+    puedeVerificarContratos,
+    contratosColaJuridica.length,
+    contratosColaAprobacion.length,
+  ]);
 
   const empresasReporteOpciones = useMemo(() => {
     const s = new Set(contratosOperativos.map((c) => c.empresa || 'Sin empresa'));
@@ -2796,7 +3072,15 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const ejecutarAccionCockpit = (key) => {
     switch (key) {
       case 'pendientes-aprobacion':
-        irASeccion('pendientes');
+        if (puedeVerificarContratos && !puedeAprobarContratos) {
+          irASeccion('verificar');
+        } else if (puedeAprobarContratos && !puedeVerificarContratos) {
+          irASeccion('pendientes');
+        } else if (contratosColaJuridica.length > 0 || contratosDevueltosJuridico.length > 0) {
+          irASeccion('verificar');
+        } else {
+          irASeccion('pendientes');
+        }
         break;
       case 'vencidos':
       case 'vencidos-antiguos':
@@ -3075,11 +3359,17 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
 
   const seccionLabels = useMemo(() => {
     const labels = Object.fromEntries(CONTRATOS_MENU_SECTIONS.map((section) => [section.id, section.label]));
-    labels.pendientes = contratosPendientes.length
-      ? `Pendientes (${contratosPendientes.length})`
-      : 'Pendientes';
+    labels.verificar = contratosColaJuridica.length
+      ? `Verificar contrato (${contratosColaJuridica.length})`
+      : 'Verificar contrato';
+    labels.pendientes = contratosColaAprobacion.length
+      ? `Aprobar contrato (${contratosColaAprobacion.length})`
+      : 'Aprobar contrato';
+    labels.rechazados = contratosRechazados.length
+      ? `Contratos rechazados (${contratosRechazados.length})`
+      : 'Contratos rechazados';
     return labels;
-  }, [contratosPendientes.length]);
+  }, [contratosColaJuridica.length, contratosColaAprobacion.length, contratosRechazados.length]);
 
   const AvatarEmpresaClic = ({ empresa }) => {
     const src = getIconoEmpresa(empresa);
@@ -3786,9 +4076,17 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                         <td>
                           <div className="contratos-estado-cell">
                             <span className={`badge ${getBadgeClass(con.estado)}`}>{con.estado}</span>
-                            {badgeAprobacionPendiente(con) ? (
+                            {esDevueltoPorAbogado(con) ? (
+                              <span className="badge bg-danger contratos-estado-cell__pendiente">
+                                Devuelto
+                              </span>
+                            ) : esColaJuridica(con) ? (
+                              <span className="badge bg-info text-dark contratos-estado-cell__pendiente">
+                                Pendiente a verificación
+                              </span>
+                            ) : esColaAprobacionOperativa(con) ? (
                               <span className="badge bg-warning text-dark contratos-estado-cell__pendiente">
-                                {badgeAprobacionPendiente(con)}
+                                {badgeAprobacionPendiente(con) || 'Pendiente a aprobar'}
                               </span>
                             ) : null}
                           </div>
@@ -3824,10 +4122,11 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           </>
         )}
 
-        {activeSection === 'pendientes' && (
+        {activeSection === 'rechazados' && (
           <div className="card p-3 contratos-table-card">
+            <h6 className="fw-bold mb-2">Contratos rechazados</h6>
             <p className="text-muted small mb-3">
-              Contratos, modificaciones y cancelaciones que esperan aprobación. Quien tenga permiso de aprobar puede resolver cada solicitud.
+              Solicitudes devueltas por verificación. Revise el motivo y los documentos adjuntos, corrija y reenvíe o cancele la solicitud.
             </p>
             <div className="table-responsive">
               <table className="table table-data-compact table-bordered table-striped">
@@ -3836,82 +4135,270 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                     <th>N° Contrato</th>
                     <th>Empresa</th>
                     <th>Acción</th>
-                    <th>Solicitado por</th>
-                    <th>Fecha solicitud</th>
-                    <th>Cambios / detalle</th>
-                    <th>Estado actual</th>
+                    <th>Estado devolución</th>
+                    <th>Motivo</th>
+                    <th>Adjuntos</th>
+                    <th>Devuelto por</th>
+                    <th>Fecha</th>
                     <th className="contratos-th-actions">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {contratosPendientes.map((con) => (
-                    <tr key={con.numero_contrato}>
-                      <td>{renderNumeroContrato(con.numero_contrato)}</td>
-                      <td>
-                        <div className="d-inline-flex align-items-center gap-2">
-                          <AvatarEmpresaClic empresa={con.empresa} />
-                          <span>{con.empresa || 'Sin empresa'}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={claseBadgeAccionPendiente(con.aprobacion_accion)}>
-                          {etiquetaAccionPendiente(con.aprobacion_accion)}
-                        </span>
-                      </td>
-                      <td>{con.aprobacion_solicitado_por || '—'}</td>
-                      <td>{con.aprobacion_solicitado_en ? formatAppDate(con.aprobacion_solicitado_en) : '—'}</td>
-                      <td className="contratos-pendientes-detalle-td">
-                        <ContratosPendientesDetalle
-                          contrato={con}
-                          fmtDisplayDate={fmtDisplayDate}
-                          tipoLegible={etiquetaTipoContratoLegible}
-                          onVerCambios={abrirCambiosPendientes}
-                        />
-                      </td>
-                      <td>
-                        {String(con.aprobacion_accion || '').toLowerCase() === 'alta' ? (
-                          <span className="badge bg-warning text-dark">Pendiente de alta</span>
-                        ) : (
-                          <span className={`badge ${getBadgeClass(con.estado)}`}>{con.estado}</span>
-                        )}
-                      </td>
-                      <td className="contratos-td-actions">
-                        <div className="d-inline-flex align-items-center gap-1 flex-nowrap">
-                          <InfoTableActionButton onClick={() => abrirInfoContrato(con)} />
-                          {puedeAprobarContratos ? (
-                            <>
-                              <button
-                                type="button"
-                                className="btn btn-sm contratos-btn-add"
-                                onClick={() => aprobarContratoPendiente(con)}
-                                title="Aprobar"
-                              >
-                                <i className="bi bi-check-lg" aria-hidden="true" />
-                              </button>
-                              <button
-                                type="button"
-                                className={BTN_ELIMINAR_ICON}
-                                onClick={() => rechazarContratoPendiente(con)}
-                                title="Rechazar"
-                              >
-                                <i className="bi bi-x-lg" aria-hidden="true" />
-                              </button>
-                            </>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {contratosPendientes.length === 0 && (
+                  {contratosRechazados.map((con) => {
+                    const num = String(con.numero_contrato || '').trim();
+                    const adjuntos = adjuntosJuridicoMap[num] || [];
+                    return (
+                      <tr key={`rech-${num}`}>
+                        <td>{renderNumeroContrato(con.numero_contrato)}</td>
+                        <td>{con.empresa || 'Sin empresa'}</td>
+                        <td>
+                          <span className={claseBadgeAccionPendiente(con.aprobacion_accion)}>
+                            {etiquetaAccionPendiente(con.aprobacion_accion)}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`badge ${claseBadgeRevisionJuridica(con.revision_juridica_estado)}`}>
+                            {etiquetaRevisionJuridica(con.revision_juridica_estado)}
+                          </span>
+                        </td>
+                        <td className="small">{con.revision_juridica_nota || '—'}</td>
+                        <td className="small">
+                          {adjuntos.length > 0 ? (
+                            <span>{adjuntos.length} archivo{adjuntos.length === 1 ? '' : 's'}</span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="small">{con.revision_juridica_resuelto_por || '—'}</td>
+                        <td>
+                          {con.revision_juridica_resuelto_en
+                            ? formatAppDate(con.revision_juridica_resuelto_en)
+                            : '—'}
+                        </td>
+                        <td className="contratos-td-actions">
+                          <div className="contratos-pendientes-actions">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary"
+                              onClick={() => abrirDetalleRechazo(con)}
+                              title="Ver detalle de devolución"
+                            >
+                              <i className="bi bi-eye me-1" aria-hidden="true" />
+                              Detalle
+                            </button>
+                            {puedeEditarContratos ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm contratos-btn-add"
+                                  onClick={() => editarContratoTabla(con)}
+                                  title="Corregir y reenviar a verificación"
+                                >
+                                  <i className="bi bi-pencil-square me-1" aria-hidden="true" />
+                                  Corregir
+                                </button>
+                                <button
+                                  type="button"
+                                  className={BTN_ELIMINAR_ICON}
+                                  onClick={() => retirarSolicitudRechazada(con)}
+                                  title="Cancelar solicitud"
+                                >
+                                  <i className="bi bi-x-lg" aria-hidden="true" />
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {contratosRechazados.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="text-center text-muted py-3">
-                        No hay solicitudes pendientes de aprobación.
+                      <td colSpan={9} className="text-center text-muted py-3">
+                        No hay contratos rechazados por verificación.
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activeSection === 'verificar' && (
+          <div className="contratos-pendientes-dual">
+              <div className="card p-3 contratos-table-card mb-3">
+                <h6 className="fw-bold mb-2">Revisión jurídica</h6>
+                <p className="text-muted small mb-3">
+                  Solicitudes que esperan verificación del abogado antes de la aprobación operativa.
+                </p>
+                <div className="table-responsive">
+                  <table className="table table-data-compact table-bordered table-striped contratos-pendientes-verificar-table">
+                    <thead>
+                      <tr>
+                        <th>N° Contrato</th>
+                        <th>Empresa</th>
+                        <th>Acción</th>
+                        <th>Solicitado por</th>
+                        <th>Fecha</th>
+                        <th>Detalle</th>
+                        <th className="contratos-th-actions">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contratosColaJuridica.map((con) => (
+                        <tr key={`jur-${con.numero_contrato}`}>
+                          <td>{renderNumeroContrato(con.numero_contrato)}</td>
+                          <td>{con.empresa || 'Sin empresa'}</td>
+                          <td>
+                            <span className={claseBadgeAccionPendiente(con.aprobacion_accion)}>
+                              {etiquetaAccionPendiente(con.aprobacion_accion)}
+                            </span>
+                          </td>
+                          <td>{con.aprobacion_solicitado_por || '—'}</td>
+                          <td>{con.aprobacion_solicitado_en ? formatAppDate(con.aprobacion_solicitado_en) : '—'}</td>
+                          <td className="contratos-pendientes-detalle-td">
+                            <ContratosPendientesDetalle
+                              contrato={con}
+                              fmtDisplayDate={fmtDisplayDate}
+                              tipoLegible={etiquetaTipoContratoLegible}
+                              onVerCambios={abrirCambiosPendientes}
+                            />
+                          </td>
+                          <td className="contratos-td-actions">
+                            <div className="contratos-pendientes-actions">
+                              <InfoTableActionButton onClick={() => abrirInfoContrato(con)} />
+                              <button
+                                type="button"
+                                className="btn-table-icon-action btn-table-icon-action--info contratos-pendientes-actions__comentarios"
+                                onClick={() => abrirComentariosJuridicos(con)}
+                                title="Comentarios jurídicos"
+                                aria-label="Comentarios jurídicos"
+                              >
+                                <i className="bi bi-chat-left-text" aria-hidden="true" />
+                              </button>
+                              {puedeVerificarContratos ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm contratos-btn-add contratos-pendientes-actions__ok"
+                                    onClick={() => verificarAprobarContrato(con)}
+                                    title="Verificación aprobada"
+                                  >
+                                    <i className="bi bi-shield-check" aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`${BTN_ELIMINAR_ICON} contratos-pendientes-actions__rechazar`}
+                                    onClick={() => verificarRechazarContrato(con)}
+                                    title="Verificación rechazada"
+                                  >
+                                    <i className="bi bi-shield-x" aria-hidden="true" />
+                                  </button>
+                                </>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {contratosColaJuridica.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="text-center text-muted py-3">
+                            No hay solicitudes pendientes de revisión jurídica.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+          </div>
+        )}
+
+        {activeSection === 'pendientes' && (
+          <div className="contratos-pendientes-dual">
+              <div className="card p-3 contratos-table-card">
+                <h6 className="fw-bold mb-2">Aprobación operativa</h6>
+                <p className="text-muted small mb-3">
+                  Solicitudes con revisión jurídica favorable. Quien tenga permiso de aprobar resuelve cada solicitud.
+                </p>
+                <div className="table-responsive">
+                  <table className="table table-data-compact table-bordered table-striped">
+                    <thead>
+                      <tr>
+                        <th>N° Contrato</th>
+                        <th>Empresa</th>
+                        <th>Acción</th>
+                        <th>Revisión jurídica</th>
+                        <th>Solicitado por</th>
+                        <th>Fecha</th>
+                        <th>Detalle</th>
+                        <th className="contratos-th-actions">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contratosColaAprobacion.map((con) => (
+                        <tr key={`ap-${con.numero_contrato}`}>
+                          <td>{renderNumeroContrato(con.numero_contrato)}</td>
+                          <td>{con.empresa || 'Sin empresa'}</td>
+                          <td>
+                            <span className={claseBadgeAccionPendiente(con.aprobacion_accion)}>
+                              {etiquetaAccionPendiente(con.aprobacion_accion)}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge ${claseBadgeRevisionJuridica(con.revision_juridica_estado)}`}>
+                              {etiquetaRevisionJuridica(con.revision_juridica_estado)}
+                            </span>
+                          </td>
+                          <td>{con.aprobacion_solicitado_por || '—'}</td>
+                          <td>{con.aprobacion_solicitado_en ? formatAppDate(con.aprobacion_solicitado_en) : '—'}</td>
+                          <td className="contratos-pendientes-detalle-td">
+                            <ContratosPendientesDetalle
+                              contrato={con}
+                              fmtDisplayDate={fmtDisplayDate}
+                              tipoLegible={etiquetaTipoContratoLegible}
+                              onVerCambios={abrirCambiosPendientes}
+                            />
+                          </td>
+                          <td className="contratos-td-actions">
+                            <div className="d-inline-flex align-items-center gap-1 flex-nowrap">
+                              <InfoTableActionButton onClick={() => abrirInfoContrato(con)} />
+                              {puedeAprobarContratos ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm contratos-btn-add"
+                                    onClick={() => aprobarContratoPendiente(con)}
+                                    title="Aprobar"
+                                  >
+                                    <i className="bi bi-check-lg" aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`${BTN_ELIMINAR_ICON} contratos-pendientes-actions__rechazar`}
+                                    onClick={() => rechazarContratoPendiente(con)}
+                                    title="Rechazar"
+                                  >
+                                    <i className="bi bi-shield-x" aria-hidden="true" />
+                                  </button>
+                                </>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {contratosColaAprobacion.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="text-center text-muted py-3">
+                            No hay solicitudes listas para aprobación operativa.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
           </div>
         )}
 
@@ -4822,6 +5309,24 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         </div>,
         document.body
       )}
+
+      <ContratosRechazoDetalleModal
+        show={Boolean(rechazoDetalleContrato)}
+        onHide={() => setRechazoDetalleContrato(null)}
+        contrato={rechazoDetalleContrato}
+        accionLabel={
+          rechazoDetalleContrato
+            ? etiquetaAccionPendiente(rechazoDetalleContrato.aprobacion_accion)
+            : ''
+        }
+        adjuntos={
+          rechazoDetalleContrato
+            ? adjuntosJuridicoMap[String(rechazoDetalleContrato.numero_contrato || '').trim()] || []
+            : []
+        }
+        onDescargarAdjunto={descargarAdjuntoJuridico}
+        fmtFecha={fmtDisplayDate}
+      />
 
       <ContratosInfoModal
         show={showInfoModal}

@@ -16,6 +16,9 @@ const EVENTO_TITULOS = {
   modificado: 'Contrato modificado',
   pendiente_aprobacion: 'Solicitud pendiente de aprobación',
   aprobacion_resuelta: 'Cambio de estado aprobado',
+  pendiente_revision_juridica: 'Pendiente de revisión jurídica',
+  revision_juridica_aprobada: 'Revisión jurídica aprobada',
+  revision_juridica_devuelta: 'Contrato devuelto por revisión jurídica',
 };
 
 function safeDateToIso(value) {
@@ -40,6 +43,15 @@ function buildMail(contrato, evento, extra = {}) {
     detalle = `Se solicitó: ${accionLabel}. Revise la sección Pendientes para aprobar o rechazar.`;
   } else if (eventoKey === 'aprobacion_resuelta' && accionLabel) {
     detalle = `Se aprobó: ${accionLabel}.`;
+  } else if (eventoKey === 'pendiente_revision_juridica' && accionLabel) {
+    detalle = `Se solicitó revisión jurídica: ${accionLabel}.`;
+  } else if (eventoKey === 'revision_juridica_aprobada' && accionLabel) {
+    detalle = `Revisión jurídica favorable. Pendiente aprobación operativa: ${accionLabel}.`;
+  } else if (eventoKey === 'revision_juridica_devuelta') {
+    const tipo = String(extra.tipo || '').replace(/_/g, ' ');
+    detalle = tipo
+      ? `Devuelto por revisión jurídica (${tipo}).`
+      : 'Devuelto por revisión jurídica con observaciones.';
   } else if (eventoKey === 'por_vencer') {
     const dias = extra.diasRestantes;
     detalle =
@@ -85,8 +97,17 @@ function buildMail(contrato, evento, extra = {}) {
 }
 
 function createContratosNotificacionesEventosService(dbQuery, deps) {
-  const { SQL_CONTRATO_SELECT, normalizeEmail, isValidEmail, sendMailWithFallback, mailer, correoPlantillas } =
-    deps;
+  const {
+    SQL_CONTRATO_SELECT,
+    normalizeEmail,
+    isValidEmail,
+    sendMailWithFallback,
+    mailer,
+    correoPlantillas,
+    mailOutbox,
+    isMailQueueableError,
+    mailHealth,
+  } = deps;
 
   async function resolveMail(contrato, evento, extra = {}) {
     const eventoKey = String(evento || '').trim();
@@ -133,8 +154,30 @@ function createContratosNotificacionesEventosService(dbQuery, deps) {
     if (!destinos.length) return { ok: false, skipped: true, reason: 'sin_destinos', evento };
 
     const mail = await resolveMail(contrato, evento, extra);
+    const numero = String(contrato.numero_contrato || numeroContrato || '').trim();
     let enviados = 0;
+    let encolados = 0;
+    const smtpDown = mailer.mode === 'smtp' && mailHealth && !mailHealth.isAvailable();
+
+    async function enqueueNotificacion(destino) {
+      if (!mailOutbox?.enqueue) return false;
+      const r = await mailOutbox.enqueue({
+        tipo: 'notificacion_contrato',
+        refKey: `${numero}:${evento}`,
+        destino,
+        asunto: mail.subject,
+        cuerpoTexto: mail.text,
+        cuerpoHtml: mail.html,
+        payload: { kind: 'notificacion', numero_contrato: numero, evento },
+      });
+      return Boolean(r?.ok);
+    }
+
     for (const destino of destinos) {
+      if (smtpDown) {
+        if (await enqueueNotificacion(destino)) encolados += 1;
+        continue;
+      }
       try {
         await sendMailWithFallback({
           from: mailer.from,
@@ -145,13 +188,18 @@ function createContratosNotificacionesEventosService(dbQuery, deps) {
         });
         enviados += 1;
       } catch (err) {
+        const queueable = typeof isMailQueueableError === 'function' && isMailQueueableError(err);
+        if (queueable && (await enqueueNotificacion(destino))) {
+          encolados += 1;
+          continue;
+        }
         console.warn(
           `[NOTIF-CONTRATO:${evento}] No se pudo enviar a ${destino}:`,
           err?.message || err
         );
       }
     }
-    return { ok: enviados > 0, enviados, destinos, evento };
+    return { ok: enviados > 0 || encolados > 0, enviados, encolados, destinos, evento };
   }
 
   async function disparar(numeroContrato, evento, extra = {}) {

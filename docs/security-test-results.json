@@ -1,8 +1,8 @@
 {
-  "executedAt": "2026-06-08T00:53:01.205Z",
+  "executedAt": "2026-06-08T15:21:38.883Z",
   "apiBase": "http://localhost:3001",
-  "total": 9,
-  "passed": 9,
+  "total": 10,
+  "passed": 10,
   "failed": 0,
   "results": [
     {
@@ -97,7 +97,7 @@
           "content-type": "application/json; charset=utf-8",
           "cross-origin-opener-policy": "same-origin",
           "cross-origin-resource-policy": "same-origin",
-          "date": "Mon, 08 Jun 2026 00:53:01 GMT",
+          "date": "Mon, 08 Jun 2026 15:21:39 GMT",
           "etag": "W/\"13-QvXDboJrr9O59G2mCyhuEgGwlEg\"",
           "keep-alive": "timeout=5",
           "origin-agent-cluster": "?1",
@@ -123,6 +123,16 @@
       "response": {
         "allowOrigin": null
       }
+    },
+    {
+      "id": "SEC-10",
+      "name": "Token en blacklist tras logout",
+      "ok": true,
+      "skipped": true,
+      "detail": "Omitida: defina TEST_LOGIN_IDENTIFIER y TEST_LOGIN_PASSWORD en entorno",
+      "expected": "403 tras logout",
+      "actualStatus": null,
+      "response": null
     }
   ]
 }

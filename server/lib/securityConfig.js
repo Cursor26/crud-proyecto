@@ -71,7 +71,15 @@ function createAuthRateLimiters() {
     message: { message: 'Demasiadas peticiones. Reduzca la frecuencia.' },
   });
 
-  return { login, passwordReset, api };
+  const loginAvatar = rateLimit({
+    windowMs: Number(process.env.RATE_LIMIT_LOGIN_AVATAR_WINDOW_MS || 60 * 1000),
+    max: Number(process.env.RATE_LIMIT_LOGIN_AVATAR_MAX || 20),
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Demasiadas consultas. Inténtelo más tarde.' },
+  });
+
+  return { login, passwordReset, api, loginAvatar };
 }
 
 module.exports = {

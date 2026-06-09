@@ -2,7 +2,7 @@
  * Consultas y resolución de catálogos para BD normalizada.
  */
 
-const SQL_USUARIO_AUTH = `SELECT u.email, u.nombre, u.password, r.codigo AS rol, r.id_rol, u.activo
+const SQL_USUARIO_AUTH = `SELECT u.email, u.nombre, u.password, u.foto_perfil, r.codigo AS rol, r.id_rol, u.activo
   FROM usuarios u
   INNER JOIN roles r ON r.id_rol = u.id_rol`;
 
@@ -36,6 +36,10 @@ const SQL_CONTRATO_SELECT = `SELECT c.numero_contrato,
   c.aprobacion_resuelto_por,
   c.aprobacion_resuelto_en,
   c.aprobacion_resolucion_nota,
+  COALESCE(NULLIF(LOWER(TRIM(c.revision_juridica_estado)), ''), 'na') AS revision_juridica_estado,
+  c.revision_juridica_resuelto_por,
+  c.revision_juridica_resuelto_en,
+  c.revision_juridica_nota,
   CASE WHEN c.fecha_fin IS NOT NULL AND c.fecha_fin < CURDATE() THEN 1 ELSE 0 END AS vencido
   FROM contratos_generales c
   LEFT JOIN catalogo_tipo_contraparte cp ON cp.id_contraparte = c.id_contraparte

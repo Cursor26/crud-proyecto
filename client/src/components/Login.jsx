@@ -1,7 +1,20 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import Axios from 'axios';
+import Axios, { API_BASE } from '../axiosConfig';
 import Swal from 'sweetalert2';
-import { DEFAULT_LOGIN_LOGO, fetchLoginAvatar } from '../lib/profilePhoto';
+import { DEFAULT_LOGIN_LOGO } from '../lib/profilePhoto';
+import {
+  clearTrustedDeviceProfile,
+  getTrustedDeviceProfile,
+  getTrustedPhotoForIdentifier,
+  hasTrustedDeviceProfile,
+} from '../lib/trustedDeviceProfile';
+import MailServiceUnavailableBanner from './MailServiceUnavailableBanner';
+import {
+  isMailUnavailableResponse,
+  mailUnavailableMessage,
+  MAIL_QUEUED_MESSAGE,
+  mailQueueBannerMessage,
+} from '../lib/mailServiceMessages';
 
 function Login({ onLogin }) {
   const [captchaText, setCaptchaText] = useState('');
@@ -13,17 +26,37 @@ function Login({ onLogin }) {
   const [resetPassword, setResetPassword] = useState('');
   const [confirmResetPassword, setConfirmResetPassword] = useState('');
   const [submittingReset, setSubmittingReset] = useState(false);
-  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState(() => {
+    const trusted = getTrustedDeviceProfile();
+    return trusted?.email || '';
+  });
+  const [rememberedDevice, setRememberedDevice] = useState(() => hasTrustedDeviceProfile());
   const [profilePhotoSrc, setProfilePhotoSrc] = useState(null);
   const [isProfileReveal, setIsProfileReveal] = useState(false);
   const timerRef = useRef(null);
   const avatarLookupTimerRef = useRef(null);
-  const avatarLookupSeqRef = useRef(0);
   const profileHideTimerRef = useRef(null);
   const loginInputRef = useRef(null);
   const loginPasswordRef = useRef(null);
+  const [mailStatus, setMailStatus] = useState({
+    smtp_disponible: true,
+    mensaje: null,
+    correos_pendientes: 0,
+  });
 
   const PROFILE_ANIM_MS = 560;
+
+  useEffect(() => {
+    Axios.get(`${API_BASE}/auth/mail-estado`)
+      .then((res) => {
+        setMailStatus({
+          smtp_disponible: res.data?.smtp_disponible !== false,
+          mensaje: res.data?.mensaje || null,
+          correos_pendientes: Number(res.data?.correos_pendientes) || 0,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const revealProfilePhoto = (foto) => {
     if (profileHideTimerRef.current) {
@@ -170,18 +203,14 @@ function Login({ onLogin }) {
       return undefined;
     }
 
-    avatarLookupTimerRef.current = setTimeout(async () => {
-      const seq = avatarLookupSeqRef.current + 1;
-      avatarLookupSeqRef.current = seq;
-      const foto = await fetchLoginAvatar(trimmed);
-      if (seq !== avatarLookupSeqRef.current) return;
-
+    avatarLookupTimerRef.current = setTimeout(() => {
+      const foto = getTrustedPhotoForIdentifier(trimmed);
       if (foto) {
         revealProfilePhoto(foto);
       } else {
         hideProfilePhoto();
       }
-    }, 320);
+    }, 200);
 
     return () => {
       if (avatarLookupTimerRef.current) clearTimeout(avatarLookupTimerRef.current);
@@ -194,6 +223,15 @@ function Login({ onLogin }) {
     },
     []
   );
+
+  const handleUseAnotherAccount = () => {
+    clearTrustedDeviceProfile();
+    setRememberedDevice(false);
+    setLoginIdentifier('');
+    if (loginInputRef.current) loginInputRef.current.value = '';
+    if (loginPasswordRef.current) loginPasswordRef.current.value = '';
+    hideProfilePhoto();
+  };
 
   const validateCaptcha = () => {
     if (String(userCaptcha || '').trim() !== String(captchaText || '').trim()) {
@@ -233,8 +271,8 @@ function Login({ onLogin }) {
     if (!email) return;
 
     try {
-      const response = await Axios.post('/auth/forgot-password', { email });
-      const { message, devResetUrl, deliveryWarning } = response.data || {};
+      const response = await Axios.post(`${API_BASE}/auth/forgot-password`, { email });
+      const { message, devResetUrl, deliveryWarning, queued } = response.data || {};
       if (devResetUrl) {
         const result = await Swal.fire({
           icon: deliveryWarning ? 'warning' : 'info',
@@ -255,12 +293,13 @@ function Login({ onLogin }) {
       }
 
       await Swal.fire(
-        deliveryWarning ? 'Atención' : 'Solicitud enviada',
-        message || 'Revisa tu correo para continuar.',
-        deliveryWarning ? 'warning' : 'success'
+        queued ? 'Correo en cola' : deliveryWarning ? 'Atención' : 'Solicitud enviada',
+        queued ? MAIL_QUEUED_MESSAGE : message || 'Revisa tu correo para continuar.',
+        queued || deliveryWarning ? 'warning' : 'success'
       );
     } catch (error) {
-      await Swal.fire('Error', error.response?.data?.message || 'No se pudo enviar el correo de recuperaci�n.', 'error');
+      const title = isMailUnavailableResponse(error) ? 'Correo no disponible' : 'Error';
+      await Swal.fire(title, mailUnavailableMessage(error), isMailUnavailableResponse(error) ? 'warning' : 'error');
     }
   };
 
@@ -323,6 +362,12 @@ function Login({ onLogin }) {
 
   return (
     <div className="login-page">
+      <MailServiceUnavailableBanner
+        visible={
+          mailStatus.smtp_disponible === false || (mailStatus.correos_pendientes || 0) > 0
+        }
+        message={mailQueueBannerMessage(mailStatus)}
+      />
       <div className="login-card">
         <div className={`login-logo-wrap${isProfileReveal ? ' login-logo-wrap--profile-visible' : ''}`}>
           {profilePhotoSrc ? (
@@ -401,7 +446,7 @@ function Login({ onLogin }) {
                 className="login-input"
                 placeholder="Usuario o correo"
                 autoComplete="username"
-                defaultValue=""
+                defaultValue={loginIdentifier}
                 onChange={(e) => setLoginIdentifier(e.target.value)}
                 onInput={(e) => setLoginIdentifier(e.target.value)}
                 required
@@ -491,6 +536,18 @@ function Login({ onLogin }) {
               >
                 Olvidaste tu contrasena?
               </a>
+              {rememberedDevice ? (
+                <>
+                  {' · '}
+                  <button
+                    type="button"
+                    className="login-forgot-link login-forgot-link--btn"
+                    onClick={handleUseAnotherAccount}
+                  >
+                    Usar otra cuenta
+                  </button>
+                </>
+              ) : null}
             </p>
           </form>
         )}

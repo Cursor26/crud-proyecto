@@ -15,8 +15,15 @@ CREATE TABLE IF NOT EXISTS rbac_role_permissions (
   can_delete TINYINT(1) NOT NULL DEFAULT 0,
   can_export TINYINT(1) NOT NULL DEFAULT 0,
   can_approve TINYINT(1) NOT NULL DEFAULT 0,
+  can_verify TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (id_rol, module_codigo),
   CONSTRAINT fk_rbac_perm_rol FOREIGN KEY (id_rol) REFERENCES roles (id_rol) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-UPDATE roles SET is_system = 1 WHERE codigo IN ('admin','contratacion','director');
+UPDATE roles SET is_system = 1 WHERE codigo IN ('admin','contratacion','director','abogado');
+
+ALTER TABLE rbac_role_permissions ADD COLUMN can_verify TINYINT(1) NOT NULL DEFAULT 0 AFTER can_approve;
+
+INSERT INTO roles (codigo, nombre, descripcion, is_system, activo)
+SELECT 'abogado', 'Abogado Revisor Jurídico', 'Revisión jurídica de contratos', 1, 1
+WHERE NOT EXISTS (SELECT 1 FROM roles WHERE codigo = 'abogado');

@@ -53,6 +53,7 @@ function GestionUsuarios() {
 
   const [activoTogglePending, setActivoTogglePending] = useState(null);
   const [rolesCatalog, setRolesCatalog] = useState([]);
+  const [usuarioModalKey, setUsuarioModalKey] = useState(0);
 
   const getUsuarios = () => {
     setLoadError('');
@@ -97,7 +98,12 @@ function GestionUsuarios() {
 
   const abrirModalNuevoUsuario = () => {
     limpiarUsuario();
+    setUsuarioModalKey((k) => k + 1);
     setShowUsuarioModal(true);
+  };
+
+  const desbloquearCampoAutofill = (e) => {
+    if (e?.target) e.target.readOnly = false;
   };
 
   const guardarUsuarioModal = () => {
@@ -243,8 +249,11 @@ function GestionUsuarios() {
     setUserPassword('');
     setUserPasswordConfirm('');
     setFormErrors({});
+    setUsuarioModalKey((k) => k + 1);
     setShowUsuarioModal(true);
   };
+
+  const esFormularioNuevoUsuario = showUsuarioModal && !editandoUsuario;
 
   const nombrePorEmail = useMemo(() => {
     const m = new Map();
@@ -308,7 +317,11 @@ function GestionUsuarios() {
         primaryLabel={editandoUsuario ? 'Actualizar' : 'Crear'}
         autoCompleteOff
       >
-        <div className="minimal-form-stack" autoComplete="off">
+        <div key={usuarioModalKey} className="minimal-form-stack" autoComplete="off">
+          <div className="user-profile-settings__autofill-trap" aria-hidden="true">
+            <input tabIndex={-1} type="text" name="fake-username-trap" autoComplete="username" readOnly />
+            <input tabIndex={-1} type="password" name="fake-password-trap" autoComplete="current-password" readOnly />
+          </div>
           <div className="minimal-field">
             <label className="minimal-label">Email:</label>
             <input
@@ -317,10 +330,14 @@ function GestionUsuarios() {
               autoComplete="off"
               data-1p-ignore
               data-lpignore="true"
+              data-form-type="other"
+              readOnly={esFormularioNuevoUsuario}
               className={`minimal-input ${formErrors.email ? 'is-invalid' : ''}`}
               placeholder="------------------------"
               value={userEmail}
               onChange={(e) => setUserEmail(e.target.value)}
+              onFocus={desbloquearCampoAutofill}
+              onMouseDown={desbloquearCampoAutofill}
             />
             {formErrors.email ? <small className="text-danger">{formErrors.email}</small> : null}
           </div>
@@ -331,10 +348,14 @@ function GestionUsuarios() {
               name="aepg-admin-user-name"
               autoComplete="off"
               data-1p-ignore
+              data-form-type="other"
+              readOnly={esFormularioNuevoUsuario}
               className={`minimal-input ${formErrors.nombre ? 'is-invalid' : ''}`}
               placeholder="------------------------"
               value={userNombre}
               onChange={(e) => setUserNombre(e.target.value)}
+              onFocus={desbloquearCampoAutofill}
+              onMouseDown={desbloquearCampoAutofill}
             />
             {formErrors.nombre ? <small className="text-danger">{formErrors.nombre}</small> : null}
           </div>
@@ -359,13 +380,17 @@ function GestionUsuarios() {
               <input
                 type={verPassword ? 'text' : 'password'}
                 name="aepg-admin-user-password"
-                autoComplete="off"
+                autoComplete={esFormularioNuevoUsuario ? 'new-password' : 'off'}
                 data-1p-ignore
                 data-lpignore="true"
+                data-form-type="other"
+                readOnly={esFormularioNuevoUsuario}
                 className={`minimal-input minimal-input--with-eye ${formErrors.password ? 'is-invalid' : ''}`}
                 placeholder={editandoUsuario ? 'Dejar vacía para mantener actual' : '------------------------'}
                 value={userPassword}
                 onChange={(e) => setUserPassword(e.target.value)}
+                onFocus={desbloquearCampoAutofill}
+                onMouseDown={desbloquearCampoAutofill}
               />
               <button
                 type="button"
@@ -387,13 +412,17 @@ function GestionUsuarios() {
             <input
               type={verPassword ? 'text' : 'password'}
               name="aepg-admin-user-password-confirm"
-              autoComplete="off"
+              autoComplete={esFormularioNuevoUsuario ? 'new-password' : 'off'}
               data-1p-ignore
               data-lpignore="true"
+              data-form-type="other"
+              readOnly={esFormularioNuevoUsuario}
               className={`minimal-input ${formErrors.passwordConfirm ? 'is-invalid' : ''}`}
               placeholder="------------------------"
               value={userPasswordConfirm}
               onChange={(e) => setUserPasswordConfirm(e.target.value)}
+              onFocus={desbloquearCampoAutofill}
+              onMouseDown={desbloquearCampoAutofill}
             />
             {formErrors.passwordConfirm ? <small className="text-danger">{formErrors.passwordConfirm}</small> : null}
           </div>

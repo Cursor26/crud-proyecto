@@ -96,15 +96,3 @@ export async function saveProfilePhoto(fotoPerfil) {
   }
 }
 
-export async function fetchLoginAvatar(identifier) {
-  const trimmed = String(identifier || '').trim();
-  if (!trimmed) return null;
-  try {
-    const res = await Axios.get('/auth/login-avatar', { params: { identifier: trimmed } });
-    if (!res.data || typeof res.data !== 'object') return null;
-    const foto = res.data.fotoPerfil;
-    return foto && typeof foto === 'string' ? foto : null;
-  } catch {
-    return null;
-  }
-}

@@ -14,6 +14,7 @@ const RBAC_ACTIONS = [
   { codigo: 'delete', nombre: 'Eliminar', col: 'can_delete' },
   { codigo: 'export', nombre: 'Exportar', col: 'can_export' },
   { codigo: 'approve', nombre: 'Aprobar', col: 'can_approve' },
+  { codigo: 'verify', nombre: 'Verificar', col: 'can_verify' },
 ];
 
 const ACTION_TO_COL = Object.fromEntries(RBAC_ACTIONS.map((a) => [a.codigo, a.col]));
@@ -26,6 +27,7 @@ function permFlags(p = {}) {
     delete: Boolean(p.delete),
     export: Boolean(p.export),
     approve: Boolean(p.approve),
+    verify: Boolean(p.verify),
   };
 }
 
@@ -47,7 +49,7 @@ function normalizePermissionsMap(map = {}) {
 }
 
 function allFlags(on) {
-  return permFlags({ view: on, create: on, edit: on, delete: on, export: on, approve: on });
+  return permFlags({ view: on, create: on, edit: on, delete: on, export: on, approve: on, verify: on });
 }
 
 function viewExportOnly() {
@@ -82,6 +84,12 @@ const SYSTEM_ROLE_TEMPLATES = {
     auditoria: permFlags({}),
     configuracion: permFlags({ view: true }),
   },
+  abogado: {
+    usuarios: permFlags({}),
+    contratos: permFlags({ view: true, verify: true, export: true }),
+    auditoria: permFlags({}),
+    configuracion: permFlags({}),
+  },
 };
 
 function slugifyCodigo(nombre) {
@@ -108,6 +116,7 @@ function rowToModulePerms(rows) {
       delete: r.can_delete,
       export: r.can_export,
       approve: r.can_approve,
+      verify: r.can_verify,
     });
   }
   return map;
@@ -166,13 +175,13 @@ function createRbacService(dbQuery) {
   function hasAnyPermission(permissions) {
     if (!permissions || typeof permissions !== 'object') return false;
     return Object.values(permissions).some(
-      (m) => m?.view || m?.create || m?.edit || m?.delete || m?.export || m?.approve
+      (m) => m?.view || m?.create || m?.edit || m?.delete || m?.export || m?.approve || m?.verify
     );
   }
 
   async function seedSystemRolePermissions() {
     const roles = await dbQuery(
-      `SELECT id_rol, codigo FROM roles WHERE codigo IN ('admin','contratacion','director')`
+      `SELECT id_rol, codigo FROM roles WHERE codigo IN ('admin','contratacion','director','abogado')`
     );
     for (const role of roles) {
       const template = SYSTEM_ROLE_TEMPLATES[role.codigo];
@@ -200,7 +209,7 @@ function createRbacService(dbQuery) {
   /** Aplica la plantilla exacta a roles de sistema (fuente de verdad; no editable en UI). */
   async function enforceSystemRoleTemplates() {
     const roles = await dbQuery(
-      `SELECT id_rol, codigo FROM roles WHERE codigo IN ('admin','contratacion','director') AND COALESCE(is_system, 0) = 1`
+      `SELECT id_rol, codigo FROM roles WHERE codigo IN ('admin','contratacion','director','abogado') AND COALESCE(is_system, 0) = 1`
     );
     for (const role of roles) {
       const template = SYSTEM_ROLE_TEMPLATES[role.codigo];
@@ -216,11 +225,12 @@ function createRbacService(dbQuery) {
       const p = normalized[mod.codigo] || permFlags({});
       await dbQuery(
         `INSERT INTO rbac_role_permissions
-          (id_rol, module_codigo, can_view, can_create, can_edit, can_delete, can_export, can_approve)
-         VALUES (?,?,?,?,?,?,?,?)
+          (id_rol, module_codigo, can_view, can_create, can_edit, can_delete, can_export, can_approve, can_verify)
+         VALUES (?,?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE
           can_view=VALUES(can_view), can_create=VALUES(can_create), can_edit=VALUES(can_edit),
-          can_delete=VALUES(can_delete), can_export=VALUES(can_export), can_approve=VALUES(can_approve)`,
+          can_delete=VALUES(can_delete), can_export=VALUES(can_export), can_approve=VALUES(can_approve),
+          can_verify=VALUES(can_verify)`,
         [
           idRol,
           mod.codigo,
@@ -230,6 +240,7 @@ function createRbacService(dbQuery) {
           p.delete ? 1 : 0,
           p.export ? 1 : 0,
           p.approve ? 1 : 0,
+          p.verify ? 1 : 0,
         ]
       );
     }
@@ -243,7 +254,7 @@ function createRbacService(dbQuery) {
     if (cached && Date.now() - cached.at < CACHE_MS) return cached.data;
 
     const rows = await dbQuery(
-      `SELECT r.codigo, p.module_codigo, p.can_view, p.can_create, p.can_edit, p.can_delete, p.can_export, p.can_approve
+      `SELECT r.codigo, p.module_codigo, p.can_view, p.can_create, p.can_edit, p.can_delete, p.can_export, p.can_approve, p.can_verify
          FROM roles r
          LEFT JOIN rbac_role_permissions p ON p.id_rol = r.id_rol
         WHERE LOWER(r.codigo) = ?
@@ -297,7 +308,7 @@ function createRbacService(dbQuery) {
     );
     if (!roles.length) return null;
     const perms = await dbQuery(
-      'SELECT module_codigo, can_view, can_create, can_edit, can_delete, can_export, can_approve FROM rbac_role_permissions WHERE id_rol = ?',
+      'SELECT module_codigo, can_view, can_create, can_edit, can_delete, can_export, can_approve, can_verify FROM rbac_role_permissions WHERE id_rol = ?',
       [idRol]
     );
     return {

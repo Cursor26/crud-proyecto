@@ -40,17 +40,19 @@ export default function ContratosPendientesDetalle({
       );
     }
     return (
-      <button
-        type="button"
-        className="btn btn-sm contratos-btn-ver-cambios"
-        onClick={(e) => {
-          e.stopPropagation();
-          onVerCambios?.(contrato);
-        }}
-      >
-        <i className="bi bi-eye me-1" aria-hidden="true" />
-        Ver cambios
-      </button>
+      <div>
+        <button
+          type="button"
+          className="btn btn-sm contratos-btn-ver-cambios"
+          onClick={(e) => {
+            e.stopPropagation();
+            onVerCambios?.(contrato);
+          }}
+        >
+          <i className="bi bi-eye me-1" aria-hidden="true" />
+          Ver cambios
+        </button>
+      </div>
     );
   }
 

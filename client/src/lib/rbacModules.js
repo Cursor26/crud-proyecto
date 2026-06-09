@@ -12,12 +12,21 @@ export const RBAC_ACTIONS = [
   { codigo: 'delete', nombre: 'Eliminar' },
   { codigo: 'export', nombre: 'Exportar' },
   { codigo: 'approve', nombre: 'Aprobar' },
+  { codigo: 'verify', nombre: 'Verificar' },
 ];
 
 export function emptyPermissions() {
   const p = {};
   for (const m of RBAC_MODULES) {
-    p[m.codigo] = { view: false, create: false, edit: false, delete: false, export: false, approve: false };
+    p[m.codigo] = {
+      view: false,
+      create: false,
+      edit: false,
+      delete: false,
+      export: false,
+      approve: false,
+      verify: false,
+    };
   }
   return p;
 }
@@ -31,6 +40,7 @@ export function normalizeModulePermissions(row = {}) {
     delete: Boolean(row.delete),
     export: Boolean(row.export),
     approve: Boolean(row.approve),
+    verify: Boolean(row.verify),
   };
   if (!normalized.view) {
     normalized.create = false;
@@ -38,6 +48,7 @@ export function normalizeModulePermissions(row = {}) {
     normalized.delete = false;
     normalized.export = false;
     normalized.approve = false;
+    normalized.verify = false;
   }
   return normalized;
 }
@@ -53,7 +64,7 @@ export function normalizePermissions(permisos) {
 export function hasAnyPermission(permisos) {
   if (!permisos || typeof permisos !== 'object') return false;
   return Object.values(permisos).some(
-    (m) => m?.view || m?.create || m?.edit || m?.delete || m?.export || m?.approve
+    (m) => m?.view || m?.create || m?.edit || m?.delete || m?.export || m?.approve || m?.verify
   );
 }
 

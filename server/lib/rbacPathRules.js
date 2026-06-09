@@ -81,6 +81,18 @@ function resolveRouteAction(method, rawPath) {
     path === '/send-contrato-reminder'
   ) {
     if (m === 'POST' && path.includes('/archivar')) return { module: 'contratos', action: 'delete' };
+    if (m === 'POST' && (path.includes('/verificar-aprobar') || path.includes('/verificar-rechazar'))) {
+      return { module: 'contratos', action: 'verify' };
+    }
+    if (path.includes('/juridico-comentarios')) {
+      return { module: 'contratos', action: m === 'GET' ? 'view' : 'verify' };
+    }
+    if (path.includes('/juridico-adjuntos')) {
+      return { module: 'contratos', action: 'view' };
+    }
+    if (m === 'POST' && path.includes('/retirar-solicitud')) {
+      return { module: 'contratos', action: 'edit' };
+    }
     if (m === 'POST' && (path.includes('/aprobar') || path.includes('/rechazar'))) {
       return { module: 'contratos', action: 'approve' };
     }

@@ -105,8 +105,13 @@ const dbQuery = (sql, params = []) =>
     });
   });
 
+const { createMailOutboxService } = require('./lib/mailOutbox');
+const mailOutbox = createMailOutboxService(dbQuery);
+
 const { createAuditService } = require('./lib/auditLog');
 const audit = createAuditService(dbQuery);
+const { createJwtBlacklistService } = require('./lib/jwtBlacklist');
+const jwtBlacklist = createJwtBlacklistService(dbQuery);
 const { createContratosAuditoriaService } = require('./lib/contratosAuditoria');
 const contratosAuditoria = createContratosAuditoriaService(dbQuery, audit);
 const { createRbacService } = require('./lib/rbac');
@@ -127,8 +132,22 @@ const {
   aprobarContratoPendiente,
   rechazarContratoPendiente,
 } = require('./lib/contratosAprobacion');
+const {
+  sqlMarcarRevisionPendiente,
+  normalizarRevisionJuridicaEstado,
+  verificarAprobar,
+  verificarRechazar,
+  retirarSolicitudDevuelta,
+  listarComentarios,
+  agregarComentario,
+} = require('./lib/contratosRevisionJuridica');
+const {
+  listarAdjuntos: listarAdjuntosJuridico,
+  obtenerAdjunto: obtenerAdjuntoJuridico,
+} = require('./lib/contratosJuridicoAdjuntos');
 const { ejecutarArchivoContrato } = require('./lib/contratosArchivo');
 const { validarNumeroContratoUnico } = require('./lib/contratosNumeroUnico');
+const mailHealth = require('./lib/mailHealth');
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const hashResetToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -161,37 +180,49 @@ const reloadMailerFromConfig = async () => {
   mailer.source = next.source;
 };
 
+const SMTP_VERIFY_TIMEOUT_MS = Number(process.env.SMTP_VERIFY_TIMEOUT_MS || 10000);
+const SMTP_SEND_TIMEOUT_MS = Number(process.env.SMTP_SEND_TIMEOUT_MS || 22000);
+
+const verifyMailerSmtp = async () => {
+  let lastError = null;
+  for (const t of mailer.transporters || []) {
+    try {
+      await t.transporter.verify();
+      mailer.transporter = t.transporter;
+      console.log(`SMTP verificado usando ${t.label}`);
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Fallo SMTP verify en ${t.label}:`, error?.code || error?.message || error);
+    }
+  }
+  throw lastError || new Error('No se pudo verificar ningún transporte SMTP.');
+};
+
 const verifyMailer = async () => {
   if (mailer.mode === 'smtp') {
-    let lastError = null;
-    for (const t of mailer.transporters || []) {
-      try {
-        await t.transporter.verify();
-        mailer.transporter = t.transporter;
-        console.log(`SMTP verificado usando ${t.label}`);
-        return;
-      } catch (error) {
-        lastError = error;
-        console.warn(`Fallo SMTP verify en ${t.label}:`, error?.code || error?.message || error);
-      }
+    try {
+      await mailHealth.withTimeout(verifyMailerSmtp(), SMTP_VERIFY_TIMEOUT_MS, 'SMTP verify');
+      mailHealth.markAvailable();
+      return;
+    } catch (error) {
+      mailHealth.markUnavailable(error);
+      throw error;
     }
-    throw lastError || new Error('No se pudo verificar ningún transporte SMTP.');
   }
   if (SMTP_REQUIRED) {
     throw new Error('SMTP_REQUIRED=true pero faltan variables SMTP_HOST/SMTP_USER/SMTP_PASS');
   }
+  mailHealth.markAvailable();
 };
 
-const sendMailWithFallback = async (mailOptions) => {
-  if (mailer.mode !== 'smtp') {
-    return mailer.transporter.sendMail(mailOptions);
-  }
-
+const sendMailWithFallbackInternal = async (mailOptions) => {
   const transporters = mailer.transporters || [{ label: 'smtp', transporter: mailer.transporter }];
   const startIndex = transporters.findIndex((t) => t.transporter === mailer.transporter);
-  const ordered = startIndex > 0
-    ? [...transporters.slice(startIndex), ...transporters.slice(0, startIndex)]
-    : transporters;
+  const ordered =
+    startIndex > 0
+      ? [...transporters.slice(startIndex), ...transporters.slice(0, startIndex)]
+      : transporters;
 
   let lastError = null;
   for (const t of ordered) {
@@ -208,8 +239,87 @@ const sendMailWithFallback = async (mailOptions) => {
   throw lastError || new Error('No se pudo enviar correo por SMTP.');
 };
 
+const sendMailWithFallback = async (mailOptions, { force = false } = {}) => {
+  if (mailer.mode !== 'smtp') {
+    return mailer.transporter.sendMail(mailOptions);
+  }
+
+  if (!force && !mailHealth.isAvailable()) {
+    throw mailHealth.createUnavailableError();
+  }
+
+  try {
+    const result = await mailHealth.withTimeout(
+      sendMailWithFallbackInternal(mailOptions),
+      SMTP_SEND_TIMEOUT_MS,
+      'SMTP send'
+    );
+    mailHealth.markAvailable();
+    return result;
+  } catch (error) {
+    if (isSmtpTransientError(error) || String(error?.code || '').toUpperCase() === 'ETIMEDOUT') {
+      mailHealth.markUnavailable(error);
+    }
+    throw error;
+  }
+};
+
 const shouldUseGracefulMailFallback = (error) =>
   MAIL_FALLBACK_MODE === 'graceful' && isSmtpTransientError(error);
+
+const isMailQueueableError = (error) => {
+  if (String(error?.code || '').toUpperCase() === 'MAIL_UNAVAILABLE') return true;
+  return isSmtpTransientError(error) || String(error?.code || '').toUpperCase() === 'ETIMEDOUT';
+};
+
+const MAIL_QUEUED_MESSAGE =
+  'El correo quedó en cola y se enviará automáticamente cuando SMTP esté disponible.';
+
+async function sendOrEnqueueMail({ tipo, refKey, destino, subject, text, html, payload }) {
+  const mailOpts = { from: mailer.from, to: destino, subject, text, html };
+  if (mailer.mode !== 'smtp') {
+    const result = await sendMailWithFallback(mailOpts);
+    return { sent: true, result };
+  }
+  if (!mailHealth.isAvailable()) {
+    await mailOutbox.enqueue({
+      tipo,
+      refKey,
+      destino,
+      asunto: subject,
+      cuerpoTexto: text,
+      cuerpoHtml: html,
+      payload,
+    });
+    return { queued: true };
+  }
+  try {
+    const result = await sendMailWithFallback(mailOpts);
+    return { sent: true, result };
+  } catch (error) {
+    if (isMailQueueableError(error)) {
+      await mailOutbox.enqueue({
+        tipo,
+        refKey,
+        destino,
+        asunto: subject,
+        cuerpoTexto: text,
+        cuerpoHtml: html,
+        payload,
+      });
+      return { queued: true };
+    }
+    throw error;
+  }
+}
+
+async function mailStatusWithPending() {
+  const pending = await mailOutbox.countPending().catch(() => 0);
+  if (mailer.mode !== 'smtp') {
+    return { smtp_disponible: true, modo: mailer.mode || 'dev', correos_pendientes: pending };
+  }
+  return { ...mailHealth.getStatus(), correos_pendientes: pending };
+}
 
 const correoPlantillas = createContratosCorreoPlantillasService(dbQuery);
 
@@ -220,6 +330,9 @@ const notificacionesContrato = createContratosNotificacionesEventosService(dbQue
   sendMailWithFallback,
   mailer,
   correoPlantillas,
+  mailOutbox,
+  isMailQueueableError,
+  mailHealth,
 });
 
 const recordatoriosContratos = createContratosRecordatoriosService(dbQuery, {
@@ -229,8 +342,43 @@ const recordatoriosContratos = createContratosRecordatoriosService(dbQuery, {
   sendMailWithFallback,
   mailer,
   shouldUseGracefulMailFallback,
+  isMailQueueableError,
+  mailOutbox,
   onRecordatorioAudit: (payload) => contratosAuditoria.logRecordatorio(payload),
   correoPlantillas,
+});
+
+async function flushMailOutbox() {
+  if (mailer.mode !== 'smtp') return { sent: 0, failed: 0, pending: 0, skipped: true };
+  const result = await mailOutbox.processPending(
+    (opts) =>
+      sendMailWithFallback({ from: mailer.from, ...opts }, { force: true }),
+    {
+      onSent: async (row) => {
+        let payload = row.payload_json;
+        if (typeof payload === 'string') {
+          try {
+            payload = JSON.parse(payload);
+          } catch {
+            payload = {};
+          }
+        }
+        if (payload?.kind === 'recordatorio' && recordatoriosContratos.completeQueuedReminder) {
+          await recordatoriosContratos.completeQueuedReminder(payload, row.destino);
+        }
+      },
+    }
+  );
+  if (result.sent > 0) {
+    console.log(
+      `[MAIL-OUTBOX] Enviados ${result.sent} correo(s) pendiente(s). Quedan ${result.pending}.`
+    );
+  }
+  return result;
+}
+
+mailHealth.onSmtpAvailable(() => {
+  flushMailOutbox().catch((err) => console.warn('[MAIL-OUTBOX] flush:', err?.message || err));
 });
 
 function dispararNotificacionContrato(numero, evento, extra = {}) {
@@ -353,6 +501,12 @@ const ensureContratoCanceladoColumns = async () => {
   }
 };
 
+const ensureJwtBlacklistTable = async () => {
+  const sqlPath = path.join(__dirname, 'sql', 'jwt_blacklist.sql');
+  const raw = fs.readFileSync(sqlPath, 'utf8');
+  await dbQuery(raw.trim());
+};
+
 const ensureUsuariosSecurityAuditColumns = async () => {
   const defs = [
     { name: 'activo', sql: 'ALTER TABLE usuarios ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1 AFTER rol' },
@@ -362,6 +516,10 @@ const ensureUsuariosSecurityAuditColumns = async () => {
     { name: 'updated_at', sql: 'ALTER TABLE usuarios ADD COLUMN updated_at DATETIME NULL AFTER updated_by' },
     { name: 'foto_perfil', sql: 'ALTER TABLE usuarios ADD COLUMN foto_perfil MEDIUMTEXT NULL AFTER updated_at' },
     { name: 'telefono', sql: 'ALTER TABLE usuarios ADD COLUMN telefono CHAR(8) NULL AFTER nombre' },
+    {
+      name: 'password_changed_at',
+      sql: 'ALTER TABLE usuarios ADD COLUMN password_changed_at DATETIME NULL AFTER password',
+    },
   ];
 
   for (const def of defs) {
@@ -536,6 +694,26 @@ const ensureContratoAprobacionColumns = async () => {
   }
 };
 
+const ensureContratoRevisionJuridicaSchema = async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const sqlPath = path.join(__dirname, 'sql', 'contratos_revision_juridica.sql');
+  const raw = fs.readFileSync(sqlPath, 'utf8');
+  const statements = raw
+    .split(';')
+    .map((s) => s.replace(/--[^\n]*/g, '').trim())
+    .filter(Boolean);
+  for (const stmt of statements) {
+    try {
+      await dbQuery(stmt);
+    } catch (err) {
+      if (err?.code !== 'ER_DUP_FIELDNAME' && err?.code !== 'ER_TABLE_EXISTS_ERROR') {
+        throw err;
+      }
+    }
+  }
+};
+
 const ensureDirectorContratosApprove = async () => {
   await dbQuery(
     `UPDATE rbac_role_permissions rp
@@ -609,17 +787,18 @@ function parseTelefonoOptional(value) {
   return { ok: true, value: digits.slice(-8) };
 }
 
+function buildJwtPayload(usuario) {
+  return {
+    email: usuario.email,
+    nombre: usuario.nombre,
+    rol: normalizarRol(usuario.rol),
+    id_rol: usuario.id_rol,
+    jti: crypto.randomUUID(),
+  };
+}
+
 function signUserToken(usuario) {
-  return jwt.sign(
-    {
-      email: usuario.email,
-      nombre: usuario.nombre,
-      rol: normalizarRol(usuario.rol),
-      id_rol: usuario.id_rol,
-    },
-    JWT_SECRET,
-    { expiresIn: '8h' }
-  );
+  return jwt.sign(buildJwtPayload(usuario), JWT_SECRET, { expiresIn: '8h' });
 }
 
 async function migrateUserPrimaryEmail(oldEmail, newEmail) {
@@ -647,17 +826,45 @@ async function migrateUserPrimaryEmail(oldEmail, newEmail) {
 
 // ==================== MIDDLEWARES ====================
 
-// Middleware para verificar token JWT
-const verificarToken = (req, res, next) => {
+// Middleware para verificar token JWT (firma, blacklist, usuario activo, cambio de contraseña)
+const verificarToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
+  const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'Acceso denegado. Token no proporcionado' });
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: 'Token inválido o expirado' });
-    req.user = user; // guardamos los datos del usuario (email, nombre, rol)
-    next();
-  });
+  try {
+    const user = jwt.verify(token, JWT_SECRET);
+    req.user = user;
+    req.authToken = token;
+
+    if (user?.jti && (await jwtBlacklist.isRevoked(user.jti))) {
+      return res.status(403).json({ message: 'Token inválido o expirado' });
+    }
+
+    const email = normalizeEmail(user?.email);
+    if (email) {
+      const rows = await dbQuery(
+        'SELECT activo, password_changed_at FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1',
+        [email]
+      );
+      if (rows?.length) {
+        if (Number(rows[0].activo) === 0) {
+          return res.status(403).json({ message: 'Usuario inactivo. Contacta al administrador.' });
+        }
+        const pwdChangedAt = rows[0].password_changed_at;
+        if (pwdChangedAt && user?.iat) {
+          const changedTs = Math.floor(new Date(pwdChangedAt).getTime() / 1000);
+          if (Number(user.iat) < changedTs) {
+            return res.status(403).json({ message: 'Token inválido o expirado' });
+          }
+        }
+      }
+    }
+
+    return next();
+  } catch {
+    return res.status(403).json({ message: 'Token inválido o expirado' });
+  }
 };
 
 // Middleware para autorizar según roles (recibe un array de roles permitidos)
@@ -783,12 +990,7 @@ app.post('/login', authRateLimiters.login, async (req, res) => {
     });
 
     const token = jwt.sign(
-      {
-        email: usuario.email,
-        nombre: usuario.nombre,
-        rol: rolCanonico,
-        id_rol: usuario.id_rol,
-      },
+      buildJwtPayload({ ...usuario, rol: rolCanonico }),
       JWT_SECRET,
       { expiresIn: '8h' }
     );
@@ -802,6 +1004,10 @@ app.post('/login', authRateLimiters.login, async (req, res) => {
         nombre: usuario.nombre,
         rol: rolCanonico,
         id_rol: usuario.id_rol,
+        fotoPerfil:
+          usuario.foto_perfil && String(usuario.foto_perfil).trim()
+            ? String(usuario.foto_perfil)
+            : null,
       },
     });
   } catch (error) {
@@ -813,6 +1019,7 @@ app.post('/login', authRateLimiters.login, async (req, res) => {
 app.post('/auth/logout', verificarToken, async (req, res) => {
   try {
     const email = String(req.user?.email || '').trim();
+    if (req.user?.jti) await jwtBlacklist.revokeToken(req.user);
     if (email) await audit.recordLogout(email);
     return res.json({ message: 'Sesión cerrada' });
   } catch (error) {
@@ -822,32 +1029,17 @@ app.post('/auth/logout', verificarToken, async (req, res) => {
 });
 
 // Vista previa de avatar en login (público): solo devuelve foto si el identificador coincide exactamente.
-app.get('/auth/login-avatar', async (req, res) => {
+app.get('/auth/mail-estado', async (req, res) => {
   try {
-    const identifier = String(req.query?.identifier || '').trim();
-    if (!identifier || identifier.length < 2) {
-      return res.json({ fotoPerfil: null });
-    }
-
-    const rows = await dbQuery(
-      `SELECT foto_perfil FROM usuarios
-       WHERE (LOWER(TRIM(email)) = LOWER(TRIM(?)) OR LOWER(TRIM(nombre)) = LOWER(TRIM(?)))
-         AND COALESCE(activo, 1) = 1
-       LIMIT 1`,
-      [identifier, identifier]
-    );
-
-    if (!rows?.length) {
-      return res.json({ fotoPerfil: null });
-    }
-
-    const raw = rows[0]?.foto_perfil;
-    const fotoPerfil = raw && String(raw).trim() ? String(raw) : null;
-    return res.json({ fotoPerfil });
+    return res.json(await mailStatusWithPending());
   } catch (err) {
-    console.error('Error en /auth/login-avatar:', err.message || err);
-    return res.status(500).json({ message: 'Error al consultar avatar' });
+    return res.status(500).json({ message: err.message || String(err) });
   }
+});
+
+// Deshabilitado: el avatar en login se sirve solo desde caché local del dispositivo (post-login previo).
+app.get('/auth/login-avatar', authRateLimiters.loginAvatar, (_req, res) => {
+  return res.json({ fotoPerfil: null });
 });
 
 app.post('/auth/forgot-password', authRateLimiters.passwordReset, async (req, res) => {
@@ -885,12 +1077,9 @@ app.post('/auth/forgot-password', authRateLimiters.passwordReset, async (req, re
     const baseUrl = String(APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
     resetUrl = `${baseUrl}/?resetToken=${encodeURIComponent(rawToken)}&email=${encodeURIComponent(user.email)}`;
 
-    const mailResult = await sendMailWithFallback({
-      from: mailer.from,
-      to: user.email,
-      subject: 'Recuperación de contraseña',
-      text: `Hola ${user.nombre || ''},\n\nRecibimos una solicitud para restablecer tu contraseña.\n\nUsa este enlace (expira en ${Math.max(PASSWORD_RESET_TTL_MINUTES, 5)} minutos):\n${resetUrl}\n\nSi no solicitaste este cambio, ignora este correo.`,
-      html: `
+    const resetSubject = 'Recuperación de contraseña';
+    const resetText = `Hola ${user.nombre || ''},\n\nRecibimos una solicitud para restablecer tu contraseña.\n\nUsa este enlace (expira en ${Math.max(PASSWORD_RESET_TTL_MINUTES, 5)} minutos):\n${resetUrl}\n\nSi no solicitaste este cambio, ignora este correo.`;
+    const resetHtml = `
         <div style="font-family:Segoe UI,Arial,sans-serif;color:#111827;">
           <p>Hola ${user.nombre || ''},</p>
           <p>Recibimos una solicitud para restablecer tu contraseña.</p>
@@ -902,13 +1091,28 @@ app.post('/auth/forgot-password', authRateLimiters.passwordReset, async (req, re
           <p>Este enlace expira en ${Math.max(PASSWORD_RESET_TTL_MINUTES, 5)} minutos.</p>
           <p>Si no solicitaste este cambio, ignora este correo.</p>
         </div>
-      `,
+      `;
+
+    const mailDelivery = await sendOrEnqueueMail({
+      tipo: 'password_reset',
+      refKey: user.email,
+      destino: user.email,
+      subject: resetSubject,
+      text: resetText,
+      html: resetHtml,
+      payload: { kind: 'password_reset', email: user.email },
     });
 
     const response = { message: genericMessage };
+    if (mailDelivery.queued) {
+      response.queued = true;
+      response.deliveryWarning = true;
+    }
     if (mailer.mode === 'dev') {
       response.devResetUrl = resetUrl;
-      response.devMailPreview = mailResult?.message ? String(mailResult.message) : null;
+      response.devMailPreview = mailDelivery.result?.message ? String(mailDelivery.result.message) : null;
+    } else if (mailDelivery.queued && RESET_LINK_FALLBACK_ENABLED) {
+      response.devResetUrl = resetUrl;
     }
 
     return res.status(200).json(response);
@@ -964,7 +1168,7 @@ app.post('/auth/reset-password', authRateLimiters.passwordReset, async (req, res
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const userResult = await dbQuery(
-      'UPDATE usuarios SET password = ? WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+      'UPDATE usuarios SET password = ?, password_changed_at = NOW() WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
       [hashedPassword, email]
     );
 
@@ -1100,7 +1304,7 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
 
   if (password) {
     const hashedPassword = await bcrypt.hash(password, 10);
-    query += ', password = ?';
+    query += ', password = ?, password_changed_at = NOW()';
     params.push(hashedPassword);
   }
 
@@ -1409,13 +1613,18 @@ app.post('/config/contratos-correo-plantillas/probar', verificarToken, autorizar
       tipo: req.body?.tipo,
       plantilla: req.body?.plantilla,
     });
-    await sendMailWithFallback({
-      from: mailer.from,
-      to: destino,
+    const delivery = await sendOrEnqueueMail({
+      tipo: 'prueba_plantilla',
+      refKey: `${destino}:${req.body?.tipo || 'default'}`,
+      destino,
       subject: mail.subject,
       text: mail.text,
       html: mail.html,
+      payload: { kind: 'prueba_plantilla' },
     });
+    if (delivery.queued) {
+      return res.json({ ok: true, queued: true, message: MAIL_QUEUED_MESSAGE });
+    }
     return res.json({ ok: true, message: `Correo de prueba enviado a ${destino}.` });
   } catch (err) {
     console.error(err);
@@ -1442,7 +1651,7 @@ app.post(
         });
       }
       return res.json({
-        message: `Proceso completado: ${result.enviados} enviado(s), ${result.omitidos} omitido(s), ${result.errores} error(es).`,
+        message: `Proceso completado: ${result.enviados} enviado(s), ${result.encolados || 0} en cola, ${result.omitidos} omitido(s), ${result.errores} error(es).`,
         result,
       });
     } catch (err) {
@@ -1469,6 +1678,14 @@ app.get(
 
 // ==================== CONFIGURACIÓN CORREO (admin) ====================
 
+app.get('/config/correo/estado', verificarToken, async (req, res) => {
+  try {
+    return res.json(await mailStatusWithPending());
+  } catch (err) {
+    return res.status(500).json({ message: err.message || String(err) });
+  }
+});
+
 app.get('/config/correo', verificarToken, autorizarPermiso('usuarios', 'view'), async (req, res) => {
   try {
     const cfg = await getEffectiveCorreoConfig(dbQuery);
@@ -1482,6 +1699,7 @@ app.get('/config/correo', verificarToken, autorizarPermiso('usuarios', 'view'), 
     return res.json({
       ...publicCorreoConfig(cfg, passwordSet),
       mailerMode: mailer.mode,
+      ...mailHealth.getStatus(),
     });
   } catch (err) {
     console.error(err);
@@ -1537,15 +1755,20 @@ app.post('/config/correo/probar', verificarToken, autorizarPermiso('usuarios', '
     return res.status(400).json({ message: 'Indique un correo de prueba válido.' });
   }
   try {
-    await sendMailWithFallback({
-      from: mailer.from,
-      to: destino,
+    const delivery = await sendOrEnqueueMail({
+      tipo: 'prueba_smtp',
+      refKey: destino,
+      destino,
       subject: 'Prueba — correo de servicio del sistema',
       text:
         'Este es un correo de prueba del sistema de gestión.\n' +
         'Si lo recibió, la configuración SMTP del remitente es correcta.\n',
       html: '<p>Este es un correo de <strong>prueba</strong> del sistema de gestión.</p><p>Si lo recibió, la configuración SMTP del remitente es correcta.</p>',
+      payload: { kind: 'prueba_smtp' },
     });
+    if (delivery.queued) {
+      return res.json({ ok: true, queued: true, message: MAIL_QUEUED_MESSAGE });
+    }
     return res.json({ ok: true, message: `Correo de prueba enviado a ${destino}.` });
   } catch (err) {
     console.error(err);
@@ -1735,9 +1958,10 @@ app.put('/user/change-password', verificarToken, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await dbQuery(
-      'UPDATE usuarios SET password = ?, updated_by = ?, updated_at = NOW() WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+      'UPDATE usuarios SET password = ?, password_changed_at = NOW(), updated_by = ?, updated_at = NOW() WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
       [hashedPassword, email, email]
     );
+    if (req.user?.jti) await jwtBlacklist.revokeToken(req.user);
 
     return res.json({ ok: true, message: 'Contraseña actualizada correctamente.' });
   } catch (err) {
@@ -1886,8 +2110,20 @@ app.get("/tabla1", verificarToken, autorizarRol(['admin']), (req, res)=>{
 //Contratos:
 
 // ==================== CATÁLOGO TIPOS DE CONTRATO ====================
-const ROLES_CONTRATOS_LECTURA = ['contratacion', 'director'];
+const ROLES_CONTRATOS_LECTURA = ['contratacion', 'director', 'abogado'];
 const ROLES_CONTRATOS_GESTION = ['contratacion'];
+
+function dispararNotificacionRevisionJuridica(numero, accion, solicitadoPor, extra = {}) {
+  notificacionesContrato.disparar(numero, 'pendiente_revision_juridica', {
+    accion,
+    solicitadoPor,
+    ...extra,
+  }).catch(() => {});
+}
+
+function dispararNotificacionJuridicaResuelta(numero, evento, resueltoPor, extra = {}) {
+  notificacionesContrato.disparar(numero, evento, { resueltoPor, ...extra }).catch(() => {});
+}
 
 app.get(
   '/catalogo/tipos-contrato',
@@ -2029,8 +2265,8 @@ app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), asy
     await dbQuery(
       `INSERT INTO contratos_generales
         (numero_contrato, id_contraparte, empresa, correo_notificacion, contactos_notificacion, contactos_niveles, suplementos, anexos, vigencia, id_tipo_contrato, prioridad, fecha_inicio, fecha_fin,
-         aprobacion_estado, aprobacion_accion, aprobacion_solicitado_por, aprobacion_solicitado_en)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'pendiente','alta',?,NOW())`,
+         aprobacion_estado, aprobacion_accion, aprobacion_solicitado_por, aprobacion_solicitado_en, revision_juridica_estado)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'pendiente','alta',?,NOW(),'pendiente')`,
       [
         numeroFinal,
         idContraparte,
@@ -2048,7 +2284,7 @@ app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), asy
         solicitadoPor,
       ]
     );
-    dispararNotificacionPendiente(numeroFinal, 'alta', solicitadoPor, { empresa });
+    dispararNotificacionRevisionJuridica(numeroFinal, 'alta', solicitadoPor, { empresa });
     try {
       await contratosAuditoria.logContrato(req, {
         action: 'contrato_alta_solicitada',
@@ -2062,7 +2298,7 @@ app.post("/create-contrato", verificarToken, autorizarRol(['contratacion']), asy
     res.json({
       ok: true,
       pendiente: true,
-      message: 'Contrato registrado y enviado a aprobación. Aparecerá activo cuando un autorizador lo apruebe.',
+      message: 'El contrato quedó pendiente. No se activará hasta que se verifique la solicitud y posteriormente se autorice.',
     });
   } catch (err) {
     console.log(err);
@@ -2147,7 +2383,8 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), asyn
         `UPDATE contratos_generales
             SET aprobacion_solicitado_por = ?,
                 aprobacion_solicitado_en = NOW(),
-                aprobacion_propuesta = NULL
+                aprobacion_propuesta = NULL,
+                ${sqlMarcarRevisionPendiente()}
           WHERE numero_contrato = ?`,
         [solicitadoPor, numFinal]
       );
@@ -2167,11 +2404,22 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), asyn
         pendiente: true,
         affectedRows: nRows,
         numero_contrato: numFinal,
-        message: 'Contrato actualizado y pendiente de aprobación.',
+        message: 'El contrato quedó pendiente. No se activará hasta que se verifique la solicitud y posteriormente se autorice.',
       });
     }
 
-    if (estadoAprob === 'aprobado' || (estadoAprob === 'pendiente' && accionAprob === 'edicion')) {
+    const revisionDevuelta = ['observado', 'rechazado', 'correcciones_requeridas'];
+    const existentesRev = await dbQuery(
+      `SELECT revision_juridica_estado FROM contratos_generales WHERE numero_contrato = ? LIMIT 1`,
+      [numeroContratoWhere]
+    );
+    const revActual = normalizarRevisionJuridicaEstado(existentesRev[0]?.revision_juridica_estado);
+
+    if (
+      estadoAprob === 'aprobado' ||
+      (estadoAprob === 'pendiente' && accionAprob === 'edicion') ||
+      (estadoAprob === 'pendiente' && revisionDevuelta.includes(revActual))
+    ) {
       const propuestaJson = JSON.stringify(body);
       await dbQuery(
         `UPDATE contratos_generales
@@ -2182,11 +2430,12 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), asyn
                 aprobacion_solicitado_en = NOW(),
                 aprobacion_resuelto_por = NULL,
                 aprobacion_resuelto_en = NULL,
-                aprobacion_resolucion_nota = NULL
+                aprobacion_resolucion_nota = NULL,
+                ${sqlMarcarRevisionPendiente()}
           WHERE numero_contrato = ?`,
         [propuestaJson, solicitadoPor, numeroContratoWhere]
       );
-      dispararNotificacionPendiente(numeroContratoWhere, 'edicion', solicitadoPor, { empresa });
+      dispararNotificacionRevisionJuridica(numeroContratoWhere, 'edicion', solicitadoPor, { empresa });
       try {
         await contratosAuditoria.logContrato(req, {
           action: 'contrato_edicion_solicitada',
@@ -2201,7 +2450,7 @@ app.put("/update-contrato", verificarToken, autorizarRol(['contratacion']), asyn
         ok: true,
         pendiente: true,
         numero_contrato: numeroContratoWhere,
-        message: 'Cambios enviados a aprobación. El contrato activo no cambia hasta que un autorizador los apruebe.',
+        message: 'Los cambios quedaron pendientes. El contrato activo no se modifica hasta que se verifique la solicitud y posteriormente se autorice.',
       });
     }
 
@@ -2228,7 +2477,7 @@ app.post(
     try {
       const rows = await dbQuery(
         `SELECT numero_contrato, fecha_fin, COALESCE(cancelado, 0) AS cancelado,
-                aprobacion_estado, aprobacion_accion
+                aprobacion_estado, aprobacion_accion, revision_juridica_estado
            FROM contratos_generales
           WHERE numero_contrato = ?
           LIMIT 1`,
@@ -2242,7 +2491,9 @@ app.post(
       }
       const estadoAprob = normalizarAprobacionEstado(c.aprobacion_estado);
       const accionAprob = String(c.aprobacion_accion || '').toLowerCase();
-      if (estadoAprob === 'pendiente') {
+      const revJur = normalizarRevisionJuridicaEstado(c.revision_juridica_estado);
+      const revisionDevuelta = ['observado', 'rechazado', 'correcciones_requeridas'];
+      if (estadoAprob === 'pendiente' && !revisionDevuelta.includes(revJur)) {
         return res.status(409).json({
           message: 'Este contrato ya tiene una solicitud pendiente de aprobación.',
         });
@@ -2280,12 +2531,13 @@ app.post(
                 aprobacion_resolucion_nota = NULL,
                 cancelado = 0,
                 cancelado_en = NULL,
-                cancelado_por = NULL
+                cancelado_por = NULL,
+                ${sqlMarcarRevisionPendiente()}
           WHERE numero_contrato = ?`,
         [accionPendiente, propuestaCancelacion, canceladoPor, numero]
       );
 
-      dispararNotificacionPendiente(numero, accionPendiente, canceladoPor, { motivo: motivoCancelacion });
+      dispararNotificacionRevisionJuridica(numero, accionPendiente, canceladoPor, { motivo: motivoCancelacion });
       try {
         const empRows = await dbQuery('SELECT empresa FROM contratos_generales WHERE numero_contrato = ? LIMIT 1', [
           numero,
@@ -2310,8 +2562,8 @@ app.post(
         accion: accionPendiente,
         numero_contrato: numero,
         message: solicitarArchivo
-          ? 'Solicitud de cancelación y archivo enviada a aprobación.'
-          : 'Solicitud de cancelación enviada a aprobación.',
+          ? 'La cancelación y archivo quedaron pendientes. El contrato sigue en la lista hasta que se verifique la solicitud y posteriormente se autorice.'
+          : 'La cancelación quedó pendiente. El contrato sigue activo hasta que se verifique la solicitud y posteriormente se autorice.',
       });
     } catch (err) {
       console.log(err);
@@ -2337,7 +2589,7 @@ app.post(
     try {
       const rows = await dbQuery(
         `SELECT numero_contrato, COALESCE(cancelado, 0) AS cancelado, fecha_fin,
-                aprobacion_estado, aprobacion_accion
+                aprobacion_estado, aprobacion_accion, revision_juridica_estado
            FROM contratos_generales
           WHERE numero_contrato = ?
           LIMIT 1`,
@@ -2347,7 +2599,9 @@ app.post(
 
       const c = rows[0];
       const estadoAprob = normalizarAprobacionEstado(c.aprobacion_estado);
-      if (estadoAprob === 'pendiente') {
+      const revJur = normalizarRevisionJuridicaEstado(c.revision_juridica_estado);
+      const revisionDevuelta = ['observado', 'rechazado', 'correcciones_requeridas'];
+      if (estadoAprob === 'pendiente' && !revisionDevuelta.includes(revJur)) {
         return res.status(409).json({
           message: 'Este contrato ya tiene una solicitud pendiente de aprobación.',
         });
@@ -2373,12 +2627,13 @@ app.post(
                 aprobacion_solicitado_en = NOW(),
                 aprobacion_resuelto_por = NULL,
                 aprobacion_resuelto_en = NULL,
-                aprobacion_resolucion_nota = NULL
+                aprobacion_resolucion_nota = NULL,
+                ${sqlMarcarRevisionPendiente()}
           WHERE numero_contrato = ?`,
         [propuesta, solicitadoPor, numero]
       );
 
-      dispararNotificacionPendiente(numero, 'archivo', solicitadoPor, { motivo });
+      dispararNotificacionRevisionJuridica(numero, 'archivo', solicitadoPor, { motivo });
       try {
         const empRows = await dbQuery('SELECT empresa FROM contratos_generales WHERE numero_contrato = ? LIMIT 1', [
           numero,
@@ -2397,11 +2652,210 @@ app.post(
         pendiente: true,
         accion: 'archivo',
         numero_contrato: numero,
-        message: 'Solicitud de archivo enviada a aprobación.',
+        message: 'La solicitud de archivo quedó pendiente. El contrato sigue visible hasta que se verifique la solicitud y posteriormente se autorice.',
       });
     } catch (err) {
       console.log(err);
       return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  '/contratos/:numero_contrato/verificar-aprobar',
+  verificarToken,
+  autorizarPermiso('contratos', 'verify'),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+    const resueltoPor = usuarioDesdeReq(req);
+    try {
+      const result = await verificarAprobar(dbQuery, numero, resueltoPor);
+      dispararNotificacionJuridicaResuelta(numero, 'revision_juridica_aprobada', resueltoPor, {
+        accion: result.accion,
+        empresa: result.empresa,
+      });
+      try {
+        await contratosAuditoria.logContrato(req, {
+          action: 'contrato_verificacion_juridica_aprobada',
+          numero,
+          empresa: result.empresa,
+          details: { accion: result.accion, verificado_por: resueltoPor },
+        });
+      } catch (auditErr) {
+        console.warn('audit verificación jurídica:', auditErr?.message || auditErr);
+      }
+      return res.json({
+        ...result,
+        message: 'Verificación jurídica aprobada. El contrato pasa a aprobación operativa.',
+      });
+    } catch (err) {
+      const status = err.status || 500;
+      if (status >= 500) console.log(err);
+      return res.status(status).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  '/contratos/:numero_contrato/verificar-rechazar',
+  verificarToken,
+  autorizarPermiso('contratos', 'verify'),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+    const resueltoPor = usuarioDesdeReq(req);
+    const tipo = String(req.body?.tipo || '').trim().toLowerCase();
+    const motivo = String(req.body?.motivo || '').trim();
+    const documentos = Array.isArray(req.body?.documentos) ? req.body.documentos : [];
+    try {
+      const result = await verificarRechazar(dbQuery, numero, resueltoPor, tipo, motivo, documentos);
+      dispararNotificacionJuridicaResuelta(numero, 'revision_juridica_devuelta', resueltoPor, {
+        accion: result.accion,
+        empresa: result.empresa,
+        motivo: result.motivo,
+        tipo: result.revision_juridica_estado,
+      });
+      try {
+        await contratosAuditoria.logContrato(req, {
+          action: 'contrato_verificacion_juridica_rechazada',
+          numero,
+          empresa: result.empresa,
+          details: {
+            accion: result.accion,
+            tipo: result.revision_juridica_estado,
+            motivo: result.motivo,
+            verificado_por: resueltoPor,
+          },
+        });
+      } catch (auditErr) {
+        console.warn('audit verificación jurídica rechazo:', auditErr?.message || auditErr);
+      }
+      return res.json({
+        ...result,
+        message:
+          result.adjuntos?.length > 0
+            ? 'Contrato devuelto al contratador con observaciones jurídicas y documentos adjuntos.'
+            : 'Contrato devuelto al contratador con observaciones jurídicas.',
+      });
+    } catch (err) {
+      const status = err.status || 500;
+      if (status >= 500) console.log(err);
+      return res.status(status).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.get(
+  '/contratos/:numero_contrato/juridico-adjuntos',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+    try {
+      const rows = await listarAdjuntosJuridico(dbQuery, numero);
+      return res.json(rows);
+    } catch (err) {
+      return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.get(
+  '/contratos/:numero_contrato/juridico-adjuntos/:id_adjunto',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    const idAdjunto = Number(req.params.id_adjunto);
+    if (!numero || !idAdjunto) return res.status(400).json({ message: 'Parámetros inválidos.' });
+    try {
+      const row = await obtenerAdjuntoJuridico(dbQuery, numero, idAdjunto);
+      if (!row) return res.status(404).json({ message: 'Adjunto no encontrado.' });
+      const abs = resolveAbsPath(row.ruta_relativa);
+      if (!fs.existsSync(abs)) return res.status(404).json({ message: 'Archivo no encontrado en disco.' });
+      const nombreArchivo = String(row.nombre_archivo || 'documento');
+      res.setHeader('Content-Type', contentTypeFromNombre(nombreArchivo));
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${nombreArchivo.replace(/"/g, '')}"`
+      );
+      return res.sendFile(abs);
+    } catch (err) {
+      return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  '/contratos/:numero_contrato/retirar-solicitud',
+  verificarToken,
+  autorizarRol(['contratacion']),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+    const solicitadoPor = usuarioDesdeReq(req);
+    try {
+      const result = await retirarSolicitudDevuelta(dbQuery, numero, solicitadoPor);
+      try {
+        await contratosAuditoria.logContrato(req, {
+          action: 'contrato_solicitud_retirada',
+          numero,
+          empresa: result.empresa,
+          details: { accion: result.accion, solicitado_por: solicitadoPor },
+        });
+      } catch (auditErr) {
+        console.warn('audit retirar solicitud:', auditErr?.message || auditErr);
+      }
+      return res.json({
+        ...result,
+        message: result.eliminado
+          ? 'La solicitud fue cancelada y el contrato eliminado.'
+          : 'La solicitud fue cancelada. El contrato activo se mantiene sin cambios.',
+      });
+    } catch (err) {
+      const status = err.status || 500;
+      if (status >= 500) console.log(err);
+      return res.status(status).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.get(
+  '/contratos/:numero_contrato/juridico-comentarios',
+  verificarToken,
+  autorizarRol(ROLES_CONTRATOS_LECTURA),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+    try {
+      const rows = await listarComentarios(dbQuery, numero);
+      return res.json(rows);
+    } catch (err) {
+      return res.status(500).json({ message: err.message || String(err) });
+    }
+  }
+);
+
+app.post(
+  '/contratos/:numero_contrato/juridico-comentarios',
+  verificarToken,
+  autorizarPermiso('contratos', 'verify'),
+  async (req, res) => {
+    const numero = String(req.params.numero_contrato || '').trim();
+    if (!numero) return res.status(400).json({ message: 'Número de contrato requerido.' });
+    try {
+      const result = await agregarComentario(dbQuery, numero, {
+        email: req.user?.email,
+        nombre: req.user?.nombre,
+        texto: req.body?.texto,
+        tipo: req.body?.tipo,
+      });
+      return res.json(result);
+    } catch (err) {
+      const status = err.status || 500;
+      return res.status(status).json({ message: err.message || String(err) });
     }
   }
 );
@@ -2953,16 +3407,14 @@ app.delete(
   }
 );
 
-app.get("/contratos", verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), (req, res) => {
-  db.query(`${SQL_CONTRATO_SELECT} ORDER BY c.numero_contrato ASC`, (err, result) => {
-    if (err) {
-      console.log(err);
-      res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
-    } else {
-      const rows = Array.isArray(result) ? result : [];
-      res.json(JSON.parse(JSON.stringify(rows)));
-    }
-  });
+app.get('/contratos', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
+  try {
+    const rows = await dbQuery(`${SQL_CONTRATO_SELECT} ORDER BY c.numero_contrato ASC`);
+    return res.json(JSON.parse(JSON.stringify(rows)));
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: err.sqlMessage || err.message || String(err) });
+  }
 });
 
 app.post("/send-contrato-reminder", verificarToken, autorizarRol(['contratacion']), async (req, res) => {
@@ -2970,7 +3422,6 @@ app.post("/send-contrato-reminder", verificarToken, autorizarRol(['contratacion'
   if (!numeroContrato) {
     return res.status(400).json({ message: 'Número de contrato requerido.' });
   }
-
   try {
     const rows = await dbQuery(`${SQL_CONTRATO_SELECT} WHERE c.numero_contrato = ? LIMIT 1`, [numeroContrato]);
     if (!rows.length) {
@@ -3007,10 +3458,19 @@ app.post("/send-contrato-reminder", verificarToken, autorizarRol(['contratacion'
       return res.status(500).json({ message: r.error || 'No se pudo enviar el recordatorio.' });
     }
 
-    const msg = r.warning
-      ? `No se pudo enviar el correo ahora mismo, pero el recordatorio quedó registrado para ${r.destino}.`
-      : `Recordatorio enviado a ${r.destino}.`;
-    return res.status(200).json({ message: msg, deliveryWarning: Boolean(r.warning) });
+    let msg;
+    if (r.queued) {
+      msg = `Recordatorio en cola para ${r.destino}; se enviará cuando SMTP esté disponible.`;
+    } else if (r.warning) {
+      msg = `No se pudo enviar el correo ahora mismo, pero el recordatorio quedó registrado para ${r.destino}.`;
+    } else {
+      msg = `Recordatorio enviado a ${r.destino}.`;
+    }
+    return res.status(200).json({
+      message: msg,
+      queued: Boolean(r.queued),
+      deliveryWarning: Boolean(r.warning || r.queued),
+    });
   } catch (error) {
     console.error('Error en /send-contrato-reminder:', error);
     return res.status(500).json({
@@ -3053,7 +3513,9 @@ async function bootstrapServer() {
     console.log('[server] Preparando tablas y permisos…');
 
     await Promise.all([
+      ensureJwtBlacklistTable(),
       ensurePasswordResetTable(),
+      mailOutbox.ensureTable(),
       ensureContratoCorreoColumn(),
       ensureContratoContactosNotificacionColumn(),
       ensureContratoContactosNivelesColumn(),
@@ -3066,12 +3528,19 @@ async function bootstrapServer() {
       ensureCatalogoTipoContratoActivo(),
       ensureContratoPrioridadColumn(),
       ensureContratoAprobacionColumns(),
+      ensureContratoRevisionJuridicaSchema(),
       ensureContratosRecordatoriosTable(),
       ensureConfigSistemaTable(),
       ensureUserPreferencesTable(),
       audit.ensureAuditTables(),
       rbac.ensureRbacSchema(),
     ]);
+
+    try {
+      await jwtBlacklist.purgeExpired();
+    } catch (err) {
+      console.warn('No se pudo purgar jwt_token_blacklist:', err?.message || err);
+    }
 
     try {
       await ensureDirectorContratosApprove();
@@ -3095,6 +3564,17 @@ async function bootstrapServer() {
     const port = Number(process.env.PORT) || 3001;
     app.listen(port, () => {
       recordatoriosContratos.startScheduler();
+      if (smtpReady) {
+        flushMailOutbox().catch((err) => console.warn('[MAIL-OUTBOX] flush inicial:', err?.message || err));
+      }
+      setInterval(() => {
+        flushMailOutbox().catch((err) => console.warn('[MAIL-OUTBOX] flush periódico:', err?.message || err));
+      }, 60000);
+      setInterval(() => {
+        jwtBlacklist.purgeExpired().catch((err) => {
+          console.warn('purge jwt_token_blacklist:', err?.message || err);
+        });
+      }, 60 * 60 * 1000);
       console.log(`Corriendo en el puerto ${port}`);
       console.log(`Correo remitente: ${mailer.from} (origen: ${mailer.source || 'env'}, modo: ${mailer.mode})`);
       if (mailer.mode === 'dev') {

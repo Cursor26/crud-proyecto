@@ -153,6 +153,53 @@ async function runTests() {
     response: { allowOrigin: corsBlocked.headers['access-control-allow-origin'] || null },
   });
 
+  const testLoginId = process.env.TEST_LOGIN_IDENTIFIER || '';
+  const testLoginPass = process.env.TEST_LOGIN_PASSWORD || '';
+  if (testLoginId && testLoginPass) {
+    const loginRes = await request('POST', '/login', {
+      body: { identifier: testLoginId, password: testLoginPass },
+    });
+    const sessionToken = loginRes.json?.token;
+    if (loginRes.status === 200 && sessionToken) {
+      await request('POST', '/auth/logout', {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
+      const afterLogout = await request('GET', '/user/profile', {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
+      results.push(
+        pass(
+          'SEC-10',
+          'Token en blacklist tras logout',
+          'Login → logout → GET /user/profile mismo token',
+          (r) => r.status === 403,
+          afterLogout
+        )
+      );
+    } else {
+      results.push({
+        id: 'SEC-10',
+        name: 'Token en blacklist tras logout',
+        ok: false,
+        detail: 'Login de prueba falló; revise TEST_LOGIN_IDENTIFIER/PASSWORD',
+        expected: '403 tras logout',
+        actualStatus: loginRes.status,
+        response: loginRes.json,
+      });
+    }
+  } else {
+    results.push({
+      id: 'SEC-10',
+      name: 'Token en blacklist tras logout',
+      ok: true,
+      skipped: true,
+      detail: 'Omitida: defina TEST_LOGIN_IDENTIFIER y TEST_LOGIN_PASSWORD en entorno',
+      expected: '403 tras logout',
+      actualStatus: null,
+      response: null,
+    });
+  }
+
   const summary = {
     executedAt: at,
     apiBase: API_BASE,
