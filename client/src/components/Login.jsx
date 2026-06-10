@@ -362,12 +362,15 @@ function Login({ onLogin }) {
 
   return (
     <div className="login-page">
-      <MailServiceUnavailableBanner
-        visible={
-          mailStatus.smtp_disponible === false || (mailStatus.correos_pendientes || 0) > 0
-        }
-        message={mailQueueBannerMessage(mailStatus)}
-      />
+      <div className="login-page__top-banner" aria-live="polite">
+        <MailServiceUnavailableBanner
+          visible={
+            mailStatus.smtp_disponible === false || (mailStatus.correos_pendientes || 0) > 0
+          }
+          message={mailQueueBannerMessage(mailStatus)}
+          className="login-mail-banner"
+        />
+      </div>
       <div className="login-card">
         <div className={`login-logo-wrap${isProfileReveal ? ' login-logo-wrap--profile-visible' : ''}`}>
           {profilePhotoSrc ? (

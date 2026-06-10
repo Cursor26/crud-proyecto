@@ -1,7 +1,20 @@
 import Axios from 'axios';
 import Swal from 'sweetalert2';
 
-const base = (process.env.REACT_APP_API_URL || 'http://localhost:3001').replace(/\/$/, '');
+function resolveApiBase() {
+  const fromEnv = String(process.env.REACT_APP_API_URL || '').trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const host = window.location.hostname;
+    const port = String(process.env.REACT_APP_API_PORT || '3001').trim();
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return `http://${host}:${port}`;
+    }
+  }
+  return 'http://localhost:3001';
+}
+
+const base = resolveApiBase();
 export const API_BASE = base;
 Axios.defaults.baseURL = base;
 

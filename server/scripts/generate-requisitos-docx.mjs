@@ -29,6 +29,7 @@ const SERVER_ROOT = path.join(__dirname, '..');
 const CRUD_ROOT = path.join(SERVER_ROOT, '..');
 
 const OUT_REPO = path.join(CRUD_ROOT, 'docs', 'REQUISITOS_PROYECTO_AEPG.docx');
+const OUT_REPO_SGE = path.join(CRUD_ROOT, 'docs', 'REQUISITOS_SGE.docx');
 const OUT_DOCS_USER = path.join(
   process.env.USERPROFILE || '',
   'Documents',
@@ -127,7 +128,7 @@ const REQUISITOS_FUNCIONALES = [
     tipo: 'Funcional.',
     titulo: 'Gestión de contratos.',
     descripcionGeneral:
-      'El sistema mantiene contratos en base de datos y un módulo unificado en cliente (GestionContratos.jsx) con resumen, listados, vencimientos, renovaciones y exportaciones. La protección por JWT no es uniforme en todas las rutas del servidor según el código vigente.',
+      'El sistema mantiene contratos en base de datos y un módulo unificado en cliente (GestionContratos.jsx) con resumen, listados, vencimientos, renovaciones y exportaciones. Rutas protegidas con JWT global y RBAC por rol.',
     subs: [
       {
         nombre: 'Alta de contrato autenticada.',
@@ -135,11 +136,11 @@ const REQUISITOS_FUNCIONALES = [
       },
       {
         nombre: 'Consulta del listado de contratos.',
-        desc: 'Obtención del conjunto de contratos mediante GET /contratos; en la implementación actual esta ruta no aplica verificarToken en el servidor.',
+        desc: 'Obtención del conjunto de contratos mediante GET /contratos con JWT y roles de lectura (ROLES_CONTRATOS_LECTURA).',
       },
       {
-        nombre: 'Actualización y borrado de contratos.',
-        desc: 'Modificación y eliminación por identificador de contrato (PUT /update-contrato, DELETE /delete-contrato/:numero_contrato); en el código revisado no figura verificarToken en estas rutas.',
+        nombre: 'Actualización de contratos.',
+        desc: 'Modificación mediante PUT /update-contrato con JWT y rol contratación; cancelación y archivo vía rutas /contratos/*.',
       },
       {
         nombre: 'Interfaz integral de contratación.',
@@ -155,7 +156,7 @@ const REQUISITOS_FUNCIONALES = [
       },
       {
         nombre: 'Recordatorio por correo electrónico.',
-        desc: 'Endpoint para disparar envío de recordatorio relacionado con un contrato e integración de correo (POST /send-contrato-reminder); la ruta analizada no incluye verificarToken.',
+        desc: 'Endpoint para disparar envío de recordatorio relacionado con un contrato (POST /send-contrato-reminder) con JWT y rol contratación.',
       },
       {
         nombre: 'Acceso a vencimientos desde la interfaz.',
@@ -467,6 +468,151 @@ const REQUISITOS_FUNCIONALES = [
   },
 ];
 
+/** Catálogo jerárquico SGE (RF-G / RF-M). Ver docs/REQUISITOS_SGE.md */
+const SGE_REQUISITOS_FUNCIONALES = [
+  {
+    code: 'RF-G01',
+    tipo: 'Funcional (grande).',
+    titulo: 'Identidad, acceso y gobierno de cuentas',
+    descripcionGeneral: 'Autenticación, sesión JWT, recuperación de contraseña, gestión de usuarios, RBAC y perfil.',
+    subs: [
+      { nombre: 'Autenticación.', desc: 'Login email/contraseña; JWT 8 h; rechazo inactivos; persistencia local.' },
+      { nombre: 'Recuperación contraseña.', desc: 'Forgot/reset con token TTL y tabla password_reset_tokens.' },
+      { nombre: 'Gestión usuarios.', desc: 'CRUD admin; bcrypt; auditoría; toggle activo/inactivo.' },
+      { nombre: 'RBAC y perfil.', desc: 'Permisos por módulo/acción; edición perfil y preferencias sincronizadas.' },
+    ],
+  },
+  {
+    code: 'RF-G02',
+    tipo: 'Funcional (grande).',
+    titulo: 'Recursos Humanos',
+    descripcionGeneral: 'Empleados, estructura, planificación, asistencia, formación, salud laboral e informes.',
+    subs: [
+      { nombre: 'Fichas y ciclo de vida.', desc: 'Alta/edición/baja; reactivación; cambios de cargo.' },
+      { nombre: 'Estructura y planificación.', desc: 'Cargos, departamentos, vacaciones, turnos, grupos.' },
+      { nombre: 'Asistencia y formación.', desc: 'Asistencia grupal/individual; certificaciones, evaluaciones, salarios.' },
+      { nombre: 'Salud y relaciones laborales.', desc: 'Certificados médicos; sanciones, reconocimientos, jubilaciones.' },
+    ],
+  },
+  {
+    code: 'RF-G03',
+    tipo: 'Funcional (grande).',
+    titulo: 'Contratación y gestión contractual',
+    descripcionGeneral: 'CRUD contratos, KPIs, aprobaciones, auditoría, exportaciones y notificaciones.',
+    subs: [
+      { nombre: 'Operativa contractual.', desc: 'Resumen, vencimientos, renovaciones, estados tiempo, prioridades.' },
+      { nombre: 'Flujos aprobación.', desc: 'Pendientes, suplementos, anexos, revisión jurídica.' },
+      { nombre: 'Exportación.', desc: 'Excel, CSV, PDF, expediente ZIP con selección o filtros.' },
+      { nombre: 'Recordatorios.', desc: 'Manuales y automáticos por hitos y reglas prioridad/tipo.' },
+    ],
+  },
+  {
+    code: 'RF-G04',
+    tipo: 'Funcional (grande).',
+    titulo: 'Correo y comunicaciones',
+    descripcionGeneral: 'SMTP sistema, plantillas, recordatorios automáticos y cola de resiliencia.',
+    subs: [
+      { nombre: 'SMTP.', desc: 'Config .env o BD; prueba envío; restablecer predeterminados.' },
+      { nombre: 'Plantillas.', desc: 'Por vencer, vencido, cancelado; placeholders dinámicos.' },
+      { nombre: 'Automatización.', desc: 'Programador servidor; log envíos; ejecución manual prueba.' },
+    ],
+  },
+  {
+    code: 'RF-G05',
+    tipo: 'Funcional (grande).',
+    titulo: 'Producción operativa',
+    descripcionGeneral: 'Sacrificio, matadero, leche e histórico agregado.',
+    subs: [
+      { nombre: 'Registros diarios.', desc: 'CRUD por fecha; export Excel en sacrificio.' },
+      { nombre: 'Histórico.', desc: 'Consulta agregada solo lectura.' },
+    ],
+  },
+  {
+    code: 'RF-G06',
+    tipo: 'Funcional (grande).',
+    titulo: 'Configuración y shell',
+    descripcionGeneral: 'Personalización UI, dashboard, navegación y responsive móvil.',
+    subs: [
+      { nombre: 'Preferencias aplicación.', desc: 'Tema, tipografía, escala, accesibilidad; reset global y por sección.' },
+      { nombre: 'Shell y navegación.', desc: 'Sidebar, recordar sección, submenús fijos, pantalla inicial por rol.' },
+    ],
+  },
+  {
+    code: 'RF-G07',
+    tipo: 'Funcional (grande).',
+    titulo: 'Reporting e integración',
+    descripcionGeneral: 'Exportaciones transversales, config_sistema y migraciones lazy.',
+    subs: [
+      { nombre: 'Exportaciones.', desc: 'Formatos estándar xlsx/csv/pdf en módulos habilitados.' },
+      { nombre: 'Configuración sistema.', desc: 'Clave-valor JSON; alteraciones esquema al arranque.' },
+    ],
+  },
+  {
+    code: 'RF-G08',
+    tipo: 'Funcional (grande).',
+    titulo: 'Transversales de negocio (extensión)',
+    descripcionGeneral: 'Auditoría, confirmaciones, filtrado, documental; multi-empresa y workflow futuros.',
+    subs: [
+      { nombre: 'Trazabilidad.', desc: 'Quién/cuándo en entidades críticas; consulta histórica.' },
+      { nombre: 'Extensiones futuras.', desc: 'Multi-empresa y workflow genérico — validación en VALIDACION_STAKEHOLDERS.md.' },
+    ],
+  },
+];
+
+const SGE_REQUISITOS_NO_FUNCIONALES = [
+  {
+    code: 'RNF-CAL',
+    tipo: 'No funcional (calidad).',
+    titulo: 'Calidad de software',
+    descripcionGeneral: 'Correctitud, consistencia, mantenibilidad, portabilidad, testabilidad e interoperabilidad.',
+    subs: [
+      { nombre: 'Correctitud y datos.', desc: 'Validación servidor; integridad referencial BD.' },
+      { nombre: 'Mantenibilidad.', desc: 'Monorepo client/server; lógica en server/lib.' },
+      { nombre: 'Portabilidad.', desc: 'Parametrización entorno; sin secretos embebidos.' },
+    ],
+  },
+  {
+    code: 'RNF-SEG',
+    tipo: 'No funcional (seguridad).',
+    titulo: 'Seguridad',
+    descripcionGeneral: 'Credenciales, JWT, RBAC, transporte, validación, auditoría y superficie de ataque.',
+    subs: [
+      { nombre: 'Autenticación y autorización.', desc: 'bcrypt; JWT; middleware global + RBAC por ruta.' },
+      { nombre: 'Protección.', desc: 'HTTPS; rate-limit login; CORS; sin rutas demo públicas.' },
+    ],
+  },
+  {
+    code: 'RNF-PER',
+    tipo: 'No funcional (rendimiento).',
+    titulo: 'Rendimiento',
+    descripcionGeneral: 'Tiempos de respuesta, paginación, índices BD, cliente y exportaciones.',
+    subs: [
+      { nombre: 'API y BD.', desc: 'Listados paginados; índices en claves búsqueda.' },
+      { nombre: 'Correo asíncrono.', desc: 'Cola outbox sin bloquear HTTP.' },
+    ],
+  },
+  {
+    code: 'RNF-DIS',
+    tipo: 'No funcional (disponibilidad).',
+    titulo: 'Disponibilidad',
+    descripcionGeneral: 'Uptime, recuperación, backup, degradación controlada y escalabilidad.',
+    subs: [
+      { nombre: 'SLA.', desc: '≥ 99 % horario laboral — pendiente acuerdo stakeholders.' },
+      { nombre: 'Resiliencia.', desc: 'Healthcheck correo; cola SMTP; RPO backup ≤ 24 h propuesto.' },
+    ],
+  },
+  {
+    code: 'RNF-UX',
+    tipo: 'No funcional (usabilidad).',
+    titulo: 'Usabilidad',
+    descripcionGeneral: 'Idioma español, consistencia visual, feedback, accesibilidad, responsive y personalización.',
+    subs: [
+      { nombre: 'Experiencia.', desc: 'SweetAlert2; temas; confirmaciones; móvil offcanvas.' },
+      { nombre: 'Accesibilidad.', desc: 'Alto contraste; reducir animaciones; targets táctiles.' },
+    ],
+  },
+];
+
 const REQUISITOS_NO_FUNCIONALES = [
   {
     code: 'RNF-001',
@@ -494,23 +640,23 @@ const REQUISITOS_NO_FUNCIONALES = [
     tipo: 'No funcional.',
     titulo: 'Autorización en API y superficie expuesta.',
     descripcionGeneral:
-      'El modelo previsto combina JWT en cabecera Bearer con listas de roles por ruta; parte del código no aplica verificarToken de forma uniforme.',
+      'JWT obligatorio en middleware global (apiPublicPaths) más autorizarRol/autorizarPermiso y RBAC inferido por ruta.',
     subs: [
       {
-        nombre: 'Patrón estándar.',
-        desc: 'Muchas rutas sensibles usan verificarToken seguido de autorizarRol con la lista de roles permitidos.',
+        nombre: 'Middleware global.',
+        desc: 'Toda ruta no pública exige Bearer token; excepciones: login, forgot/reset password y auth/mail-estado.',
       },
       {
-        nombre: 'Contratos y recordatorios.',
-        desc: 'Creación de contrato exige JWT y rol; listado, actualización, borrado y envío de recordatorio carecen de verificarToken en la revisión del código.',
+        nombre: 'RBAC por ruta.',
+        desc: 'autorizarRol/autorizarPermiso con permisos por módulo (usuarios, contratos, auditoría, configuración).',
       },
       {
-        nombre: 'Empleados y demo tabla1.',
-        desc: 'Gran parte del CRUD de empleados y todo el CRUD de tabla1 están expuestos sin JWT en servidor.',
+        nombre: 'Demo tabla1.',
+        desc: 'CRUD tabla1 solo admin con JWT; deshabilitar en producción si no se usa.',
       },
       {
-        nombre: 'Implicación.',
-        desc: 'La seguridad efectiva frente a amenazas externas depende del aislamiento de red, firewall o VPN si no se corrige la política de middleware.',
+        nombre: 'APIs RRHH legado.',
+        desc: 'Rutas de empleados/producción del monolito histórico no están montadas en el servidor actual.',
       },
     ],
   },
@@ -772,7 +918,7 @@ function requirementTable(headers, items) {
 
 async function main() {
   const intro =
-    'Este documento describe los requisitos funcionales y no funcionales inferidos del comportamiento actual del código del proyecto (aplicación React en client/ y API Express en server/index.js). No sustituye acuerdos formales con stakeholders: refleja lo implementado y advertencias donde la seguridad u homogeneidad del API no son uniformes.';
+    'Este documento describe los requisitos funcionales y no funcionales inferidos del comportamiento actual del código del proyecto (aplicación React en client/ y API Express en server/index.js). Incluye middleware global JWT (apiPublicPaths) y RBAC por ruta. No sustituye acuerdos formales con stakeholders.';
 
   const headersRf = [
     'CÓDIGO',
@@ -870,8 +1016,65 @@ async function main() {
     }
   }
 
+  const introSge =
+    'Catálogo jerárquico del Sistema de Gestión Empresarial (SGE): requisitos funcionales grandes (RF-G) con desglose mediano y requisitos no funcionales por categoría (calidad, seguridad, rendimiento, disponibilidad, usabilidad). Complementa REQUISITOS_PROYECTO_AEPG.docx. Validación RF-G08 y SLA: docs/VALIDACION_STAKEHOLDERS.md.';
+
+  const docSge = new Document({
+    sections: [
+      {
+        properties: {},
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            heading: HeadingLevel.TITLE,
+            spacing: { after: 240 },
+            children: [
+              new TextRun({
+                text: 'Informe técnico de requisitos — SGE',
+                bold: true,
+                size: 36,
+              }),
+            ],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 },
+            children: [
+              new TextRun({
+                text: `Generado: ${new Date().toLocaleString('es-ES')}`,
+                italics: true,
+                size: 20,
+              }),
+            ],
+          }),
+          new Paragraph({
+            spacing: { after: 200 },
+            children: [new TextRun({ text: introSge, size: 22 })],
+          }),
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 120, after: 160 },
+            children: [new TextRun({ text: 'Requisitos funcionales (RF-G)', bold: true })],
+          }),
+          requirementTable(headersRf, SGE_REQUISITOS_FUNCIONALES),
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 360, after: 160 },
+            children: [new TextRun({ text: 'Requisitos no funcionales', bold: true })],
+          }),
+          requirementTable(headersRnf, SGE_REQUISITOS_NO_FUNCIONALES),
+        ],
+      },
+    ],
+  });
+
+  const bufferSge = await Packer.toBuffer(docSge);
+
   const writtenRepo = writeDocxOrFallback(OUT_REPO);
   console.log('Generado:', writtenRepo);
+
+  fs.writeFileSync(OUT_REPO_SGE, bufferSge);
+  console.log('Generado:', OUT_REPO_SGE);
 
   try {
     const writtenUser = writeDocxOrFallback(OUT_DOCS_USER);

@@ -31,8 +31,8 @@ Este documento **no** es un documento de negocio firmado por stakeholders: resum
 ### Contratación / contratos
 
 - **RF-CO-01**: CRUD de contratos sobre `contratos_generales` — creación protegida por JWT + rol `admin` o `contratacion` (`POST /create-contrato`).
-- **RF-CO-02**: Lectura de todos los contratos `GET /contratos` **sin** middleware JWT en el servidor (cualquier cliente que conozca la URL puede leer; el frontend sí suele ir autenticado).
-- **RF-CO-03**: Actualización y borrado `PUT /update-contrato`, `DELETE /delete-contrato/:numero_contrato` **sin** `verificarToken` en backend (diferencia respecto a creación).
+- **RF-CO-02**: Lectura de contratos `GET /contratos` con JWT y rol de lectura (`ROLES_CONTRATOS_LECTURA`).
+- **RF-CO-03**: Actualización `PUT /update-contrato` con JWT y rol contratación; borrado vía flujos de archivo/cancelación documentados en rutas `/contratos/*`.
 - **RF-CO-04** (UI): Módulo unificado `GestionContratos.jsx` con secciones: Resumen, Contratos, Vencimientos, Renovaciones, Reportes (tabs internas + sincronización con menú lateral).
 - **RF-CO-05** (UI): Reglas de negocio en cliente: estados (activo, por vencer, vencido…), KPIs, renovaciones, colas priorizadas, alertas.
 - **RF-CO-06** (UI): Exportaciones de reportes **Excel** (ExcelJS, cabecera verde), **CSV** (UTF-8/BOM), **PDF** (jsPDF + autoTable).
@@ -66,7 +66,7 @@ Patrón general: pantallas en `client/src/components/*.jsx` consumiendo APIs con
 
 ### Legado / demo
 
-- **RF-LG-01**: CRUD sobre `tabla1` sin autenticación (`GET /tabla1`, `POST /create`, `PUT /update`, `DELETE /delete/:id`) — aparentemente ejemplo o legado.
+- **RF-LG-01**: CRUD sobre `tabla1` solo con JWT y rol `admin` (`GET /tabla1`, `POST /create`, `PUT /update`, `DELETE /delete/:id`) — legado/demo; deshabilitar en producción si no se usa.
 
 ### Shell de aplicación (UI)
 
@@ -79,13 +79,16 @@ Patrón general: pantallas en `client/src/components/*.jsx` consumiendo APIs con
 
 ## Requisitos no funcionales (inferidos)
 
+> Catálogo jerárquico completo (RF-G / RNF): [`REQUISITOS_SGE.md`](REQUISITOS_SGE.md).  
+> Validación negocio (RF-G08, SLA): [`VALIDACION_STAKEHOLDERS.md`](VALIDACION_STAKEHOLDERS.md).
+
 ### Seguridad
 
 - **RNF-SE-01**: Contraseñas de aplicación almacenadas con **bcrypt** (usuarios).
-- **RNF-SE-02**: Autorización basada en **rol** en JWT (`verificarToken` + `autorizarRol`).
+- **RNF-SE-02**: Autorización basada en **rol** en JWT (`verificarToken` + `autorizarRol` / `autorizarPermiso` + RBAC por módulo).
 - **RNF-SE-03**: Validación de usuarios: email, fortaleza de contraseña, roles en lista blanca `admin`, `rrhh`, `contratacion`, `produccion` (`server/index.js`).
-- **RNF-SE-04**: **Deuda / riesgo**: Varias rutas sensibles (contratos list/update/delete, empleados CRUD, `tabla1`) **no** exigen JWT en el servidor según el código actual — el modelo de amenazas real depende del despliegue (red, firewall, VPN).
-- **RNF-SE-05**: `JWT_SECRET` tiene valor por defecto en código si falta `.env` — **no recomendable en producción**.
+- **RNF-SE-04**: Middleware global (`server/lib/apiPublicPaths.js`): JWT obligatorio salvo login, reset y health correo en login. Rutas de contratos y `tabla1` exigen token + rol. APIs RRHH/producción del legado no están montadas en el servidor actual.
+- **RNF-SE-05**: `JWT_SECRET` debe definirse en `.env` en producción (`resolveJwtSecret` en `server/lib/securityConfig.js`).
 
 ### Rendimiento y escalabilidad
 

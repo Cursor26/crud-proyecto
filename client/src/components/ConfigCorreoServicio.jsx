@@ -114,6 +114,32 @@ function ConfigCorreoServicio({
     }
   };
 
+  const handleResetSmtp = async () => {
+    if (!puedeEditarSmtp) {
+      await Swal.fire('Sin permiso', 'No tiene permiso para modificar la configuración SMTP.', 'warning');
+      return;
+    }
+    const result = await Swal.fire({
+      icon: 'question',
+      title: 'Restablecer correo del sistema',
+      text: 'Se desactivará la configuración guardada en la aplicación y el servidor volverá a usar server/.env.',
+      showCancelButton: true,
+      confirmButtonText: 'Restablecer',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!result.isConfirmed) return;
+    setSaving(true);
+    try {
+      const res = await Axios.put(`${API_BASE}/config/correo`, { use_db_config: false });
+      applyConfig(res.data || {});
+      await Swal.fire('Listo', res.data?.message || 'Configuración restablecida.', 'success');
+    } catch (err) {
+      await Swal.fire('Error', err.response?.data?.message || err.message || 'No se pudo restablecer.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleTest = async () => {
     if (!puedeEditarSmtp) {
       await Swal.fire('Sin permiso', 'No tiene permiso para enviar correos de prueba.', 'warning');
@@ -184,7 +210,20 @@ function ConfigCorreoServicio({
           ) : (
             <form onSubmit={handleSave} className="card shadow-sm border-0">
               <div className="card-body">
-                <h5 className="card-title mb-3">Servidor SMTP</h5>
+                <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                  <h5 className="card-title mb-0">Servidor SMTP</h5>
+                  {puedeEditarSmtp ? (
+                    <button
+                      type="button"
+                      className={BTN_SECUNDARIO}
+                      onClick={handleResetSmtp}
+                      disabled={saving}
+                      title="Usar de nuevo la configuración de server/.env"
+                    >
+                      Restablecer predeterminados
+                    </button>
+                  ) : null}
+                </div>
                 {!puedeEditarSmtp ? (
                   <div className="alert alert-warning small mb-3">
                     Solo lectura: necesita permiso de <strong>editar usuarios</strong> para cambiar el correo del

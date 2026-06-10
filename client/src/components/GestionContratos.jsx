@@ -58,6 +58,7 @@ import {
   BTN_CONSULTAR,
   BTN_ELIMINAR_ICON,
   BTN_EXPORTAR,
+  BTN_EXPORTAR_SM,
   BTN_SECUNDARIO,
 } from '../lib/actionButtonClasses';
 import { TIP } from '../lib/actionTooltips';
@@ -83,11 +84,13 @@ import {
 } from '../lib/contratosAnexos';
 import {
   CONTRATOS_SECTION_LABELS,
+  CONTRATOS_SECTION_ICONS,
   canAccessContratosSection,
   getContratosTabSectionIds,
   firstAllowedContratosSection,
 } from '../lib/contratosNavSections';
 import { useContratosNavCounts } from '../context/ContratosNavCountsContext';
+import { useContratosMensajes } from '../context/ContratosMensajesContext';
 import {
   resolverNumerosExportacion,
   buildResumenExportacionExpediente,
@@ -287,6 +290,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   const puedeEditarContratos = can('contratos', 'edit');
   const puedeExportarContratos = can('contratos', 'export');
   const { setNavCounts } = useContratosNavCounts();
+  const { refreshCount: refreshMensajesContratos } = useContratosMensajes();
   const puedeAprobarContratos = can('contratos', 'approve');
   const puedeVerificarContratos = can('contratos', 'verify');
   const tabSectionIds = useMemo(() => getContratosTabSectionIds(can), [can]);
@@ -1889,6 +1893,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           : undefined
       );
       getContratos();
+      refreshMensajesContratos();
       if (esArchivoPendiente) eliminarPdfContrato(con.numero_contrato);
       const msg =
         res.data?.accion === 'cancelacion_archivo' || res.data?.accion === 'archivo'
@@ -1926,6 +1931,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         `${API_BASE}/contratos/${encodeURIComponent(con.numero_contrato)}/verificar-aprobar`
       );
       getContratos();
+      refreshMensajesContratos();
       Swal.fire('Verificado', res.data?.message || 'Pasa a aprobación operativa.', 'success');
     } catch (error) {
       Swal.fire('Error', mensajeErrorApi(error), 'error');
@@ -2101,6 +2107,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         result.value
       );
       getContratos();
+      refreshMensajesContratos();
       Swal.fire('Devuelto', res.data?.message || 'Contrato devuelto al contratador.', 'warning');
     } catch (error) {
       Swal.fire('Error', mensajeErrorApi(error), 'error');
@@ -2138,6 +2145,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         { motivo }
       );
       getContratos();
+      refreshMensajesContratos();
       const msg =
         res.data?.accion === 'alta'
           ? 'El borrador del contrato fue descartado.'
@@ -3557,34 +3565,20 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         <div className="contratos-topbar__left">
           <h2 className="contratos-page__title mb-0">Contratos</h2>
         </div>
-        {activeSection === 'contratos' && (puedeCrearContratos || puedeExportarContratos) && (
+        {activeSection === 'contratos' && puedeCrearContratos && (
           <div className="contratos-topbar__actions d-flex flex-wrap gap-2">
-            {puedeExportarContratos ? (
-              <button
-                type="button"
-                className={BTN_EXPORTAR}
-                onClick={exportarExpedienteContratos}
-                disabled={exportandoExpediente || !contratosFiltrados.length}
-                title="Descargar ZIP con datos y documentos de los contratos filtrados o seleccionados"
-              >
-                <i className="bi bi-file-earmark-zip me-2" aria-hidden="true" />
-                Exportar expediente
-              </button>
-            ) : null}
-            {puedeCrearContratos ? (
-              <button
-                type="button"
-                className={BTN_ANADIR_MD}
-                onClick={abrirModalNuevoContrato}
-              >
-                <i className="bi bi-plus-lg me-2" aria-hidden="true" />
-                Agregar contrato
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className={`${BTN_ANADIR_MD} btn-sm`}
+              onClick={abrirModalNuevoContrato}
+            >
+              <i className="bi bi-plus-lg me-1" aria-hidden="true" />
+              Agregar contrato
+            </button>
           </div>
         )}
         {activeSection === 'reportes' && puedeExportarContratos && (
-          <div className="contratos-topbar__actions reportes-top-actions">
+          <div className="contratos-topbar__actions contratos-topbar__actions--exports reportes-top-actions">
             <button type="button" className="btn btn-sm reportes-export-btn-pdf d-inline-flex align-items-center" onClick={exportarReportePdf} title="Tabla con los mismos datos que Excel">
               <i className="bi bi-file-earmark-pdf me-1" aria-hidden="true" />
               PDF
@@ -3593,14 +3587,14 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               <i className="bi bi-filetype-csv me-1" aria-hidden="true" />
               CSV
             </button>
-            <button type="button" className={BTN_EXPORTAR} onClick={exportarReporteExcel}>
-              <i className="bi bi-file-earmark-spreadsheet me-2" aria-hidden="true" />
-              Exportar Excel
+            <button type="button" className={`${BTN_EXPORTAR_SM} btn-sm`} onClick={exportarReporteExcel}>
+              <i className="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true" />
+              Excel
             </button>
           </div>
         )}
         {activeSection === 'archivo' && puedeExportarContratos && (
-          <div className="contratos-topbar__actions reportes-top-actions">
+          <div className="contratos-topbar__actions contratos-topbar__actions--exports reportes-top-actions">
             <button type="button" className="btn btn-sm reportes-export-btn-pdf d-inline-flex align-items-center" onClick={exportarArchivoPdf} title="Tabla con los mismos datos que Excel">
               <i className="bi bi-file-earmark-pdf me-1" aria-hidden="true" />
               PDF
@@ -3609,9 +3603,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               <i className="bi bi-filetype-csv me-1" aria-hidden="true" />
               CSV
             </button>
-            <button type="button" className={BTN_EXPORTAR} onClick={exportarArchivoExcel}>
-              <i className="bi bi-file-earmark-spreadsheet me-2" aria-hidden="true" />
-              Exportar Excel
+            <button type="button" className={`${BTN_EXPORTAR_SM} btn-sm`} onClick={exportarArchivoExcel}>
+              <i className="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true" />
+              Excel
             </button>
           </div>
         )}
@@ -3620,16 +3614,24 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       {/* Tabs de secciones */}
       <div className="contratos-tabs-card mb-3">
         <div className="contratos-tabs-row">
-          {tabSectionIds.map((id) => (
+          {tabSectionIds.map((id) => {
+            const tabLabel = CONTRATOS_SECTION_LABELS[id] || id;
+            const tabIcon = CONTRATOS_SECTION_ICONS[id] || 'bi-circle';
+            return (
               <button
                 key={id}
                 type="button"
                 className={`btn btn-sm contratos-tab ${activeSection === id ? 'contratos-tab--active' : ''}`}
                 onClick={() => irASeccion(id)}
+                title={tabLabel}
+                aria-label={tabLabel}
+                aria-current={activeSection === id ? 'page' : undefined}
               >
-                {CONTRATOS_SECTION_LABELS[id] || id}
+                <i className={`bi ${tabIcon} contratos-tab__icon`} aria-hidden="true" />
+                <span className="contratos-tab__label">{tabLabel}</span>
               </button>
-            ))}
+            );
+          })}
         </div>
       </div>
 
@@ -4176,10 +4178,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                     <option value="90">Hasta 90 días</option>
                   </AppSelect>
                 </div>
-                <div className="col-12 col-md-1 d-grid">
+                <div className="col-12 col-md-auto contratos-filter-actions">
                   <button
                     type="button"
-                    className="btn btn-contratos-limpiar-filtros"
+                    className="btn btn-sm btn-contratos-limpiar-filtros"
                     onClick={() => {
                       setSearchTerm('');
                       setFiltroTipo('todos');
@@ -4190,12 +4192,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                   >
                     Limpiar
                   </button>
-                </div>
-                {puedeExportarContratos ? (
-                  <div className="col-12 col-md-auto d-grid">
+                  {puedeExportarContratos ? (
                     <button
                       type="button"
-                      className={BTN_EXPORTAR}
+                      className={`${BTN_EXPORTAR_SM} btn-sm`}
                       onClick={exportarExpedienteContratos}
                       disabled={exportandoExpediente || !contratosFiltrados.length}
                       title={
@@ -4207,8 +4207,8 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       <i className="bi bi-file-earmark-zip me-1" aria-hidden="true" />
                       ZIP
                     </button>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
               {puedeExportarContratos && exportSeleccionados.length > 0 ? (
                 <p className="text-muted small mb-0 mt-2">
@@ -4964,15 +4964,15 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 </div>
 
                 <div className="reportes-filters row g-2 align-items-end mb-3">
-                  <div className="col-12 col-sm-6 col-lg">
+                  <div className="col-6 col-md-3 col-lg">
                     <label className="reportes-filter-label">Fin vigencia desde</label>
                     <input type="date" className="form-control form-control-sm" value={reporteFechaDesde} onChange={(e) => setReporteFechaDesde(e.target.value)} />
                   </div>
-                  <div className="col-12 col-sm-6 col-lg">
+                  <div className="col-6 col-md-3 col-lg">
                     <label className="reportes-filter-label">Fin vigencia hasta</label>
                     <input type="date" className="form-control form-control-sm" value={reporteFechaHasta} onChange={(e) => setReporteFechaHasta(e.target.value)} />
                   </div>
-                  <div className="col-12 col-sm-6 col-lg">
+                  <div className="col-6 col-md-3 col-lg">
                     <label className="reportes-filter-label">Tipo</label>
                     <AppSelect
                       variant="filter"
@@ -4988,7 +4988,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       ))}
                     </AppSelect>
                   </div>
-                  <div className="col-12 col-sm-6 col-lg">
+                  <div className="col-6 col-md-3 col-lg">
                     <label className="reportes-filter-label">Empresa</label>
                     <AppSelect
                       variant="filter"
@@ -5002,10 +5002,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       ))}
                     </AppSelect>
                   </div>
-                  <div className="col-12 col-lg-auto">
+                  <div className="col-12 col-lg-auto reportes-filter-actions">
                     <button
                       type="button"
-                      className="btn btn-sm btn-outline-secondary w-100 text-nowrap"
+                      className="btn btn-sm btn-outline-secondary text-nowrap"
                       onClick={() => {
                         setReporteFechaDesde('');
                         setReporteFechaHasta('');
@@ -5265,7 +5265,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 </div>
 
                 <div className="reportes-filters row g-2 align-items-end mb-3">
-                  <div className="col-12 col-md-6 col-lg-4">
+                  <div className="col-12 col-md-6 col-lg-5">
                     <label className="reportes-filter-label">Buscar (nº, empresa, tipo)</label>
                     <input
                       type="search"
@@ -5275,7 +5275,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       placeholder="Ej. 5555, Empresa..."
                     />
                   </div>
-                  <div className="col-12 col-sm-6 col-lg-3">
+                  <div className="col-6 col-md-3 col-lg-2">
                     <label className="reportes-filter-label">Año de baja</label>
                     <AppSelect
                       variant="filter"
@@ -5289,10 +5289,10 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                       ))}
                     </AppSelect>
                   </div>
-                  <div className="col-12 col-lg-auto">
+                  <div className="col-6 col-md-auto reportes-filter-actions">
                     <button
                       type="button"
-                      className="btn btn-sm btn-outline-secondary w-100 text-nowrap"
+                      className="btn btn-sm btn-outline-secondary text-nowrap"
                       onClick={() => {
                         setArchivoBusqueda('');
                         setArchivoAnio('');

@@ -195,4 +195,9 @@ export const CONTRATOS_SECTION_LABELS = Object.fromEntries(
   CONTRATOS_MENU_SECTIONS.map((section) => [section.id, section.label])
 );
 
+/** Iconos Bootstrap (mismos que el menú lateral). */
+export const CONTRATOS_SECTION_ICONS = Object.fromEntries(
+  CONTRATOS_MENU_SECTIONS.map((section) => [section.id, section.icon])
+);
+
 

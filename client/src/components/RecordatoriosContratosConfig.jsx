@@ -256,6 +256,36 @@ function RecordatoriosContratosConfig({ puedeEditar, puedeEjecutar, esAdmin }) {
     ]);
   };
 
+  const restablecer = async () => {
+    if (!puedeGuardar) {
+      await Swal.fire('Sin permiso', 'Se requiere permiso de edición en contratos para restablecer.', 'warning');
+      return;
+    }
+    const result = await Swal.fire({
+      icon: 'question',
+      title: 'Restablecer recordatorios',
+      text: 'Se activarán los recordatorios y se volverán las reglas por prioridad y tipo a los valores predeterminados.',
+      showCancelButton: true,
+      confirmButtonText: 'Restablecer',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!result.isConfirmed) return;
+    setSaving(true);
+    try {
+      const res = await Axios.post(`${API_BASE}/config/recordatorios-contratos/restablecer`);
+      const cfg = res.data?.config || {};
+      setActivo(cfg.activo !== false);
+      setReglasPrioridad(sanitizeReglasPrioridad(cfg.reglas_prioridad));
+      setReglasTipo([]);
+      await Swal.fire('Listo', res.data?.message || 'Configuración restablecida.', 'success');
+      cargar();
+    } catch (err) {
+      await Swal.fire('Error', err.response?.data?.message || err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const guardar = async () => {
     if (!puedeGuardar) {
       await Swal.fire('Sin permiso', 'Se requiere permiso de edición en contratos para guardar.', 'warning');
@@ -445,6 +475,17 @@ function RecordatoriosContratosConfig({ puedeEditar, puedeEjecutar, esAdmin }) {
             title={TIP.guardarConfig}
           >
             {saving ? 'Guardando…' : 'Guardar configuración'}
+          </button>
+        )}
+        {puedeGuardar && (
+          <button
+            type="button"
+            className={BTN_SECUNDARIO}
+            onClick={restablecer}
+            disabled={saving}
+            title="Volver a las reglas predeterminadas del sistema"
+          >
+            Restablecer predeterminados
           </button>
         )}
         {puedeEjecutar && (

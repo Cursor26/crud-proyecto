@@ -105,6 +105,24 @@ const selectClassNames = {
       .join(' '),
 };
 
+const FILTER_MENU_STYLES = {
+  menu: (base) => ({
+    ...base,
+    width: 'max-content',
+    minWidth: '100%',
+    maxWidth: 'min(92vw, 18rem)',
+  }),
+  menuPortal: (base) => ({
+    ...base,
+    zIndex: 9999,
+  }),
+  option: (base) => ({
+    ...base,
+    whiteSpace: 'normal',
+    wordBreak: 'break-word',
+  }),
+};
+
 function AppSelect({
   value,
   onChange,
@@ -205,6 +223,11 @@ function AppSelect({
         closeMenuOnScroll={false}
         blurInputOnSelect
         {...rest}
+        styles={
+          variant === 'contratos' || variant === 'filter'
+            ? FILTER_MENU_STYLES
+            : rest.styles
+        }
       />
     </div>
   );

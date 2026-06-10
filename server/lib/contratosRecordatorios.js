@@ -266,6 +266,23 @@ function createContratosRecordatoriosService(dbQuery, deps) {
     return parseConfigJson(rows[0]?.valor);
   }
 
+  async function resetUiConfig(updatedBy) {
+    const existing = await loadConfig();
+    const config = {
+      ...existing,
+      activo: DEFAULT_CONFIG.activo,
+      reglas_prioridad: { ...REGLAS_PRIORIDAD_DEFAULT },
+      reglas_tipo: [],
+    };
+    const json = JSON.stringify(config);
+    await dbQuery(
+      `INSERT INTO config_sistema (clave, valor, updated_by) VALUES (?,?,?)
+       ON DUPLICATE KEY UPDATE valor = VALUES(valor), updated_by = VALUES(updated_by)`,
+      [CONFIG_KEY, json, updatedBy || null]
+    );
+    return config;
+  }
+
   async function saveConfig(body, updatedBy) {
     const existing = await loadConfig();
     const incoming = body && typeof body === 'object' ? body : {};
@@ -770,6 +787,7 @@ function createContratosRecordatoriosService(dbQuery, deps) {
     REGLAS_PRIORIDAD_DEFAULT,
     loadConfig,
     saveConfig,
+    resetUiConfig,
     listEnvios,
     listEnviosByContrato,
     describeReglaRecordatorio,

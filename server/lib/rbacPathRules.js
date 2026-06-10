@@ -20,7 +20,8 @@ function resolveRouteAction(method, rawPath) {
     path === '/login' ||
     path.startsWith('/auth/forgot') ||
     path.startsWith('/auth/reset') ||
-    path === '/auth/login-avatar'
+    path === '/auth/login-avatar' ||
+    path === '/auth/mail-estado'
   ) {
     return null;
   }
@@ -41,12 +42,18 @@ function resolveRouteAction(method, rawPath) {
     return { module: 'contratos', action: 'approve' };
   }
 
-  if (path.includes('/recordatorios-envios') || path.startsWith('/config/recordatorios-contratos')) {
+  if (
+    path.includes('/recordatorios-envios') ||
+    path.startsWith('/config/recordatorios-contratos')
+  ) {
+    if (path.includes('/restablecer')) {
+      return { module: 'contratos', action: 'edit' };
+    }
     return { module: 'contratos', action: m === 'GET' ? 'view' : 'edit' };
   }
 
   if (path.startsWith('/config/contratos-correo-plantillas')) {
-    if (path.includes('/probar')) {
+    if (path.includes('/probar') || path.includes('/restablecer')) {
       return { module: 'contratos', action: 'edit' };
     }
     return { module: 'contratos', action: m === 'GET' ? 'view' : 'edit' };

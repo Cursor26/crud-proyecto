@@ -179,18 +179,18 @@ function ContratosAuditoria() {
       </div>
 
       <div className="contratos-card p-3">
-      <div className="row g-2 align-items-end mb-3">
-        <div className="col-md-3">
-          <label className="form-label small mb-0">N.º de contrato</label>
+      <div className="row g-2 align-items-end mb-3 auditoria-filter-row">
+        <div className="col-4 col-md-3">
+          <label className="form-label small mb-0">N.º contrato</label>
           <input
             type="text"
             className="form-control form-control-sm"
-            placeholder="Filtrar por número"
+            placeholder="N.º"
             value={filterNumero}
             onChange={(e) => setFilterNumero(e.target.value)}
           />
         </div>
-        <div className="col-md-3">
+        <div className="col-4 col-md-3">
           <label className="form-label small mb-0">Desde</label>
           <input
             type="date"
@@ -199,7 +199,7 @@ function ContratosAuditoria() {
             onChange={(e) => setFilterDesde(e.target.value)}
           />
         </div>
-        <div className="col-md-3">
+        <div className="col-4 col-md-3">
           <label className="form-label small mb-0">Hasta</label>
           <input
             type="date"
@@ -208,8 +208,8 @@ function ContratosAuditoria() {
             onChange={(e) => setFilterHasta(e.target.value)}
           />
         </div>
-        <div className="col-md-3 d-flex gap-2">
-          <button type="button" className={`${BTN_CONSULTAR} flex-grow-1`} onClick={loadData} disabled={loading}>
+        <div className="col-12 col-md-3 auditoria-filter-actions d-flex flex-wrap gap-2">
+          <button type="button" className={BTN_CONSULTAR} onClick={loadData} disabled={loading}>
             <i className="bi bi-arrow-clockwise me-1" aria-hidden="true" />
             Actualizar
           </button>

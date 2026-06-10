@@ -41,6 +41,7 @@ const {
   buildCorsOptions,
   createAuthRateLimiters,
 } = require('./lib/securityConfig');
+const { isPublicApiPath } = require('./lib/apiPublicPaths');
 
 const JWT_SECRET = resolveJwtSecret();
 const authRateLimiters = createAuthRateLimiters();
@@ -114,6 +115,8 @@ const { createJwtBlacklistService } = require('./lib/jwtBlacklist');
 const jwtBlacklist = createJwtBlacklistService(dbQuery);
 const { createContratosAuditoriaService } = require('./lib/contratosAuditoria');
 const contratosAuditoria = createContratosAuditoriaService(dbQuery, audit);
+const { createContratosMensajesService } = require('./lib/contratosMensajes');
+const contratosMensajes = createContratosMensajesService(dbQuery);
 const { createRbacService } = require('./lib/rbac');
 const rbac = createRbacService(dbQuery);
 const { createContratosRecordatoriosService } = require('./lib/contratosRecordatorios');
@@ -906,6 +909,13 @@ const autorizarPermiso = (module, action) => async (req, res, next) => {
     return res.status(500).json({ message: 'Error al verificar permisos' });
   }
 };
+
+/** RNF-SEG-03: JWT obligatorio en toda ruta no pública (las rutas pueden añadir RBAC adicional). */
+app.use((req, res, next) => {
+  if (isPublicApiPath(req.path, req.method)) return next();
+  return verificarToken(req, res, next);
+});
+
 // ==================== RUTAS DE AUTENTICACIÓN ====================
 
 // LOGIN (público): correo o nombre de usuario
@@ -1586,6 +1596,17 @@ app.put('/config/recordatorios-contratos', verificarToken, autorizarRol(['contra
   }
 });
 
+app.post('/config/recordatorios-contratos/restablecer', verificarToken, autorizarRol(['contratacion']), async (req, res) => {
+  try {
+    const updatedBy = String(req.user?.email || req.user?.nombre || '').trim() || null;
+    const config = await recordatoriosContratos.resetUiConfig(updatedBy);
+    return res.json({ ok: true, message: 'Recordatorios restablecidos a los valores predeterminados.', config });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || 'Error al restablecer.' });
+  }
+});
+
 app.get('/config/contratos-correo-plantillas', verificarToken, autorizarRol(['contratacion', 'director']), async (req, res) => {
   try {
     const plantillas = await correoPlantillas.loadPlantillas();
@@ -1607,6 +1628,17 @@ app.put('/config/contratos-correo-plantillas', verificarToken, autorizarRol(['co
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: err.message || 'Error al guardar plantillas.' });
+  }
+});
+
+app.post('/config/contratos-correo-plantillas/restablecer', verificarToken, autorizarRol(['contratacion']), async (req, res) => {
+  try {
+    const updatedBy = String(req.user?.email || req.user?.nombre || '').trim() || null;
+    const plantillas = await correoPlantillas.resetPlantillas(updatedBy);
+    return res.json({ ok: true, message: 'Plantillas restablecidas a los valores predeterminados.', plantillas });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message || 'Error al restablecer plantillas.' });
   }
 });
 
@@ -3137,6 +3169,47 @@ app.get('/contratos/auditoria', verificarToken, autorizarRol(ROLES_CONTRATOS_LEC
   }
 });
 
+app.get('/contratos/mensajes', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
+  try {
+    const email = String(req.user?.email || '').trim();
+    const data = await contratosMensajes.listMensajes(email, {
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+    return res.json(data);
+  } catch (err) {
+    console.error('GET /contratos/mensajes:', err);
+    return res.status(500).json({ message: err.message || 'No se pudieron cargar los mensajes.' });
+  }
+});
+
+app.get('/contratos/mensajes/no-leidos', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
+  try {
+    const email = String(req.user?.email || '').trim();
+    const no_leidos = await contratosMensajes.countNoLeidos(email);
+    return res.json({ no_leidos });
+  } catch (err) {
+    console.error('GET /contratos/mensajes/no-leidos:', err);
+    return res.status(500).json({ message: err.message || 'No se pudo consultar mensajes nuevos.' });
+  }
+});
+
+app.post('/contratos/mensajes/marcar-leidos', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
+  try {
+    const email = String(req.user?.email || '').trim();
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const marcarTodos = req.body?.todos === true || req.body?.marcar_todos === true;
+    const result = marcarTodos
+      ? await contratosMensajes.marcarTodosLeidos(email)
+      : await contratosMensajes.marcarLeidos(email, ids);
+    const no_leidos = await contratosMensajes.countNoLeidos(email);
+    return res.json({ ...result, no_leidos });
+  } catch (err) {
+    console.error('POST /contratos/mensajes/marcar-leidos:', err);
+    return res.status(500).json({ message: err.message || 'No se pudieron marcar los mensajes.' });
+  }
+});
+
 app.get('/contratos-archivo', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
   const busqueda = String(req.query.busqueda || '').trim();
   const anio = String(req.query.anio || '').trim();
@@ -3617,6 +3690,7 @@ async function bootstrapServer() {
       ensureUserPreferencesTable(),
       audit.ensureAuditTables(),
       rbac.ensureRbacSchema(),
+      contratosMensajes.ensureTable(),
     ]);
 
     try {
@@ -3645,7 +3719,9 @@ async function bootstrapServer() {
     }
 
     const port = Number(process.env.PORT) || 3001;
-    app.listen(port, () => {
+    const listenHost = process.env.LISTEN_HOST || '0.0.0.0';
+    const os = require('os');
+    app.listen(port, listenHost, () => {
       recordatoriosContratos.startScheduler();
       if (smtpReady) {
         flushMailOutbox().catch((err) => console.warn('[MAIL-OUTBOX] flush inicial:', err?.message || err));
@@ -3658,7 +3734,18 @@ async function bootstrapServer() {
           console.warn('purge jwt_token_blacklist:', err?.message || err);
         });
       }, 60 * 60 * 1000);
-      console.log(`Corriendo en el puerto ${port}`);
+      console.log(`Corriendo en el puerto ${port} (escucha en ${listenHost})`);
+      const lanIps = Object.values(os.networkInterfaces())
+        .flat()
+        .filter((iface) => iface && iface.family === 'IPv4' && !iface.internal)
+        .map((iface) => iface.address);
+      if (lanIps.length) {
+        console.log('[red] Acceso en LAN (móvil misma WiFi):');
+        lanIps.forEach((ip) => {
+          console.log(`  API:    http://${ip}:${port}`);
+          console.log(`  React:  http://${ip}:3000  (npm start en client/)`);
+        });
+      }
       console.log(`Correo remitente: ${mailer.from} (origen: ${mailer.source || 'env'}, modo: ${mailer.mode})`);
       if (mailer.mode === 'dev') {
         console.log('Recuperación de contraseña: modo desarrollo (sin SMTP real).');

@@ -9,6 +9,7 @@ import {
   SIDEBAR_WIDTH_OPTIONS,
   THEME_PRESETS,
   UI_SCALE_OPTIONS,
+  getPreferenceSectionPatch,
 } from '../lib/appPreferences';
 import { DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS } from '../lib/formatAppDate';
 import { useAppPreferences } from '../context/AppPreferencesContext';
@@ -45,13 +46,24 @@ function OptionCard({ active, title, description, swatch, onClick, previewVars }
   );
 }
 
-function ConfigSection({ title, description, children }) {
+function ConfigSection({ title, description, children, onReset }) {
   return (
     <section className="app-config-section card shadow-sm border-0">
       <div className="card-body">
-        <h5 className="app-config-section__title">{title}</h5>
-        {description ? <p className="app-config-section__desc text-muted small mb-3">{description}</p> : null}
-        {children}
+        <div className="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div className="flex-grow-1 min-w-0">
+            <h5 className="app-config-section__title mb-0">{title}</h5>
+            {description ? (
+              <p className="app-config-section__desc text-muted small mb-0 mt-1">{description}</p>
+            ) : null}
+          </div>
+          {onReset ? (
+            <button type="button" className={`${BTN_CANCELAR} flex-shrink-0`} onClick={onReset}>
+              Restablecer predeterminados
+            </button>
+          ) : null}
+        </div>
+        <div className={onReset || description ? 'mt-3' : undefined}>{children}</div>
       </div>
     </section>
   );
@@ -90,7 +102,7 @@ const CONFIG_TABS = [
 ];
 
 function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdated = null }) {
-  const { preferences, resolved, syncState, updatePreference, resetPreferences } =
+  const { preferences, resolved, syncState, updatePreference, resetPreferences, resetPreferencesSection } =
     useAppPreferences();
   const { can } = usePermissions();
   const [activeTab, setActiveTab] = useState('tema');
@@ -138,6 +150,23 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
     if (result.isConfirmed) {
       resetPreferences();
       await Swal.fire('Listo', 'Preferencias restablecidas.', 'success');
+    }
+  };
+
+  const handleSectionReset = async (sectionId, sectionTitle) => {
+    const patch = getPreferenceSectionPatch(sectionId);
+    if (!patch) return;
+    const result = await Swal.fire({
+      icon: 'question',
+      title: `Restablecer ${sectionTitle}`,
+      text: 'Se volverán los valores predeterminados de esta sección.',
+      showCancelButton: true,
+      confirmButtonText: 'Restablecer',
+      cancelButtonText: 'Cancelar',
+    });
+    if (result.isConfirmed) {
+      resetPreferencesSection(patch);
+      await Swal.fire('Listo', 'Sección restablecida.', 'success');
     }
   };
 
@@ -218,7 +247,11 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
       <div className="app-config-grid">
         {activeTab === 'tema' ? (
         <>
-        <ConfigSection title="Tema de color" description="Paleta general de la interfaz (fondo, tarjetas y acentos).">
+        <ConfigSection
+          title="Tema de color"
+          description="Paleta general de la interfaz (fondo, tarjetas y acentos)."
+          onReset={() => handleSectionReset('tema-color', 'tema de color')}
+        >
           <div className="app-config-option-grid">
             {themeList.map((theme) => (
               <OptionCard
@@ -246,6 +279,7 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
         <ConfigSection
           title="Personalización"
           description="Colores del diseño (fondo, texto, acento y menú). Haz clic para desplegar."
+          onReset={() => handleSectionReset('tema-personalizacion', 'personalización de colores')}
         >
           <button
             type="button"
@@ -390,7 +424,11 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
             </p>
           </div>
         </div>
-        <ConfigSection title="Tipografía" description="Familia y tamaño base del texto en toda la aplicación.">
+        <ConfigSection
+          title="Tipografía"
+          description="Familia y tamaño base del texto en toda la aplicación."
+          onReset={() => handleSectionReset('tipografia', 'tipografía')}
+        >
           <label className="form-label small fw-semibold">Fuente</label>
           <p className="text-muted small mb-2">
             Cuatro estilos distintos: normal del equipo, molde en negrita, serif clásica y monoespaciada.
@@ -432,7 +470,10 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
         ) : null}
 
         {activeTab === 'escala' ? (
-        <ConfigSection title="Escala y menú lateral">
+        <ConfigSection
+          title="Escala y menú lateral"
+          onReset={() => handleSectionReset('escala', 'escala y menú lateral')}
+        >
           <label className="form-label small fw-semibold">Escala de interfaz</label>
           <div className="app-config-chip-row mb-3">
             {uiScaleList.map((opt) => (
@@ -491,7 +532,7 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
         ) : null}
 
         {activeTab === 'fecha' ? (
-        <ConfigSection title="Fecha y hora">
+        <ConfigSection title="Fecha y hora" onReset={() => handleSectionReset('fecha', 'fecha y hora')}>
           <label className="form-label small fw-semibold">Formato de fecha</label>
           <div className="app-config-chip-row mb-3">
             {Object.values(DATE_FORMAT_OPTIONS).map((opt) => (
@@ -522,7 +563,10 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
         ) : null}
 
         {activeTab === 'accesibilidad' ? (
-        <ConfigSection title="Accesibilidad">
+        <ConfigSection
+          title="Accesibilidad"
+          onReset={() => handleSectionReset('accesibilidad', 'accesibilidad')}
+        >
           <label className="form-label small fw-semibold">Espaciado entre líneas</label>
           <div className="app-config-chip-row mb-3">
             {lineHeightList.map((opt) => (
@@ -570,7 +614,11 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
         ) : null}
 
         {activeTab === 'interfaz' ? (
-        <ConfigSection title="Interfaz" description="Densidad, bordes y accesibilidad visual.">
+        <ConfigSection
+          title="Interfaz"
+          description="Densidad, bordes y accesibilidad visual."
+          onReset={() => handleSectionReset('interfaz', 'interfaz')}
+        >
           <label className="form-label small fw-semibold">Bordes redondeados</label>
           <p className="text-muted small mb-2">
             Afecta botones, tarjetas, campos de formulario, menú lateral y paneles de configuración.
@@ -639,7 +687,11 @@ function AppConfiguracion({ embedded = false, currentUser = null, onProfileUpdat
         <ConfigSection title="Mi cuenta" description="Datos personales de acceso (nombre, correo, teléfono, foto y contraseña).">
           <UserProfileSettings user={currentUser} onProfileUpdated={onProfileUpdated} />
         </ConfigSection>
-        <ConfigSection title="Preferencias" description="Navegación y confirmaciones.">
+        <ConfigSection
+          title="Preferencias"
+          description="Navegación y confirmaciones."
+          onReset={() => handleSectionReset('usuario-preferencias', 'preferencias de navegación')}
+        >
           <div className="app-config-toggle-list">
             <div className="form-check form-switch">
               <input

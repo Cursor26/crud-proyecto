@@ -7,7 +7,7 @@ import MailServiceUnavailableBanner from './components/MailServiceUnavailableBan
 import { mailQueueBannerMessage } from './lib/mailServiceMessages';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
-import { Nav, Navbar, NavDropdown } from 'react-bootstrap';
+import { Nav, Navbar, NavDropdown, Offcanvas } from 'react-bootstrap';
 
 import Login from './components/Login';
 import GestionContratos from './components/GestionContratos';
@@ -26,6 +26,11 @@ import {
   contratosSidebarBadgeCount,
   useContratosNavCounts,
 } from './context/ContratosNavCountsContext';
+import {
+  ContratosMensajesProvider,
+  useContratosMensajes,
+} from './context/ContratosMensajesContext';
+import ContratosMensajesPanel from './components/ContratosMensajesPanel';
 import { NavPrefsInitializer, PinSubmenusSync, useDashboardNavHandlers } from './hooks/useDashboardNav';
 import useNativeTooltips from './hooks/useNativeTooltips';
 import { formatAppDate, formatAppTime } from './lib/formatAppDate';
@@ -105,12 +110,31 @@ function ContratosSidebarNavContent({ item }) {
   );
 }
 
-function ContratosSidebarLinks({ itemClassName = 'mb-2', linkClassName = 'dashboard-nav-link p-1' }) {
+function sidebarNavClick(onNavSelect, eventKey) {
+  return (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (eventKey != null && eventKey !== '') {
+      onNavSelect(eventKey);
+    }
+  };
+}
+
+function ContratosSidebarLinks({
+  itemClassName = 'mb-2',
+  linkClassName = 'dashboard-nav-link p-1',
+  onNavSelect,
+}) {
   const { can } = usePermissions();
   const items = getContratosSidebarNavItems(can);
   return items.map((item) => (
     <Nav.Item key={item.eventKey} className={itemClassName}>
-      <Nav.Link eventKey={item.eventKey} className={linkClassName} title={item.label}>
+      <Nav.Link
+        eventKey={item.eventKey}
+        className={linkClassName}
+        title={item.label}
+        onClick={sidebarNavClick(onNavSelect, item.eventKey)}
+      >
         <ContratosSidebarNavContent item={item} />
       </Nav.Link>
     </Nav.Item>
@@ -123,6 +147,183 @@ function SidebarLinkLabel({ icon, label }) {
       <i className={`bi ${icon} me-2 dashboard-sidebar-icon`} aria-hidden="true" />
       <span className="dashboard-sidebar-label">{label}</span>
     </>
+  );
+}
+
+function ContratosMensajesSidebarButton({ className = 'dashboard-nav-link p-1' }) {
+  const { unreadCount, openPanel } = useContratosMensajes();
+  const badge = Number(unreadCount) || 0;
+
+  return (
+    <button
+      type="button"
+      className={`${className} dashboard-nav-link--mensajes w-100 text-start border-0`}
+      title="Mensajes de contratación"
+      aria-label={badge > 0 ? `Mensajes de contratación, ${badge} nuevo(s)` : 'Mensajes de contratación'}
+      onClick={(event) => {
+        event.preventDefault();
+        openPanel();
+      }}
+    >
+      <i className="bi bi-chat-left-text me-2 dashboard-sidebar-icon" aria-hidden="true" />
+      <span className="dashboard-sidebar-label dashboard-sidebar-label--with-badge">Mensajes</span>
+      {badge > 0 ? (
+        <span className="dashboard-sidebar-badge" aria-hidden="true">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function DashboardSidebarPanel({
+  user,
+  navKey,
+  onNavSelect,
+  sidebarMenuOpen,
+  setSidebarMenuOpen,
+  dropdownShow,
+  handleSidebarContratosToggle,
+  preferences,
+  contratosSidebarItems,
+  mostrarUsuarios,
+  mostrarGestionRoles,
+  mostrarAuditoria,
+  mostrarCorreoSistema,
+  mostrarContratos,
+  menuContratacionPlano,
+  mostrarConfigApp,
+  className = '',
+  contratosDropdownId = 'sidebar-dropdown-contratos',
+}) {
+  return (
+    <div className={`dashboard-sidebar-panel d-flex flex-column h-100 ${className}`.trim()}>
+      <div className="text-white mb-2 pb-4 border-bottom dashboard-sidebar-divider">
+        <div className="dashboard-sidebar-brand mb-2">
+          <img src={logoAepg} alt="Logo AEPG" className="dashboard-sidebar-brand-logo" />
+          <h3 className="fw-bold mb-0">AEPG</h3>
+        </div>
+        <p className="mb-0 opacity-75">Bienvenido, {user.nombre} </p>
+      </div>
+
+      <Nav className="flex-column flex-grow-1 dashboard-sidebar-nav" activeKey={navKey}>
+        {mostrarUsuarios && (
+          <Nav.Item className="mb-2">
+            <Nav.Link
+              eventKey="usuarios"
+              className="dashboard-nav-link p-1"
+              title="Usuarios"
+              onClick={sidebarNavClick(onNavSelect, 'usuarios')}
+            >
+              <SidebarLinkLabel icon="bi-person-badge" label="Usuarios" />
+            </Nav.Link>
+          </Nav.Item>
+        )}
+        {mostrarGestionRoles && (
+          <Nav.Item className="mb-2">
+            <Nav.Link
+              eventKey="gestion-roles"
+              className="dashboard-nav-link p-1"
+              title="Roles y permisos"
+              onClick={sidebarNavClick(onNavSelect, 'gestion-roles')}
+            >
+              <SidebarLinkLabel icon="bi-shield-lock" label="Roles y permisos" />
+            </Nav.Link>
+          </Nav.Item>
+        )}
+        {mostrarAuditoria && (
+          <Nav.Item className="mb-2">
+            <Nav.Link
+              eventKey="auditoria"
+              className="dashboard-nav-link p-1"
+              title="Auditoría"
+              onClick={sidebarNavClick(onNavSelect, 'auditoria')}
+            >
+              <SidebarLinkLabel icon="bi-journal-text" label="Auditoría" />
+            </Nav.Link>
+          </Nav.Item>
+        )}
+        {mostrarCorreoSistema && (
+          <Nav.Item className="mb-2">
+            <Nav.Link
+              eventKey="config-correo"
+              className="dashboard-nav-link p-1"
+              title="Correo del sistema"
+              onClick={sidebarNavClick(onNavSelect, 'config-correo')}
+            >
+              <SidebarLinkLabel icon="bi-envelope-at" label="Correo del sistema" />
+            </Nav.Link>
+          </Nav.Item>
+        )}
+        {mostrarContratos && menuContratacionPlano && (
+          <div className="dashboard-sidebar-flat-group dashboard-sidebar-module-group mb-2">
+            <div className="dashboard-sidebar-section-title dashboard-sidebar-module-title" role="presentation">
+              <i className="bi bi-file-earmark-ruled me-2" aria-hidden="true" />
+              Contratación
+            </div>
+            <div className="dashboard-sidebar-module-submenu">
+              <ContratosSidebarLinks
+                itemClassName="dashboard-sidebar-flat-item"
+                linkClassName="dashboard-nav-link dashboard-nav-link--nested p-1"
+                onNavSelect={onNavSelect}
+              />
+            </div>
+            <div className="dashboard-sidebar-flat-item dashboard-sidebar-mensajes-item">
+              <ContratosMensajesSidebarButton className="dashboard-nav-link dashboard-nav-link--nested p-1" />
+            </div>
+          </div>
+        )}
+        {mostrarContratos && !menuContratacionPlano && (
+          <NavDropdown
+            title={
+              <span className="d-inline-flex align-items-center">
+                <i className="bi bi-file-earmark-ruled me-2 dashboard-sidebar-icon" aria-hidden="true" />
+                <span className="dashboard-sidebar-label">Contratación</span>
+              </span>
+            }
+            id={contratosDropdownId}
+            className="mi-dropdown-sidebar dashboard-sidebar-module-group mb-2"
+            autoClose={false}
+            show={dropdownShow('contratos', sidebarMenuOpen)}
+            onToggle={(next) => {
+              if (preferences.pinSubmenus) {
+                setSidebarMenuOpen('all');
+                return;
+              }
+              handleSidebarContratosToggle(next);
+            }}
+          >
+            {contratosSidebarItems.map((item) => (
+              <NavDropdown.Item
+                key={item.eventKey}
+                eventKey={item.eventKey}
+                active={navKey === item.eventKey}
+                className="dashboard-sidebar-dropdown-item"
+                onClick={sidebarNavClick(onNavSelect, item.eventKey)}
+              >
+                <ContratosSidebarNavContent item={item} />
+              </NavDropdown.Item>
+            ))}
+            <div className="dashboard-sidebar-mensajes-item px-2 pb-1">
+              <ContratosMensajesSidebarButton className="dashboard-nav-link dashboard-nav-link--nested p-1" />
+            </div>
+          </NavDropdown>
+        )}
+      </Nav>
+
+      <div className="dashboard-sidebar-footer mt-auto pt-3">
+        <button
+          type="button"
+          className={`dashboard-sidebar-config-btn w-100${navKey === 'config-aplicacion' ? ' is-active' : ''}`}
+          onClick={sidebarNavClick(onNavSelect, 'config-aplicacion')}
+          aria-current={navKey === 'config-aplicacion' ? 'page' : undefined}
+          disabled={!mostrarConfigApp}
+        >
+          <i className="bi bi-gear-wide-connected me-2 dashboard-sidebar-icon" aria-hidden="true" />
+          <span className="dashboard-sidebar-label">Configuración</span>
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -141,7 +342,7 @@ if (tokenInicial) {
     localStorage.removeItem('user');
     localStorage.removeItem(PERMISOS_KEY);
   } else {
-    setAuthToken(tokenInicial);
+  setAuthToken(tokenInicial);
   }
 }
 
@@ -304,12 +505,12 @@ function App() {
     } catch {
       /* registrar logout es best-effort */
     } finally {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem('user');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('user');
       localStorage.removeItem(PERMISOS_KEY);
-      setAuthToken(null);
-      setToken(null);
-      setUser(null);
+    setAuthToken(null);
+    setToken(null);
+    setUser(null);
       setPermisos(null);
       setKey('');
       setSidebarMenuOpen(null);
@@ -459,6 +660,7 @@ function AppWithPermissions(props) {
     <AppPreferencesProvider userEmail={user.email}>
     <PuedeEscribirProvider puedeEscribir={puedeEscribir}>
     <ContratosNavCountsProvider>
+    <ContratosMensajesProvider enabled={mostrarContratos}>
     <NavPrefsInitializer
       user={user}
       allowedKeys={allowedModuleKeys}
@@ -493,6 +695,7 @@ function AppWithPermissions(props) {
       mailStatus={mailStatus}
       necesitaCorreo={necesitaCorreo}
     />
+    </ContratosMensajesProvider>
     </ContratosNavCountsProvider>
     </PuedeEscribirProvider>
     </AppPreferencesProvider>
@@ -503,6 +706,8 @@ function DashboardShell(props) {
   const { preferences, resolved } = useAppPreferences();
   const { can } = usePermissions();
   useNativeTooltips();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileSessionOpen, setMobileSessionOpen] = useState(false);
   const contratosSidebarItems = useMemo(() => getContratosSidebarNavItems(can), [can]);
   const { handleNavSelect, dropdownShow } = useDashboardNavHandlers({
     user: props.user,
@@ -511,6 +716,7 @@ function DashboardShell(props) {
     baseNavSelect: props.handleNavSelect,
   });
   const sidebarWidth = resolved.sidebarWidth.width;
+  const sidebarExpandedCss = `calc(${sidebarWidth} + 3rem)`;
   const {
     user, logout, navKey: key, sidebarMenuOpen, setSidebarMenuOpen, now,
     moduloLabel, rolEtiqueta, puedeEscribir,
@@ -521,111 +727,100 @@ function DashboardShell(props) {
     mailStatus, necesitaCorreo,
   } = props;
 
+  const sidebarPanelProps = {
+    user,
+    navKey: key,
+    sidebarMenuOpen,
+    setSidebarMenuOpen,
+    dropdownShow,
+    handleSidebarContratosToggle,
+    preferences,
+    contratosSidebarItems,
+    mostrarUsuarios,
+    mostrarGestionRoles,
+    mostrarAuditoria,
+    mostrarCorreoSistema,
+    mostrarContratos,
+    menuContratacionPlano,
+    mostrarConfigApp,
+  };
+
+  const onSidebarNavSelect = (selectedKey) => {
+    if (selectedKey == null || selectedKey === '') return;
+    handleNavSelect(selectedKey);
+    setMobileSidebarOpen(false);
+  };
+
+  useEffect(() => {
+    if (!mobileSessionOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setMobileSessionOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileSessionOpen]);
+
+  useEffect(() => {
+    if (mobileSidebarOpen) setMobileSessionOpen(false);
+  }, [mobileSidebarOpen]);
+
   return (
-    <div className="dashboard-shell d-flex vh-100" style={{ overflow: 'hidden' }}>
-      <div className="dashboard-sidebar vh-100 p-4 d-flex flex-column shadow-lg" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
-        <div className="text-white mb-2 pb-4 border-bottom dashboard-sidebar-divider">
-          <div className="dashboard-sidebar-brand mb-2">
-            <img src={logoAepg} alt="Logo AEPG" className="dashboard-sidebar-brand-logo" />
-            <h3 className="fw-bold mb-0">AEPG</h3>
-          </div>
-          <p className="mb-0 opacity-75">Bienvenido, {user.nombre} </p>
-        </div>
+    <div
+      className="dashboard-shell d-flex vh-100"
+      style={{ '--dashboard-sidebar-expanded': sidebarExpandedCss }}
+    >
+      <aside
+        className="dashboard-sidebar dashboard-sidebar--desktop vh-100 p-4 d-none d-lg-flex flex-column shadow-lg"
+        style={{ width: sidebarWidth, minWidth: sidebarWidth }}
+        aria-label="Menú principal"
+      >
+        <DashboardSidebarPanel
+          {...sidebarPanelProps}
+          onNavSelect={handleNavSelect}
+          contratosDropdownId="sidebar-dropdown-contratos"
+        />
+      </aside>
 
-        <Nav className="flex-column flex-grow-1 dashboard-sidebar-nav" activeKey={key} onSelect={handleNavSelect}>
-          {mostrarUsuarios && (
-            <Nav.Item className="mb-2">
-              <Nav.Link eventKey="usuarios" className="dashboard-nav-link p-1" title="Usuarios">
-                <SidebarLinkLabel icon="bi-person-badge" label="Usuarios" />
-              </Nav.Link>
-            </Nav.Item>
-          )}
-          {mostrarGestionRoles && (
-            <Nav.Item className="mb-2">
-              <Nav.Link eventKey="gestion-roles" className="dashboard-nav-link p-1" title="Roles y permisos">
-                <SidebarLinkLabel icon="bi-shield-lock" label="Roles y permisos" />
-              </Nav.Link>
-            </Nav.Item>
-          )}
-          {mostrarAuditoria && (
-            <Nav.Item className="mb-2">
-              <Nav.Link eventKey="auditoria" className="dashboard-nav-link p-1" title="Auditoría">
-                <SidebarLinkLabel icon="bi-journal-text" label="Auditoría" />
-              </Nav.Link>
-            </Nav.Item>
-          )}
-          {mostrarCorreoSistema && (
-            <Nav.Item className="mb-2">
-              <Nav.Link eventKey="config-correo" className="dashboard-nav-link p-1" title="Correo del sistema">
-                <SidebarLinkLabel icon="bi-envelope-at" label="Correo del sistema" />
-              </Nav.Link>
-            </Nav.Item>
-          )}
-          {mostrarContratos && menuContratacionPlano && (
-            <div className="dashboard-sidebar-flat-group mb-2">
-              <div className="dashboard-sidebar-section-title" role="presentation">
-                <i className="bi bi-file-earmark-ruled me-2" aria-hidden="true" />
-                Contratación
-              </div>
-              <ContratosSidebarLinks
-                itemClassName="dashboard-sidebar-flat-item"
-                linkClassName="dashboard-nav-link dashboard-nav-link--nested p-1"
-              />
-            </div>
-          )}
-          {mostrarContratos && !menuContratacionPlano && (
-            <NavDropdown
-              title={
-                <span className="d-inline-flex align-items-center">
-                  <i className="bi bi-file-earmark-ruled me-2 dashboard-sidebar-icon" aria-hidden="true" />
-                  <span className="dashboard-sidebar-label">Contratación</span>
-                </span>
-              }
-              id="sidebar-dropdown-contratos"
-              className="mi-dropdown-sidebar mb-2"
-              autoClose={false}
-              show={dropdownShow('contratos', sidebarMenuOpen)}
-              onToggle={(next) => {
-                if (preferences.pinSubmenus) {
-                  setSidebarMenuOpen('all');
-                  return;
-                }
-                handleSidebarContratosToggle(next);
-              }}
-            >
-              {contratosSidebarItems.map((item) => (
-                <NavDropdown.Item
-                  key={item.eventKey}
-                  eventKey={item.eventKey}
-                  active={key === item.eventKey}
-                  className="dashboard-sidebar-dropdown-item"
-                >
-                  <ContratosSidebarNavContent item={item} />
-                </NavDropdown.Item>
-              ))}
-            </NavDropdown>
-          )}
-        </Nav>
-
-        <div className="dashboard-sidebar-footer mt-auto pt-3">
+      <Offcanvas
+        show={mobileSidebarOpen}
+        onHide={() => setMobileSidebarOpen(false)}
+        placement="start"
+        restoreFocus={false}
+        enforceFocus={false}
+        className="dashboard-sidebar dashboard-sidebar-offcanvas d-lg-none"
+        aria-label="Menú principal"
+      >
+        <Offcanvas.Body className="dashboard-sidebar-offcanvas__body p-4">
           <button
             type="button"
-            className={`dashboard-sidebar-config-btn w-100${key === 'config-aplicacion' ? ' is-active' : ''}`}
-            onClick={() => handleNavSelect('config-aplicacion')}
-            aria-current={key === 'config-aplicacion' ? 'page' : undefined}
-            disabled={!mostrarConfigApp}
-          >
-            <i className="bi bi-gear-wide-connected me-2 dashboard-sidebar-icon" aria-hidden="true" />
-            <span className="dashboard-sidebar-label">Configuración</span>
-          </button>
-        </div>
-      </div>
+            className="btn-close btn-close-white dashboard-sidebar-offcanvas__close"
+            aria-label="Cerrar menú"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+          <DashboardSidebarPanel
+            {...sidebarPanelProps}
+            onNavSelect={onSidebarNavSelect}
+            contratosDropdownId="sidebar-dropdown-contratos-mobile"
+          />
+        </Offcanvas.Body>
+      </Offcanvas>
 
-      <div className="dashboard-main dashboard-main--contratos flex-grow-1 ps-4 pb-4 pe-0">
+      <div className="dashboard-main dashboard-main--contratos flex-grow-1 ps-lg-4 pb-4 pe-0">
         <div className="dashboard-topbar-wave" aria-hidden="true" />
-        <Navbar expand="lg" className="dashboard-topbar shadow-none py-1 px-4">
-          <Navbar.Toggle aria-controls="basic-navbar-nav" />
-          <Navbar.Collapse id="basic-navbar-nav">
+        <Navbar expand="lg" className="dashboard-topbar shadow-none py-1 px-2 px-lg-4">
+          <button
+            type="button"
+            className="dashboard-topbar-menu-btn d-lg-none"
+            onClick={() => {
+              setMobileSessionOpen(false);
+              setMobileSidebarOpen(true);
+            }}
+            aria-label="Abrir menú de navegación"
+            aria-expanded={mobileSidebarOpen}
+          >
+            <i className="bi bi-list" aria-hidden="true" />
+          </button>
+          <Navbar.Collapse id="basic-navbar-nav" className="d-none d-lg-flex">
             <div className="dashboard-topbar-avatar-wrap">
               <div className="dashboard-topbar-user-meta">
                 <span className="dashboard-topbar-user-name">{user.nombre}</span>
@@ -640,6 +835,49 @@ function DashboardShell(props) {
               </button>
             </Nav>
           </Navbar.Collapse>
+
+          <div className="dashboard-topbar-mobile-session d-lg-none">
+            {mobileSessionOpen ? (
+              <button
+                type="button"
+                className="dashboard-topbar-mobile-session__backdrop"
+                aria-label="Cerrar menú de sesión"
+                onClick={() => setMobileSessionOpen(false)}
+              />
+            ) : null}
+            <div
+              id="dashboard-mobile-session-panel"
+              className={`dashboard-topbar-mobile-session__panel${mobileSessionOpen ? ' is-open' : ''}`}
+              aria-hidden={!mobileSessionOpen}
+            >
+              <UserProfileAvatar
+                user={user}
+                onPhotoUpdated={onProfilePhotoUpdated}
+                className="dashboard-user-avatar dashboard-user-avatar--mobile-topbar"
+              />
+              <button
+                type="button"
+                className="btn btn-cerrar dashboard-topbar-mobile-session__logout mb-0"
+                onClick={logout}
+              >
+                <i className="bi bi-box-arrow-right" aria-hidden="true" />
+                <span className="dashboard-topbar-mobile-session__logout-label">Cerrar sesión</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              className={`dashboard-topbar-mobile-session__trigger${mobileSessionOpen ? ' is-open' : ''}`}
+              onClick={() => {
+                setMobileSidebarOpen(false);
+                setMobileSessionOpen((open) => !open);
+              }}
+              aria-label="Menú de sesión"
+              aria-expanded={mobileSessionOpen}
+              aria-controls="dashboard-mobile-session-panel"
+            >
+              <i className="bi bi-person-circle" aria-hidden="true" />
+            </button>
+          </div>
         </Navbar>
 
         {!puedeEscribir ? (
@@ -706,6 +944,7 @@ function DashboardShell(props) {
           </div>
         </div>
       </div>
+      <ContratosMensajesPanel />
     </div>
   );
 }

@@ -122,6 +122,20 @@ export function AppPreferencesProvider({ userEmail, children }) {
     }
   }, [email, scheduleSync]);
 
+  const resetPreferencesSection = useCallback(
+    (patch) => {
+      if (!patch || typeof patch !== 'object') return;
+      setPreferences((prev) => {
+        const next = normalizePreferences({ ...prev, ...patch });
+        applyPreferencesToDocument(next);
+        if (email) saveStoredPreferences(email, next);
+        scheduleSync(next);
+        return next;
+      });
+    },
+    [email, scheduleSync]
+  );
+
   const syncNow = useCallback(async () => {
     await syncToServer(preferences);
   }, [preferences, syncToServer]);
@@ -136,9 +150,19 @@ export function AppPreferencesProvider({ userEmail, children }) {
       updatePreference,
       updatePreferences,
       resetPreferences,
+      resetPreferencesSection,
       syncNow,
     }),
-    [preferences, resolved, syncState, updatePreference, updatePreferences, resetPreferences, syncNow]
+    [
+      preferences,
+      resolved,
+      syncState,
+      updatePreference,
+      updatePreferences,
+      resetPreferences,
+      resetPreferencesSection,
+      syncNow,
+    ]
   );
 
   return <AppPreferencesContext.Provider value={value}>{children}</AppPreferencesContext.Provider>;

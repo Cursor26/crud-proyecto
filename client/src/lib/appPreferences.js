@@ -50,6 +50,65 @@ export const DEFAULT_PREFERENCES = {
   largeClickTargets: false,
 };
 
+/** Valores predeterminados por sección de Configuración → Aplicación. */
+export const PREFERENCE_SECTION_PATCHES = {
+  'tema-color': {
+    themeId: DEFAULT_PREFERENCES.themeId,
+  },
+  'tema-personalizacion': {
+    backgroundColor: '',
+    textColor: '',
+    surfaceColor: '',
+    accentColor: '',
+    mutedTextColor: '',
+    sidebarBg: '',
+    sidebarItemBg: '',
+    sidebarItemTextColor: '',
+    sidebarHoverBg: '',
+    sidebarHoverTextColor: '',
+    sidebarActiveBg: '',
+    sidebarActiveTextColor: '',
+    sidebarConfigActiveFrom: '',
+    sidebarConfigActiveTo: '',
+  },
+  tipografia: {
+    fontFamily: DEFAULT_PREFERENCES.fontFamily,
+    fontSize: DEFAULT_PREFERENCES.fontSize,
+  },
+  escala: {
+    uiScale: DEFAULT_PREFERENCES.uiScale,
+    sidebarWidth: DEFAULT_PREFERENCES.sidebarWidth,
+    autoTheme: DEFAULT_PREFERENCES.autoTheme,
+    sidebarCollapsed: DEFAULT_PREFERENCES.sidebarCollapsed,
+  },
+  fecha: {
+    dateFormat: DEFAULT_PREFERENCES.dateFormat,
+    timeFormat: DEFAULT_PREFERENCES.timeFormat,
+  },
+  accesibilidad: {
+    lineHeight: DEFAULT_PREFERENCES.lineHeight,
+    underlineLinks: DEFAULT_PREFERENCES.underlineLinks,
+    largeClickTargets: DEFAULT_PREFERENCES.largeClickTargets,
+  },
+  interfaz: {
+    borderRadius: DEFAULT_PREFERENCES.borderRadius,
+    compactMode: DEFAULT_PREFERENCES.compactMode,
+    reduceMotion: DEFAULT_PREFERENCES.reduceMotion,
+    highContrast: DEFAULT_PREFERENCES.highContrast,
+  },
+  'usuario-preferencias': {
+    rememberSection: DEFAULT_PREFERENCES.rememberSection,
+    pinSubmenus: DEFAULT_PREFERENCES.pinSubmenus,
+    confirmBeforeDelete: DEFAULT_PREFERENCES.confirmBeforeDelete,
+  },
+};
+
+export function getPreferenceSectionPatch(sectionId) {
+  const patch = PREFERENCE_SECTION_PATCHES[sectionId];
+  if (!patch) return null;
+  return { ...patch };
+}
+
 export const THEME_PRESETS = {
   institutional: {
     id: 'institutional',

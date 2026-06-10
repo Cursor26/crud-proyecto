@@ -27,20 +27,46 @@ function resolveJwtSecret() {
   return secret;
 }
 
+function isPrivateLanHostname(hostname) {
+  const host = String(hostname || '').trim().toLowerCase();
+  if (!host || host === 'localhost' || host === '127.0.0.1') return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  const m172 = host.match(/^172\.(\d{1,2})\.\d{1,3}\.\d{1,3}$/);
+  if (m172 && Number(m172[1]) >= 16 && Number(m172[1]) <= 31) return true;
+  return false;
+}
+
+function isPrivateLanOrigin(origin) {
+  if (!origin) return false;
+  try {
+    const u = new URL(origin);
+    return isPrivateLanHostname(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function buildCorsOptions(appBaseUrl) {
   const raw = process.env.CORS_ORIGINS || appBaseUrl || 'http://localhost:3000';
   const origins = raw
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
+  const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+  const allowLanInDev = String(process.env.CORS_ALLOW_LAN || 'true').toLowerCase() !== 'false';
 
   return {
     origin(origin, callback) {
       if (!origin || origins.includes(origin)) {
         callback(null, true);
-      } else {
-        callback(null, false);
+        return;
       }
+      if (!isProd && allowLanInDev && isPrivateLanOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
     },
     credentials: true,
   };

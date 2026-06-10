@@ -94,6 +94,32 @@ function ContratosCorreoPlantillasConfig({ puedeEditar }) {
     }
   };
 
+  const restablecer = async () => {
+    if (!puedeEditar) {
+      await Swal.fire('Sin permiso', 'Se requiere permiso de edición en contratos.', 'warning');
+      return;
+    }
+    const result = await Swal.fire({
+      icon: 'question',
+      title: 'Restablecer plantillas',
+      text: 'Se volverán los textos predeterminados de todos los tipos de correo.',
+      showCancelButton: true,
+      confirmButtonText: 'Restablecer',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!result.isConfirmed) return;
+    setSaving(true);
+    try {
+      const res = await Axios.post(`${API_BASE}/config/contratos-correo-plantillas/restablecer`);
+      setPlantillas(res.data?.plantillas || {});
+      await Swal.fire('Listo', res.data?.message || 'Plantillas restablecidas.', 'success');
+    } catch (err) {
+      await Swal.fire('Error', err.response?.data?.message || err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const guardar = async () => {
     if (!puedeEditar) {
       await Swal.fire('Sin permiso', 'Se requiere permiso de edición en contratos.', 'warning');
@@ -190,6 +216,15 @@ function ContratosCorreoPlantillasConfig({ puedeEditar }) {
             title="Guardar plantillas de correo"
           >
             {saving ? 'Guardando…' : 'Guardar plantillas'}
+          </button>
+          <button
+            type="button"
+            className={BTN_SECUNDARIO}
+            onClick={restablecer}
+            disabled={saving}
+            title="Volver a los textos predeterminados del sistema"
+          >
+            Restablecer predeterminados
           </button>
           <div className="contratos-correo-prueba-box d-flex align-items-stretch flex-grow-1 flex-sm-grow-0">
             <input

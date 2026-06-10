@@ -134,6 +134,17 @@ function createContratosCorreoPlantillasService(dbQuery) {
     return parsePlantillasJson(rows[0]?.valor);
   }
 
+  async function resetPlantillas(updatedBy) {
+    const defaults = { ...DEFAULT_PLANTILLAS };
+    const json = JSON.stringify(defaults);
+    await dbQuery(
+      `INSERT INTO config_sistema (clave, valor, updated_by) VALUES (?,?,?)
+       ON DUPLICATE KEY UPDATE valor = VALUES(valor), updated_by = VALUES(updated_by)`,
+      [CONFIG_KEY, json, updatedBy || null]
+    );
+    return defaults;
+  }
+
   async function savePlantillas(body, updatedBy) {
     const existing = await loadPlantillas();
     const incoming = body && typeof body === 'object' ? body : {};
@@ -233,6 +244,7 @@ function createContratosCorreoPlantillasService(dbQuery) {
     DEFAULT_PLANTILLAS,
     loadPlantillas,
     savePlantillas,
+    resetPlantillas,
     renderMail,
     buildMailPrueba,
     varsDesdeContrato,
