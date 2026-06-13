@@ -1,23 +1,46 @@
 /**
- * Mensajes visibles de contratación (aprobaciones, rechazos, jurídico) con lectura por usuario.
+ * Mensajes visibles de contratación (aprobaciones, rechazos, jurídico, solicitudes) con lectura por usuario.
  */
 
 const { ACCION_PENDIENTE_LABELS } = require('./contratosAuditoria');
 
-const MENSAJE_ACTIONS = [
+const ACTIONS_VIEW = [
   'contrato_aprobado',
   'contrato_rechazado',
   'contrato_aprobacion_rechazada',
-  'contrato_verificacion_juridica_aprobada',
   'contrato_verificacion_juridica_rechazada',
 ];
+
+const ACTIONS_VERIFY = [
+  'contrato_edicion_solicitada',
+  'contrato_cancelacion_solicitada',
+  'contrato_archivo_solicitado',
+];
+
+const ACTIONS_APPROVE = ['contrato_verificacion_juridica_aprobada'];
+
+const MENSAJE_ACTIONS = [...ACTIONS_VIEW, ...ACTIONS_VERIFY, ...ACTIONS_APPROVE];
 
 const TIPO_LABELS = {
   aprobacion: 'Aprobación',
   rechazo: 'Rechazo',
   juridico_aprobado: 'Verificación jurídica',
   juridico_rechazado: 'Devolución jurídica',
+  solicitud: 'Solicitud pendiente',
 };
+
+function permContratos(permisos) {
+  return permisos?.contratos || {};
+}
+
+function resolveVisibleActions(permisos) {
+  const c = permContratos(permisos);
+  const actions = [];
+  if (c.view) actions.push(...ACTIONS_VIEW);
+  if (c.verify) actions.push(...ACTIONS_VERIFY);
+  if (c.approve) actions.push(...ACTIONS_APPROVE);
+  return [...new Set(actions)];
+}
 
 function parseDetails(raw) {
   if (raw == null || raw === '') return {};
@@ -59,6 +82,10 @@ function mapTipoEvento(action) {
       return 'juridico_aprobado';
     case 'contrato_verificacion_juridica_rechazada':
       return 'juridico_rechazado';
+    case 'contrato_edicion_solicitada':
+    case 'contrato_cancelacion_solicitada':
+    case 'contrato_archivo_solicitado':
+      return 'solicitud';
     default:
       return 'actualizacion';
   }
@@ -73,9 +100,18 @@ function buildTitulo(action, details) {
     case 'contrato_aprobacion_rechazada':
       return `Rechazo de ${accion.toLowerCase()}`;
     case 'contrato_verificacion_juridica_aprobada':
-      return 'Verificación jurídica aprobada';
+      return `Verificación aprobada — pendiente de aprobar ${accion.toLowerCase()}`;
     case 'contrato_verificacion_juridica_rechazada':
       return `Devolución jurídica (${accionLabel(details.tipo || 'observado').toLowerCase()})`;
+    case 'contrato_edicion_solicitada':
+      return 'Solicitud de edición';
+    case 'contrato_cancelacion_solicitada':
+      if (details.archivar || String(details.accion || '').toLowerCase() === 'cancelacion_archivo') {
+        return 'Solicitud de cancelación y eliminación';
+      }
+      return 'Solicitud de cancelación';
+    case 'contrato_archivo_solicitado':
+      return 'Solicitud de eliminación (archivo)';
     default:
       return 'Actualización de contrato';
   }
@@ -120,82 +156,96 @@ function createContratosMensajesService(dbQuery) {
     }
   }
 
-  function actionsSqlIn() {
-    return MENSAJE_ACTIONS.map(() => '?').join(', ');
+  function actionsSqlIn(actions) {
+    return actions.map(() => '?').join(', ');
   }
 
-  async function countNoLeidos(userEmail) {
+  async function countNoLeidos(userEmail, permisos) {
     const email = String(userEmail || '').trim().toLowerCase();
-    if (!email) return 0;
+    const actions = resolveVisibleActions(permisos);
+    if (!email || !actions.length) return 0;
+
     const rows = await dbQuery(
       `SELECT COUNT(*) AS n
          FROM audit_events e
-        WHERE e.action IN (${actionsSqlIn()})
+        WHERE e.action IN (${actionsSqlIn(actions)})
           AND e.target_type = 'contrato'
           AND NOT EXISTS (
             SELECT 1 FROM contratos_mensajes_lectura l
              WHERE l.event_id = e.id AND LOWER(TRIM(l.user_email)) = ?
           )`,
-      [...MENSAJE_ACTIONS, email]
+      [...actions, email]
     );
     return Number(rows[0]?.n) || 0;
   }
 
-  async function listMensajes(userEmail, { limit = 80, offset = 0 } = {}) {
+  async function listMensajes(userEmail, { limit = 80, offset = 0, permisos } = {}) {
     const email = String(userEmail || '').trim().toLowerCase();
+    const actions = resolveVisibleActions(permisos);
     const lim = Math.min(Math.max(Number(limit) || 80, 1), 200);
     const off = Math.max(Number(offset) || 0, 0);
 
+    if (!email || !actions.length) {
+      return { mensajes: [], no_leidos: 0, total: 0 };
+    }
+
     const rows = await dbQuery(
       `SELECT e.id, e.action, e.actor_email, e.actor_nombre, e.target_id, e.target_label,
-              e.details_json, e.created_at,
-              CASE WHEN l.event_id IS NOT NULL THEN 1 ELSE 0 END AS leido
+              e.details_json, e.created_at
          FROM audit_events e
-         LEFT JOIN contratos_mensajes_lectura l
-           ON l.event_id = e.id AND LOWER(TRIM(l.user_email)) = ?
-        WHERE e.action IN (${actionsSqlIn()})
+        WHERE e.action IN (${actionsSqlIn(actions)})
           AND e.target_type = 'contrato'
+          AND NOT EXISTS (
+            SELECT 1 FROM contratos_mensajes_lectura l
+             WHERE l.event_id = e.id AND LOWER(TRIM(l.user_email)) = ?
+          )
         ORDER BY e.created_at DESC
         LIMIT ? OFFSET ?`,
-      [email, ...MENSAJE_ACTIONS, lim, off]
+      [email, ...actions, lim, off]
     );
 
-    const mensajes = rows.map((row) => formatMensajeRow(row, Number(row.leido) === 1));
-    const no_leidos = await countNoLeidos(email);
+    const mensajes = rows.map((row) => formatMensajeRow(row, false));
+    const no_leidos = await countNoLeidos(email, permisos);
     return { mensajes, no_leidos, total: mensajes.length };
   }
 
-  async function marcarLeidos(userEmail, eventIds = []) {
+  async function marcarLeidos(userEmail, eventIds = [], permisos) {
     const email = String(userEmail || '').trim().toLowerCase();
-    if (!email) return { marcados: 0 };
+    const actions = resolveVisibleActions(permisos);
+    if (!email || !actions.length) return { marcados: 0 };
 
     const ids = [...new Set((Array.isArray(eventIds) ? eventIds : []).map((id) => Number(id)).filter((n) => n > 0))];
     if (!ids.length) return { marcados: 0 };
 
     const placeholders = ids.map(() => '?').join(', ');
+    const actionPlaceholders = actionsSqlIn(actions);
     const result = await dbQuery(
       `INSERT IGNORE INTO contratos_mensajes_lectura (user_email, event_id)
-       SELECT ?, id FROM audit_events WHERE id IN (${placeholders})`,
-      [email, ...ids]
+       SELECT ?, e.id FROM audit_events e
+        WHERE e.id IN (${placeholders})
+          AND e.action IN (${actionPlaceholders})
+          AND e.target_type = 'contrato'`,
+      [email, ...ids, ...actions]
     );
     return { marcados: Number(result.affectedRows) || 0 };
   }
 
-  async function marcarTodosLeidos(userEmail) {
+  async function marcarTodosLeidos(userEmail, permisos) {
     const email = String(userEmail || '').trim().toLowerCase();
-    if (!email) return { marcados: 0 };
+    const actions = resolveVisibleActions(permisos);
+    if (!email || !actions.length) return { marcados: 0 };
 
     const result = await dbQuery(
       `INSERT IGNORE INTO contratos_mensajes_lectura (user_email, event_id)
        SELECT ?, e.id
          FROM audit_events e
-        WHERE e.action IN (${actionsSqlIn()})
+        WHERE e.action IN (${actionsSqlIn(actions)})
           AND e.target_type = 'contrato'
           AND NOT EXISTS (
             SELECT 1 FROM contratos_mensajes_lectura l
              WHERE l.event_id = e.id AND LOWER(TRIM(l.user_email)) = ?
           )`,
-      [email, ...MENSAJE_ACTIONS, email]
+      [email, ...actions, email]
     );
     return { marcados: Number(result.affectedRows) || 0 };
   }
@@ -206,8 +256,9 @@ function createContratosMensajesService(dbQuery) {
     listMensajes,
     marcarLeidos,
     marcarTodosLeidos,
+    resolveVisibleActions,
     MENSAJE_ACTIONS,
   };
 }
 
-module.exports = { createContratosMensajesService, MENSAJE_ACTIONS };
+module.exports = { createContratosMensajesService, MENSAJE_ACTIONS, resolveVisibleActions };

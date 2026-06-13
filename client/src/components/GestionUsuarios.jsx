@@ -7,7 +7,7 @@ import ModuleTitleBar from './ModuleTitleBar';
 import AppSelect from './AppSelect';
 import { BTN_ANADIR_MD } from '../lib/actionButtonClasses';
 import { usePermissions } from '../context/PermissionsContext';
-import { normalizeTelefonoInput, telefonoValidoOpcional } from '../lib/userProfile';
+import { normalizeTelefonoInput, telefonoValidoOpcional, normalizeCiInput, ciValido } from '../lib/userProfile';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
@@ -21,6 +21,7 @@ function GestionUsuarios() {
   const [usuariosList, setUsuarios] = useState([]);
   const [userEmail, setUserEmail] = useState('');
   const [userNombre, setUserNombre] = useState('');
+  const [userCi, setUserCi] = useState('');
   const [userTelefono, setUserTelefono] = useState('');
   const [userPassword, setUserPassword] = useState('');
   const [userPasswordConfirm, setUserPasswordConfirm] = useState('');
@@ -54,6 +55,7 @@ function GestionUsuarios() {
   const [activoTogglePending, setActivoTogglePending] = useState(null);
   const [rolesCatalog, setRolesCatalog] = useState([]);
   const [usuarioModalKey, setUsuarioModalKey] = useState(0);
+  const [busquedaUsuarios, setBusquedaUsuarios] = useState('');
 
   const getUsuarios = () => {
     setLoadError('');
@@ -81,6 +83,7 @@ function GestionUsuarios() {
     setEditandoUsuario(false);
     setUserEmail('');
     setUserNombre('');
+    setUserCi('');
     setUserTelefono('');
     setUserPassword('');
     setUserPasswordConfirm('');
@@ -124,6 +127,9 @@ function GestionUsuarios() {
     if (!nombre) errs.nombre = 'Nombre obligatorio.';
     else if (nombre.length < 3) errs.nombre = 'Nombre demasiado corto.';
 
+    const ci = ciValido(userCi);
+    if (!ci.ok) errs.ci = ci.message;
+
     if (!rol) errs.rol = 'Rol obligatorio.';
 
     const tel = telefonoValidoOpcional(userTelefono);
@@ -148,6 +154,7 @@ function GestionUsuarios() {
     Axios.post(`${API_BASE}/create-usuario`, {
       email: userEmail.trim().toLowerCase(),
       nombre: userNombre.trim(),
+      ci: ciValido(userCi).value,
       telefono: telefonoValidoOpcional(userTelefono).value || null,
       password: userPassword,
       rol: userRol,
@@ -171,6 +178,7 @@ function GestionUsuarios() {
     const payload = {
       email: userEmail.trim().toLowerCase(),
       nombre: userNombre.trim(),
+      ci: ciValido(userCi).value,
       telefono: telefonoValidoOpcional(userTelefono).value || null,
       password: userPassword,
       rol: userRol,
@@ -243,6 +251,7 @@ function GestionUsuarios() {
     setUserEmailOriginal(u.email);
     setUserEmail(u.email);
     setUserNombre(u.nombre);
+    setUserCi(u.ci ? String(u.ci) : '');
     setUserTelefono(u.telefono ? String(u.telefono) : '');
     setUserRol(u.rol);
     setUserActivo(Number(u.activo ?? 1) !== 0);
@@ -283,24 +292,43 @@ function GestionUsuarios() {
     return raw;
   };
 
+  const usuariosFiltrados = useMemo(() => {
+    const q = busquedaUsuarios.trim().toLowerCase();
+    if (!q) return usuariosList;
+    const tokens = q.split(/\s+/).filter(Boolean);
+    return usuariosList.filter((u) => {
+      const activo = Number(u.activo ?? 1) === 1 ? 'activo' : 'inactivo';
+      const texto = [
+        u.email,
+        u.nombre,
+        u.ci,
+        u.telefono,
+        u.rol,
+        activo,
+        fmtActor(u.created_by),
+        fmtDate(u.created_at),
+        fmtActor(u.updated_by),
+        fmtDate(u.updated_at),
+        u.created_by,
+        u.updated_by,
+      ]
+        .filter((v) => v != null && String(v).trim() !== '' && String(v) !== '—')
+        .join(' ')
+        .toLowerCase();
+      const ci = String(u.ci || '').replace(/\D/g, '');
+      const tel = String(u.telefono || '').replace(/\D/g, '');
+      return tokens.every((token) => {
+        if (/^\d+$/.test(token)) {
+          return ci.includes(token) || tel.includes(token) || texto.includes(token);
+        }
+        return texto.includes(token);
+      });
+    });
+  }, [usuariosList, busquedaUsuarios, nombrePorEmail]);
+
   return (
     <div>
-      <ModuleTitleBar
-        title="Gestión de Usuarios"
-        actions={
-          puedeCrearUsuarios ? (
-            <button
-              type="button"
-              className={`${BTN_ANADIR_MD} btn-form-nowrap`}
-              onClick={abrirModalNuevoUsuario}
-              title="Abrir formulario para registrar un usuario nuevo"
-            >
-              <i className="bi bi-person-plus me-2" aria-hidden="true" />
-              Agregar usuario
-            </button>
-          ) : null
-        }
-      />
+      <ModuleTitleBar title="Gestión de Usuarios" />
 
       {loadError ? (
         <div className="alert alert-danger py-2 mb-3" role="alert">
@@ -358,6 +386,26 @@ function GestionUsuarios() {
               onMouseDown={desbloquearCampoAutofill}
             />
             {formErrors.nombre ? <small className="text-danger">{formErrors.nombre}</small> : null}
+          </div>
+          <div className="minimal-field">
+            <label className="minimal-label">CI (Carnet de Identidad):</label>
+            <input
+              type="text"
+              name="aepg-admin-user-ci"
+              inputMode="numeric"
+              maxLength={11}
+              autoComplete="off"
+              data-1p-ignore
+              data-form-type="other"
+              readOnly={esFormularioNuevoUsuario}
+              className={`minimal-input ${formErrors.ci ? 'is-invalid' : ''}`}
+              placeholder="11 dígitos"
+              value={userCi}
+              onChange={(e) => setUserCi(normalizeCiInput(e.target.value))}
+              onFocus={desbloquearCampoAutofill}
+              onMouseDown={desbloquearCampoAutofill}
+            />
+            {formErrors.ci ? <small className="text-danger">{formErrors.ci}</small> : null}
           </div>
           <div className="minimal-field">
             <label className="minimal-label">Teléfono (opcional):</label>
@@ -474,13 +522,54 @@ function GestionUsuarios() {
         </div>
       </FormModal>
 
-      <div className="card p-3">
+      <div className="card p-3 usuarios-table-card">
+        <div className="usuarios-header-toolbar">
+          <div className="usuarios-table-toolbar">
+            <div className="usuarios-search-wrap">
+              <i className="bi bi-search usuarios-search-icon" aria-hidden="true" />
+              <input
+                type="text"
+                className="form-control usuarios-search-input"
+                placeholder="Buscar email, nombre, CI, teléfono, rol…"
+                value={busquedaUsuarios}
+                onChange={(e) => setBusquedaUsuarios(e.target.value)}
+                aria-label="Buscar usuarios"
+              />
+              {busquedaUsuarios.trim() ? (
+                <button
+                  type="button"
+                  className="usuarios-search-clear"
+                  onClick={() => setBusquedaUsuarios('')}
+                  aria-label="Limpiar búsqueda"
+                  title="Limpiar"
+                >
+                  <i className="bi bi-x-lg" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+            {busquedaUsuarios.trim() ? (
+              <span className="usuarios-search-meta">{usuariosFiltrados.length}/{usuariosList.length}</span>
+            ) : null}
+          </div>
+          {puedeCrearUsuarios ? (
+            <button
+              type="button"
+              className={`${BTN_ANADIR_MD} btn-form-nowrap usuarios-add-btn`}
+              onClick={abrirModalNuevoUsuario}
+              title="Abrir formulario para registrar un usuario nuevo"
+            >
+              <i className="bi bi-person-plus me-2" aria-hidden="true" />
+              Agregar usuario
+            </button>
+          ) : null}
+        </div>
         <div className="table-responsive">
           <table className="table table-data-compact table-bordered table-striped table-gestion-usuarios">
             <thead>
               <tr>
                 <th>Email</th>
                 <th>Nombre</th>
+                <th>CI</th>
                 <th>Teléfono</th>
                 <th>Rol</th>
                 <th>Estado</th>
@@ -489,7 +578,16 @@ function GestionUsuarios() {
               </tr>
             </thead>
             <tbody>
-              {usuariosList.map((u) => {
+              {usuariosFiltrados.length === 0 ? (
+                <tr>
+                  <td colSpan={puedeGestionarUsuarios ? 8 : 7} className="text-center text-muted py-4 usuarios-table-empty">
+                    {usuariosList.length === 0
+                      ? 'No hay usuarios registrados.'
+                      : 'No hay usuarios que coincidan con los filtros aplicados.'}
+                  </td>
+                </tr>
+              ) : (
+              usuariosFiltrados.map((u) => {
                 const propioUsuario = esPropioUsuario(u.email);
                 return (
                 <tr
@@ -498,6 +596,7 @@ function GestionUsuarios() {
                 >
                   <td>{u.email}</td>
                   <td>{u.nombre}</td>
+                  <td>{u.ci || '—'}</td>
                   <td>{u.telefono || '—'}</td>
                   <td>{u.rol}</td>
                   <td>
@@ -545,7 +644,8 @@ function GestionUsuarios() {
                   ) : null}
                 </tr>
               );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>

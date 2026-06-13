@@ -2,11 +2,11 @@
  * Consultas y resolución de catálogos para BD normalizada.
  */
 
-const SQL_USUARIO_AUTH = `SELECT u.email, u.nombre, u.password, u.foto_perfil, r.codigo AS rol, r.id_rol, u.activo
+const SQL_USUARIO_AUTH = `SELECT u.email, u.nombre, u.ci, u.telefono, u.password, u.foto_perfil, r.codigo AS rol, r.id_rol, u.activo
   FROM usuarios u
   INNER JOIN roles r ON r.id_rol = u.id_rol`;
 
-const SQL_USUARIO_LIST = `SELECT u.email, u.nombre, u.telefono, r.codigo AS rol, u.activo,
+const SQL_USUARIO_LIST = `SELECT u.email, u.nombre, u.ci, u.telefono, r.codigo AS rol, u.activo,
   u.created_by, u.created_at, u.updated_by, u.updated_at
   FROM usuarios u
   INNER JOIN roles r ON r.id_rol = u.id_rol`;

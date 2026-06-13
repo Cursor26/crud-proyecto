@@ -1,4 +1,4 @@
-import { Offcanvas } from 'react-bootstrap';
+import { Button, Offcanvas } from 'react-bootstrap';
 import { useAppPreferences } from '../context/AppPreferencesContext';
 import { useContratosMensajes } from '../context/ContratosMensajesContext';
 import { formatAppDate, formatAppTime } from '../lib/formatAppDate';
@@ -6,6 +6,7 @@ import { formatAppDate, formatAppTime } from '../lib/formatAppDate';
 function claseTipoBadge(tipo) {
   if (tipo === 'aprobacion' || tipo === 'juridico_aprobado') return 'bg-success';
   if (tipo === 'rechazo' || tipo === 'juridico_rechazado') return 'bg-danger';
+  if (tipo === 'solicitud') return 'bg-primary';
   return 'bg-secondary';
 }
 
@@ -17,7 +18,7 @@ function iconoTipo(tipo) {
 
 export default function ContratosMensajesPanel() {
   const { preferences } = useAppPreferences();
-  const { panelOpen, closePanel, mensajes, loading } = useContratosMensajes();
+  const { panelOpen, closePanel, mensajes, loading, clearing, limpiarBandeja, quitarMensaje } = useContratosMensajes();
 
   const fmtFechaHora = (value) => {
     const fecha = formatAppDate(value, preferences.dateFormat);
@@ -41,9 +42,30 @@ export default function ContratosMensajesPanel() {
         </Offcanvas.Title>
       </Offcanvas.Header>
       <Offcanvas.Body className="contratos-mensajes-offcanvas__body">
-        <p className="small text-muted mb-3">
-          Aprobaciones, rechazos y devoluciones jurídicas con motivo. La lectura es individual por usuario.
-        </p>
+        {!loading && mensajes.length > 0 ? (
+          <div className="contratos-mensajes-toolbar mb-3">
+            <Button
+              type="button"
+              variant="outline-secondary"
+              size="sm"
+              className="contratos-mensajes-toolbar__btn"
+              disabled={clearing}
+              onClick={limpiarBandeja}
+            >
+              {clearing ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+                  Limpiando…
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-trash3 me-1" aria-hidden="true" />
+                  Limpiar bandeja
+                </>
+              )}
+            </Button>
+          </div>
+        ) : null}
         {loading ? (
           <div className="d-flex justify-content-center py-5">
             <div className="spinner-border text-primary" role="status" aria-label="Cargando mensajes" />
@@ -59,9 +81,19 @@ export default function ContratosMensajesPanel() {
               <li key={msg.id} className="contratos-mensajes-item">
                 <div className="contratos-mensajes-item__head">
                   <span className={`badge ${claseTipoBadge(msg.tipo)}`}>{msg.tipo_label}</span>
-                  <time className="small text-muted" dateTime={msg.created_at}>
-                    {fmtFechaHora(msg.created_at)}
-                  </time>
+                  <div className="contratos-mensajes-item__meta">
+                    <time className="small text-muted" dateTime={msg.created_at}>
+                      {fmtFechaHora(msg.created_at)}
+                    </time>
+                    <button
+                      type="button"
+                      className="contratos-mensajes-item__dismiss"
+                      aria-label={`Quitar mensaje de ${msg.numero_contrato || 'contrato'}`}
+                      onClick={() => quitarMensaje(msg.id)}
+                    >
+                      <i className="bi bi-x-lg" aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
                 <div className="contratos-mensajes-item__titulo">
                   <i className={`bi ${iconoTipo(msg.tipo)} me-1`} aria-hidden="true" />

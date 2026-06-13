@@ -39,6 +39,7 @@ import ContratosSuplementosField from './ContratosSuplementosField';
 import ContratosAnexosField from './ContratosAnexosField';
 import ContratosVigenciaField from './ContratosVigenciaField';
 import ContratoWordPreviewPane from './ContratoWordPreviewPane';
+import ContratoPdfPreviewPane from './ContratoPdfPreviewPane';
 import ContratosPendientesDetalle from './ContratosPendientesDetalle';
 import {
   esColaJuridica,
@@ -254,6 +255,38 @@ const SWAL_ATTRS_MOTIVO_RECHAZO = {
   required: 'required',
   name: 'motivo-rechazo-contrato',
 };
+
+const DOC_PICKER_GAP = 8;
+const DOC_PICKER_TAIL = 6;
+
+function calcDocPickerPosition(triggerRect) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const triggerCenterX = triggerRect.left + triggerRect.width / 2;
+  const maxHalf = Math.min(vw * 0.44, 150);
+
+  let anchorX = triggerCenterX;
+  anchorX = Math.max(maxHalf + 8, Math.min(anchorX, vw - maxHalf - 8));
+
+  const spaceBelow = vh - triggerRect.bottom - DOC_PICKER_GAP - DOC_PICKER_TAIL;
+  const spaceAbove = triggerRect.top - DOC_PICKER_GAP - DOC_PICKER_TAIL;
+  const placeBelow = spaceBelow >= 88 || spaceBelow >= spaceAbove;
+
+  if (placeBelow) {
+    return {
+      placement: 'below',
+      anchorX,
+      tailOffset: triggerCenterX - anchorX,
+      top: triggerRect.bottom + DOC_PICKER_GAP + DOC_PICKER_TAIL,
+    };
+  }
+  return {
+    placement: 'above',
+    anchorX,
+    tailOffset: triggerCenterX - anchorX,
+    bottom: vh - triggerRect.top + DOC_PICKER_GAP + DOC_PICKER_TAIL,
+  };
+}
 
 function didOpenSwalInputSinAutofill() {
   const popup = Swal.getPopup();
@@ -1334,8 +1367,13 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
   useEffect(() => {
     if (!docPicker) return undefined;
     const onDocClick = () => cerrarDocPicker();
+    const onScroll = () => cerrarDocPicker();
     document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      window.removeEventListener('scroll', onScroll, true);
+    };
   }, [docPicker]);
 
   useEffect(() => {
@@ -1365,15 +1403,6 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
       document.removeEventListener('mouseup', onUp);
     };
   }, [pdfDragging, pdfDragOffset, pdfVistaMaximizada]);
-
-  const buildPdfViewerSrc = (pdfPreview, maximizado, nonce) => {
-    const raw = String(pdfPreview?.objectUrl || pdfPreview?.dataUrl || '').trim();
-    if (!raw) return '';
-    const base = raw.split('#')[0];
-    /* Edge/Chrome: forzamos page-width en ambos modos y nonce para evitar cache de zoom previo. */
-    const mode = maximizado ? 'max' : 'min';
-    return `${base}#page=1&zoom=page-width&view=FitH&toolbar=1&navpanes=0&mode=${mode}&v=${nonce}`;
-  };
 
   const renderNumeroContrato = (numeroContrato) => (
     <span className="contratos-numero-wrap">
@@ -1417,7 +1446,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         return;
       }
       const rect = e.currentTarget.getBoundingClientRect();
-      setDocPickerPos({ top: rect.bottom + 4, left: Math.max(8, rect.left - 40) });
+      setDocPickerPos(calcDocPickerPosition(rect));
       setDocPicker({ numero: numeroNorm, contratoRow });
       setDocPickerCategoria(null);
     };
@@ -1708,6 +1737,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           console.warn('Documentos no sincronizados al servidor:', syncErr);
         }
         getContratos();
+        refreshMensajesContratos();
         cerrarModalContrato();
         Swal.fire(
           'Enviado a revisión',
@@ -1803,6 +1833,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
           persistirAnexosContrato(nextA);
         }
         cerrarModalContrato();
+        refreshMensajesContratos();
         Swal.fire(
           enRenovacionEdicion ? 'Renovación enviada' : 'Enviado a revisión',
           enRenovacionEdicion
@@ -1845,6 +1876,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     })
       .then((res) => {
         getContratos();
+        refreshMensajesContratos();
         if (res.data?.pendiente) {
           Swal.fire(
             'Solicitud enviada',
@@ -2166,6 +2198,7 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
     })
       .then((res) => {
         getContratos();
+        refreshMensajesContratos();
         Swal.fire(
           'Solicitud enviada',
           res.data?.message ||
@@ -5381,13 +5414,31 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
         (() => {
           const categorias = getCategoriasDocumentos(docPicker.numero, docPicker.contratoRow);
           const catActiva = categorias.find((c) => c.id === docPickerCategoria);
+          const menuClass = [
+            'contratos-doc-picker',
+            'contratos-doc-picker-popup',
+            docPickerPos.placement === 'above'
+              ? 'contratos-doc-picker-popup--above'
+              : 'contratos-doc-picker-popup--below',
+          ].join(' ');
+          const menuStyle = {
+            left: docPickerPos.anchorX,
+            transform: 'translateX(-50%)',
+            '--picker-tail-offset': `${docPickerPos.tailOffset}px`,
+            ...(docPickerPos.placement === 'below'
+              ? { top: docPickerPos.top }
+              : { bottom: docPickerPos.bottom }),
+          };
           return (
-            <div
-              className="contratos-doc-picker contratos-pdf-picker__menu contratos-pdf-picker__menu--fixed"
-              style={{ top: docPickerPos.top, left: docPickerPos.left }}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <p className="contratos-doc-picker__title mb-1">Tipo de documento</p>
+              <div
+                className={menuClass}
+                style={menuStyle}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+              <p className="contratos-doc-picker__title">
+                Tipo de documento
+                <span className="contratos-doc-picker__contrato-ref"> · Nº {docPicker.numero}</span>
+              </p>
               <div className="contratos-doc-picker__cats">
                 {categorias.map((cat) => (
                   <button
@@ -5404,12 +5455,12 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                 ))}
               </div>
               {catActiva ? (
-                <>
-                  <p className="contratos-doc-picker__subtitle mb-1 mt-2">
-                    Archivos — {catActiva.label}
-                  </p>
-                  <ul className="contratos-doc-picker__files list-unstyled mb-0">
-                    {catActiva.items.map((doc) => {
+                <ul
+                  className={`contratos-doc-picker__files list-unstyled mb-0${
+                    catActiva.items.length > 4 ? ' is-scrollable' : ''
+                  }`}
+                >
+                  {catActiva.items.map((doc) => {
                       const esWord =
                         doc.tipo === 'word' || /\.docx?$/i.test(String(doc.nombre || ''));
                       return (
@@ -5433,10 +5484,9 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                         </li>
                       );
                     })}
-                  </ul>
-                </>
+                </ul>
               ) : null}
-            </div>
+              </div>
           );
         })(),
         document.body
@@ -5547,11 +5597,14 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
                   }
                 />
               ) : (
-                <iframe
-                  key={`${pdfVistaPrevia.numero}-${pdfVistaMaximizada ? 'max' : 'min'}-${pdfRenderNonce}`}
-                  src={buildPdfViewerSrc(pdfVistaPrevia, pdfVistaMaximizada, pdfRenderNonce)}
-                  title={`PDF del contrato ${pdfVistaPrevia.numero}`}
-                  className="contrato-pdf-preview-iframe"
+                <ContratoPdfPreviewPane
+                  key={`pdf-${pdfVistaPrevia.numero}-${pdfVistaPrevia.nombre}-${pdfRenderNonce}`}
+                  dataUrl={pdfVistaPrevia.dataUrl}
+                  nombre={pdfVistaPrevia.nombre}
+                  maximizado={pdfVistaMaximizada}
+                  onDescargar={() =>
+                    descargarDocumentoDataUrl(pdfVistaPrevia.dataUrl, pdfVistaPrevia.nombre)
+                  }
                 />
               )}
             </div>

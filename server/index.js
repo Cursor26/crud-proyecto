@@ -523,6 +523,7 @@ const ensureUsuariosSecurityAuditColumns = async () => {
     { name: 'updated_at', sql: 'ALTER TABLE usuarios ADD COLUMN updated_at DATETIME NULL AFTER updated_by' },
     { name: 'foto_perfil', sql: 'ALTER TABLE usuarios ADD COLUMN foto_perfil MEDIUMTEXT NULL AFTER updated_at' },
     { name: 'telefono', sql: 'ALTER TABLE usuarios ADD COLUMN telefono CHAR(8) NULL AFTER nombre' },
+    { name: 'ci', sql: 'ALTER TABLE usuarios ADD COLUMN ci CHAR(11) NULL AFTER nombre' },
     {
       name: 'password_changed_at',
       sql: 'ALTER TABLE usuarios ADD COLUMN password_changed_at DATETIME NULL AFTER password',
@@ -539,7 +540,26 @@ const ensureUsuariosSecurityAuditColumns = async () => {
       [def.name]
     );
     const exists = Number(rows?.[0]?.cnt || 0) > 0;
-    if (!exists) await dbQuery(def.sql);
+    if (!exists) {
+      await dbQuery(def.sql);
+      if (def.name === 'ci') console.log('[server] Columna usuarios.ci creada');
+    }
+  }
+
+  const idxRows = await dbQuery(
+    `SELECT COUNT(*) AS cnt
+       FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'usuarios'
+        AND INDEX_NAME = 'uq_usuarios_ci'`
+  );
+  if (Number(idxRows?.[0]?.cnt || 0) === 0) {
+    try {
+      await dbQuery('CREATE UNIQUE INDEX uq_usuarios_ci ON usuarios (ci)');
+    } catch (err) {
+      if (err?.code !== 'ER_DUP_ENTRY' && err?.code !== 'ER_DUP_KEYNAME') throw err;
+      console.warn('uq_usuarios_ci: no se pudo crear (¿CI duplicados en datos existentes?)');
+    }
   }
 };
 
@@ -795,6 +815,21 @@ function parseTelefonoOptional(value) {
     return { ok: false, message: 'El teléfono debe tener 8 dígitos (opcional).' };
   }
   return { ok: true, value: digits.slice(-8) };
+}
+
+function parseCiRequired(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) {
+    return { ok: false, message: 'El CI (Carnet de Identidad) es obligatorio.' };
+  }
+  if (digits.length !== 11) {
+    return { ok: false, message: 'El CI debe tener exactamente 11 dígitos.' };
+  }
+  const prefijo = Number.parseInt(digits.slice(0, 2), 10);
+  if (!Number.isFinite(prefijo) || prefijo <= 30) {
+    return { ok: false, message: 'Los dos primeros dígitos del CI deben ser mayores que 30.' };
+  }
+  return { ok: true, value: digits };
 }
 
 function buildJwtPayload(usuario) {
@@ -1224,6 +1259,7 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
   const rol = normalizarRol(req.body?.rol);
   const activo = normalizarActivo(req.body?.activo ?? 1);
   const telefonoParsed = parseTelefonoOptional(req.body?.telefono);
+  const ciParsed = parseCiRequired(req.body?.ci);
   const actorRol = normalizarRol(req.user?.rol);
   const actorEmail = String(req.user?.email || req.user?.nombre || 'sistema').trim().toLowerCase();
 
@@ -1231,6 +1267,7 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
     return res.status(400).json({ message: 'Email, nombre, contraseña y rol son obligatorios.' });
   }
   if (!emailValido(email)) return res.status(400).json({ message: 'Email inválido.' });
+  if (!ciParsed.ok) return res.status(400).json({ message: ciParsed.message });
   if (!telefonoParsed.ok) return res.status(400).json({ message: telefonoParsed.message });
   if (!(await rolValido(rol))) return res.status(400).json({ message: 'Rol inválido.' });
   if (!passwordFuerte(password)) {
@@ -1240,14 +1277,23 @@ app.post("/create-usuario", verificarToken, autorizarRol(['admin']), async (req,
     const idRol = await idRolDesdeCodigo(dbQuery, rol);
     if (!idRol) return res.status(400).json({ message: 'Rol inválido en catálogo.' });
     const hashedPassword = await bcrypt.hash(password, 10);
+    const dupCi = await dbQuery('SELECT email FROM usuarios WHERE ci = ? LIMIT 1', [ciParsed.value]);
+    if (dupCi.length) {
+      return res.status(409).json({ message: 'Ya existe un usuario con ese CI (Carnet de Identidad).' });
+    }
     db.query(
       `INSERT INTO usuarios
-        (email, nombre, telefono, password, id_rol, activo, created_by, created_at, updated_by, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
-      [email, nombre, telefonoParsed.value, hashedPassword, idRol, activo, actorEmail, actorEmail],
+        (email, nombre, ci, telefono, password, id_rol, activo, created_by, created_at, updated_by, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
+      [email, nombre, ciParsed.value, telefonoParsed.value, hashedPassword, idRol, activo, actorEmail, actorEmail],
       (err, result) => {
         if (err) {
-          if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: 'El email ya existe' });
+          if (err.code === 'ER_DUP_ENTRY') {
+            const msg = String(err.message || '').includes('ci')
+              ? 'Ya existe un usuario con ese CI (Carnet de Identidad).'
+              : 'El email ya existe';
+            return res.status(409).json({ message: msg });
+          }
           return res.status(500).send(err);
         }
         audit
@@ -1281,6 +1327,7 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
   const rol = normalizarRol(req.body?.rol);
   const activo = normalizarActivo(req.body?.activo ?? 1);
   const telefonoParsed = parseTelefonoOptional(req.body?.telefono);
+  const ciEnBody = Object.prototype.hasOwnProperty.call(req.body || {}, 'ci');
   const actorRol = normalizarRol(req.user?.rol);
   const actorEmail = String(req.user?.email || req.user?.nombre || 'sistema').trim().toLowerCase();
 
@@ -1315,9 +1362,30 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
   const idRolFinal = await idRolDesdeCodigo(dbQuery, rolFinal);
   if (!idRolFinal) return res.status(400).json({ message: 'Rol inválido en catálogo.' });
 
+  const ciRows = await dbQuery(
+    'SELECT ci FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1',
+    [targetEmail]
+  );
+  let ciFinal = ciRows[0]?.ci ?? null;
+  if (ciEnBody) {
+    const ciParsed = parseCiRequired(req.body?.ci);
+    if (!ciParsed.ok) return res.status(400).json({ message: ciParsed.message });
+    ciFinal = ciParsed.value;
+  }
+
+  if (ciFinal) {
+    const dupCi = await dbQuery(
+      'SELECT email FROM usuarios WHERE ci = ? AND LOWER(TRIM(email)) <> LOWER(TRIM(?)) LIMIT 1',
+      [ciFinal, targetEmail]
+    );
+    if (dupCi.length) {
+      return res.status(409).json({ message: 'Ya existe un usuario con ese CI (Carnet de Identidad).' });
+    }
+  }
+
   let query =
-    'UPDATE usuarios SET email = TRIM(?), nombre = ?, telefono = ?, id_rol = ?, activo = ?, updated_by = ?, updated_at = NOW()';
-  let params = [nuevoEmail, nombre, telefonoParsed.value, idRolFinal, activoFinal, actorEmail];
+    'UPDATE usuarios SET email = TRIM(?), nombre = ?, ci = ?, telefono = ?, id_rol = ?, activo = ?, updated_by = ?, updated_at = NOW()';
+  let params = [nuevoEmail, nombre, ciFinal, telefonoParsed.value, idRolFinal, activoFinal, actorEmail];
 
   if (password) {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -1331,7 +1399,10 @@ app.put("/update-usuario/:email", verificarToken, autorizarRol(['admin']), async
   db.query(query, params, async (err, result) => {
     if (err) {
       if (err.code === 'ER_DUP_ENTRY') {
-        return res.status(409).json({ message: 'El email ya existe para otro usuario' });
+        const msg = String(err.message || '').includes('ci')
+          ? 'Ya existe un usuario con ese CI (Carnet de Identidad).'
+          : 'El email ya existe para otro usuario';
+        return res.status(409).json({ message: msg });
       }
       return res.status(500).json({ message: err.message || 'Error al actualizar usuario' });
     }
@@ -3172,9 +3243,11 @@ app.get('/contratos/auditoria', verificarToken, autorizarRol(ROLES_CONTRATOS_LEC
 app.get('/contratos/mensajes', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
   try {
     const email = String(req.user?.email || '').trim();
+    const permisos = await rbac.getPermissionsByCodigo(req.user?.rol);
     const data = await contratosMensajes.listMensajes(email, {
       limit: req.query.limit,
       offset: req.query.offset,
+      permisos,
     });
     return res.json(data);
   } catch (err) {
@@ -3186,7 +3259,8 @@ app.get('/contratos/mensajes', verificarToken, autorizarRol(ROLES_CONTRATOS_LECT
 app.get('/contratos/mensajes/no-leidos', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
   try {
     const email = String(req.user?.email || '').trim();
-    const no_leidos = await contratosMensajes.countNoLeidos(email);
+    const permisos = await rbac.getPermissionsByCodigo(req.user?.rol);
+    const no_leidos = await contratosMensajes.countNoLeidos(email, permisos);
     return res.json({ no_leidos });
   } catch (err) {
     console.error('GET /contratos/mensajes/no-leidos:', err);
@@ -3197,12 +3271,13 @@ app.get('/contratos/mensajes/no-leidos', verificarToken, autorizarRol(ROLES_CONT
 app.post('/contratos/mensajes/marcar-leidos', verificarToken, autorizarRol(ROLES_CONTRATOS_LECTURA), async (req, res) => {
   try {
     const email = String(req.user?.email || '').trim();
+    const permisos = await rbac.getPermissionsByCodigo(req.user?.rol);
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
     const marcarTodos = req.body?.todos === true || req.body?.marcar_todos === true;
     const result = marcarTodos
-      ? await contratosMensajes.marcarTodosLeidos(email)
-      : await contratosMensajes.marcarLeidos(email, ids);
-    const no_leidos = await contratosMensajes.countNoLeidos(email);
+      ? await contratosMensajes.marcarTodosLeidos(email, permisos)
+      : await contratosMensajes.marcarLeidos(email, ids, permisos);
+    const no_leidos = await contratosMensajes.countNoLeidos(email, permisos);
     return res.json({ ...result, no_leidos });
   } catch (err) {
     console.error('POST /contratos/mensajes/marcar-leidos:', err);

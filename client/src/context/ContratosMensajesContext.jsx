@@ -8,9 +8,12 @@ const ContratosMensajesContext = createContext({
   panelOpen: false,
   mensajes: [],
   loading: false,
+  clearing: false,
   openPanel: () => {},
   closePanel: () => {},
   refreshCount: () => {},
+  limpiarBandeja: () => {},
+  quitarMensaje: () => {},
 });
 
 export function ContratosMensajesProvider({ children, enabled = false }) {
@@ -18,6 +21,7 @@ export function ContratosMensajesProvider({ children, enabled = false }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [mensajes, setMensajes] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const refreshCount = useCallback(async () => {
     if (!enabled) {
@@ -32,22 +36,57 @@ export function ContratosMensajesProvider({ children, enabled = false }) {
     }
   }, [enabled]);
 
+  const fetchMensajes = useCallback(async () => {
+    const res = await Axios.get(`${API_BASE}/contratos/mensajes`);
+    const list = Array.isArray(res.data?.mensajes) ? res.data.mensajes : [];
+    setMensajes(list);
+    setUnreadCount(Number(res.data?.no_leidos) ?? list.length);
+    return list;
+  }, []);
+
   const openPanel = useCallback(async () => {
     if (!enabled) return;
     setPanelOpen(true);
     setLoading(true);
     try {
-      const res = await Axios.get(`${API_BASE}/contratos/mensajes`);
-      const list = Array.isArray(res.data?.mensajes) ? res.data.mensajes : [];
-      setMensajes(list);
-      const markRes = await Axios.post(`${API_BASE}/contratos/mensajes/marcar-leidos`, { todos: true });
-      setUnreadCount(Number(markRes.data?.no_leidos) || 0);
+      await fetchMensajes();
     } catch {
       setMensajes([]);
     } finally {
       setLoading(false);
     }
-  }, [enabled]);
+  }, [enabled, fetchMensajes]);
+
+  const limpiarBandeja = useCallback(async () => {
+    if (!enabled || clearing) return;
+    setClearing(true);
+    try {
+      const res = await Axios.post(`${API_BASE}/contratos/mensajes/marcar-leidos`, { todos: true });
+      setMensajes([]);
+      setUnreadCount(Number(res.data?.no_leidos) || 0);
+    } catch {
+      /* mantener lista si falla */
+    } finally {
+      setClearing(false);
+    }
+  }, [enabled, clearing]);
+
+  const quitarMensaje = useCallback(async (eventId) => {
+    const id = Number(eventId);
+    if (!enabled || !id) return;
+    setMensajes((prev) => prev.filter((m) => m.id !== id));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+    try {
+      const res = await Axios.post(`${API_BASE}/contratos/mensajes/marcar-leidos`, { ids: [id] });
+      setUnreadCount(Number(res.data?.no_leidos) ?? 0);
+    } catch {
+      try {
+        await fetchMensajes();
+      } catch {
+        /* ignorar */
+      }
+    }
+  }, [enabled, fetchMensajes]);
 
   const closePanel = useCallback(() => {
     setPanelOpen(false);
@@ -71,11 +110,14 @@ export function ContratosMensajesProvider({ children, enabled = false }) {
       panelOpen,
       mensajes,
       loading,
+      clearing,
       openPanel,
       closePanel,
       refreshCount,
+      limpiarBandeja,
+      quitarMensaje,
     }),
-    [unreadCount, panelOpen, mensajes, loading, openPanel, closePanel, refreshCount]
+    [unreadCount, panelOpen, mensajes, loading, clearing, openPanel, closePanel, refreshCount, limpiarBandeja, quitarMensaje]
   );
 
   return (

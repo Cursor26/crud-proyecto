@@ -858,7 +858,10 @@ function DashboardShell(props) {
               <button
                 type="button"
                 className="btn btn-cerrar dashboard-topbar-mobile-session__logout mb-0"
-                onClick={logout}
+                onClick={() => {
+                  setMobileSessionOpen(false);
+                  logout();
+                }}
               >
                 <i className="bi bi-box-arrow-right" aria-hidden="true" />
                 <span className="dashboard-topbar-mobile-session__logout-label">Cerrar sesión</span>
