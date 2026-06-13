@@ -2,6 +2,22 @@ export function normalizarNumeroContrato(numero) {
   return String(numero || '').trim();
 }
 
+/** Solo dígitos (entero positivo) mientras el usuario escribe. */
+export function normalizarNumeroContratoInput(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+export function validarNumeroContratoEntero(numero) {
+  const n = normalizarNumeroContratoInput(numero);
+  if (!n) {
+    return { ok: false, message: 'N° de contrato obligatorio.' };
+  }
+  if (!/^\d+$/.test(n)) {
+    return { ok: false, message: 'El N° de contrato debe ser un número entero (solo dígitos).' };
+  }
+  return { ok: true, value: n };
+}
+
 export function mensajeNumeroContratoDuplicado(numero) {
   return `El número de contrato «${normalizarNumeroContrato(numero)}» ya existe. Cada contrato debe tener un número único.`;
 }

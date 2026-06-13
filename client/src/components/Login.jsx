@@ -8,6 +8,7 @@ import {
   getTrustedPhotoForIdentifier,
   hasTrustedDeviceProfile,
 } from '../lib/trustedDeviceProfile';
+import { clearDocumentUserPreferences } from '../lib/appPreferences';
 import MailServiceUnavailableBanner from './MailServiceUnavailableBanner';
 import {
   isMailUnavailableResponse,
@@ -45,6 +46,10 @@ function Login({ onLogin }) {
   });
 
   const PROFILE_ANIM_MS = 560;
+
+  useEffect(() => {
+    clearDocumentUserPreferences();
+  }, []);
 
   useEffect(() => {
     Axios.get(`${API_BASE}/auth/mail-estado`)

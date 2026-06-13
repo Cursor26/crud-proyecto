@@ -2,7 +2,7 @@ import {
   NIVELES_CORREO,
   obtenerErroresContactosNiveles,
 } from './contratosCorreosNiveles';
-import { contratoNumeroDuplicado } from './contratosNumeroUnico';
+import { contratoNumeroDuplicado, validarNumeroContratoEntero } from './contratosNumeroUnico';
 import { partesAVigenciaAlmacenada } from './contratosVigencia';
 
 export function validarFormularioContrato({
@@ -23,12 +23,17 @@ export function validarFormularioContrato({
   if (!String(numero || '').trim()) {
     errors.numero_contrato = 'N° de contrato obligatorio.';
   } else {
-    const duplicado = contratoNumeroDuplicado(numero, {
-      contratos,
-      contratosArchivo,
-      excepto: esEdicion ? numeroOriginal : null,
-    });
-    if (duplicado) errors.numero_contrato = duplicado;
+    const entero = validarNumeroContratoEntero(numero);
+    if (!entero.ok) {
+      errors.numero_contrato = entero.message;
+    } else {
+      const duplicado = contratoNumeroDuplicado(entero.value, {
+        contratos,
+        contratosArchivo,
+        excepto: esEdicion ? numeroOriginal : null,
+      });
+      if (duplicado) errors.numero_contrato = duplicado;
+    }
   }
   if (!String(empresa || '').trim()) {
     errors.empresa = 'Empresa obligatoria.';

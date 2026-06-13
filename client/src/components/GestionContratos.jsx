@@ -34,6 +34,7 @@ import {
   NIVELES_CORREO,
 } from '../lib/contratosCorreosNiveles';
 import { validarFormularioContrato } from '../lib/validarFormularioContrato';
+import { normalizarNumeroContratoInput } from '../lib/contratosNumeroUnico';
 import { contactosFromContrato } from '../lib/contratosContactosNotificacion';
 import ContratosSuplementosField from './ContratosSuplementosField';
 import ContratosAnexosField from './ContratosAnexosField';
@@ -3690,11 +3691,13 @@ function GestionContratos({ vistaInicial = 'contratos', onSectionChange }) {
               <label className="minimal-label">No. Contrato:</label>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className={`minimal-input${contratoFormErrors.numero_contrato ? ' is-invalid' : ''}`}
                 placeholder="------------------------"
                 value={contratoNumero}
                 onChange={(e) => {
-                  setContratoNumero(e.target.value);
+                  setContratoNumero(normalizarNumeroContratoInput(e.target.value));
                   limpiarErrorContrato('numero_contrato');
                 }}
               />

@@ -31,6 +31,11 @@ async function validarNumeroContratoUnico(dbQuery, numero, { excepto = null } = 
     err.status = 400;
     throw err;
   }
+  if (!/^\d+$/.test(n)) {
+    const err = new Error('El número de contrato debe ser un número entero (solo dígitos).');
+    err.status = 400;
+    throw err;
+  }
 
   const { existe, donde } = await numeroContratoYaExiste(dbQuery, n, { excepto });
   if (existe) {

@@ -47,6 +47,15 @@ function isPrivateLanOrigin(origin) {
   }
 }
 
+function isCloudflareTunnelOrigin(origin) {
+  try {
+    const u = new URL(origin);
+    return u.hostname.endsWith('.trycloudflare.com');
+  } catch {
+    return false;
+  }
+}
+
 function buildCorsOptions(appBaseUrl) {
   const raw = process.env.CORS_ORIGINS || appBaseUrl || 'http://localhost:3000';
   const origins = raw
@@ -63,6 +72,10 @@ function buildCorsOptions(appBaseUrl) {
         return;
       }
       if (!isProd && allowLanInDev && isPrivateLanOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      if (!isProd && isCloudflareTunnelOrigin(origin)) {
         callback(null, true);
         return;
       }

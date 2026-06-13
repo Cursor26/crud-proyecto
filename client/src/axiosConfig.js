@@ -1,17 +1,44 @@
 import Axios from 'axios';
 import Swal from 'sweetalert2';
 
+const DEFAULT_LOCAL_API = 'http://localhost:3001';
+const DEFAULT_API_PORT = '3001';
+
+function isCloudflareTunnelHost(host) {
+  return String(host || '').includes('trycloudflare.com');
+}
+
+/**
+ * Resuelve la URL base del API:
+ * 1) Túnel Cloudflare → mismo origen que el frontend (window.location.origin)
+ * 2) REACT_APP_API_URL / VITE_API_URL en .env.local (CRA usa REACT_APP_*)
+ * 3) Misma LAN (hostname distinto de localhost)
+ * 4) Local por defecto → localhost:3001
+ */
 function resolveApiBase() {
-  const fromEnv = String(process.env.REACT_APP_API_URL || '').trim();
-  if (fromEnv) return fromEnv.replace(/\/$/, '');
-  if (typeof window !== 'undefined' && window.location?.hostname) {
-    const host = window.location.hostname;
-    const port = String(process.env.REACT_APP_API_PORT || '3001').trim();
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      return `http://${host}:${port}`;
+  if (typeof window !== 'undefined' && window.location) {
+    const { host, origin, hostname } = window.location;
+    if (isCloudflareTunnelHost(host)) {
+      return origin.replace(/\/$/, '');
     }
+    const fromEnv = String(
+      process.env.REACT_APP_API_URL || process.env.VITE_API_URL || ''
+    ).trim();
+    if (fromEnv) return fromEnv.replace(/\/$/, '');
+
+    const port = String(
+      process.env.REACT_APP_API_PORT || process.env.VITE_API_PORT || DEFAULT_API_PORT
+    ).trim();
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return `http://${hostname}:${port}`;
+    }
+    return DEFAULT_LOCAL_API;
   }
-  return 'http://localhost:3001';
+
+  const fromEnv = String(
+    process.env.REACT_APP_API_URL || process.env.VITE_API_URL || ''
+  ).trim();
+  return fromEnv ? fromEnv.replace(/\/$/, '') : DEFAULT_LOCAL_API;
 }
 
 const base = resolveApiBase();

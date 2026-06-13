@@ -3794,9 +3794,8 @@ async function bootstrapServer() {
     }
 
     const port = Number(process.env.PORT) || 3001;
-    const listenHost = process.env.LISTEN_HOST || '0.0.0.0';
     const os = require('os');
-    app.listen(port, listenHost, () => {
+    app.listen(port, '0.0.0.0', () => {
       recordatoriosContratos.startScheduler();
       if (smtpReady) {
         flushMailOutbox().catch((err) => console.warn('[MAIL-OUTBOX] flush inicial:', err?.message || err));
@@ -3809,7 +3808,7 @@ async function bootstrapServer() {
           console.warn('purge jwt_token_blacklist:', err?.message || err);
         });
       }, 60 * 60 * 1000);
-      console.log(`Corriendo en el puerto ${port} (escucha en ${listenHost})`);
+      console.log(`Corriendo en el puerto ${port} (escucha en 0.0.0.0)`);
       const lanIps = Object.values(os.networkInterfaces())
         .flat()
         .filter((iface) => iface && iface.family === 'IPv4' && !iface.internal)

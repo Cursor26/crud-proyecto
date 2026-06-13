@@ -45,6 +45,7 @@ import {
   getContratosAllowedNavKeys,
   getContratosSidebarNavItems,
 } from './lib/contratosNavSections';
+import { clearDocumentUserPreferences } from './lib/appPreferences';
 
 const TOKEN_KEY = 'token';
 const PERMISOS_KEY = 'permisos';
@@ -514,6 +515,7 @@ function App() {
       setPermisos(null);
       setKey('');
       setSidebarMenuOpen(null);
+      clearDocumentUserPreferences();
       window.setTimeout(() => setVoluntaryLogoutInProgress(false), 800);
     }
   };
@@ -600,6 +602,12 @@ function AppWithPermissions(props) {
     can('contratos', 'edit') ||
     can('usuarios', 'view') ||
     can('usuarios', 'edit');
+
+  useEffect(() => {
+    if (!loading && !user) {
+      clearDocumentUserPreferences();
+    }
+  }, [loading, user]);
 
   const mostrarUsuarios = can('usuarios', 'view');
   const mostrarGestionRoles = can('usuarios', 'edit') || can('usuarios', 'create');

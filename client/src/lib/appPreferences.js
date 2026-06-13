@@ -674,6 +674,68 @@ export function applyPreferencesToDocument(prefs) {
   body.classList.toggle('app-pin-submenus', Boolean(resolved.pinSubmenus));
 }
 
+const PREFERENCE_DOCUMENT_VARS = [
+  ...INLINE_THEME_VARS,
+  '--sidebar-bg',
+  '--sidebar-item-bg',
+  '--sidebar-item-text',
+  '--sidebar-hover-bg',
+  '--sidebar-hover-text',
+  '--sidebar-active-bg',
+  '--sidebar-active-text',
+  '--sidebar-config-active-from',
+  '--sidebar-config-active-to',
+  '--app-font-family',
+  '--app-font-weight',
+  '--app-letter-spacing',
+  '--app-btn-font-weight',
+  '--app-font-scale',
+  '--app-line-height',
+  '--app-ui-radius',
+  '--btn-win11-radius',
+  '--app-card-radius',
+  '--dashboard-sidebar-width',
+  '--dashboard-ui-zoom',
+  '--bs-primary-rgb',
+  '--bs-primary',
+  '--bs-link-color',
+  '--bs-link-hover-color',
+  '--bs-form-check-input-checked-bg-color',
+  '--bs-form-check-input-checked-border-color',
+  '--bs-form-check-input-focus-border',
+  '--bs-form-check-input-focus-box-shadow',
+];
+
+const PREFERENCE_BODY_CLASSES = [
+  'app-custom-theme',
+  'app-compact',
+  'app-reduce-motion',
+  'app-high-contrast',
+  'app-underline-links',
+  'app-large-click',
+  'app-sidebar-collapsed',
+  'app-pin-submenus',
+];
+
+/** Quita estilos de configuración del usuario; el login y la pantalla de auth usan solo CSS estándar. */
+export function clearDocumentUserPreferences() {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  const body = document.body;
+
+  PREFERENCE_DOCUMENT_VARS.forEach((key) => root.style.removeProperty(key));
+
+  delete root.dataset.appTheme;
+  delete root.dataset.appSidebarTone;
+  delete root.dataset.appFontSize;
+  delete root.dataset.appBorderRadius;
+  delete root.dataset.appUiScale;
+  delete root.dataset.appFont;
+  root.lang = 'es';
+
+  PREFERENCE_BODY_CLASSES.forEach((cls) => body.classList.remove(cls));
+}
+
 export function getStoredUserEmail() {
   try {
     const raw = localStorage.getItem('user');
